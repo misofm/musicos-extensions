@@ -29,7 +29,7 @@ const CURATOR: address = @0xC0;
 fun create_genre(scenario: &Scenario, name: vector<u8>): ID {
     let cap = scenario.take_from_sender<GenreRegistryCap>();
     let mut registry = scenario.take_shared<GenreRegistry>();
-    let id = g::derive_genre_id(&registry, name.to_string());
+    let id = g::derive_address(&registry, name.to_string()).to_id();
     g::new(&cap, &mut registry, name.to_string());
     ts::return_shared(registry);
     scenario.return_to_sender(cap);
