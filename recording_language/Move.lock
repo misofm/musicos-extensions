@@ -22,8 +22,8 @@ use_environment = "testnet"
 manifest_digest = "5745706258F61D6CE210904B3E6AE87A73CE9D31A6F93BE4718C442529332A87"
 deps = { std = "MoveStdlib", sui = "Sui" }
 
-[pinned.testnet.genre]
-source = { git = "https://github.com/misonetwork/genre.git", subdir = ".", rev = "b94b11e31e0b0b8b30369a512c01aaa8f2bb5efa" }
+[pinned.testnet.language_code]
+source = { git = "https://github.com/unconfirmedlabs/language_code.git", subdir = ".", rev = "c5973df88fa9472fa706ef23c96c69464bf81a98" }
 use_environment = "testnet"
 manifest_digest = "5745706258F61D6CE210904B3E6AE87A73CE9D31A6F93BE4718C442529332A87"
 deps = { std = "MoveStdlib", sui = "Sui" }
@@ -40,14 +40,8 @@ use_environment = "testnet"
 manifest_digest = "5745706258F61D6CE210904B3E6AE87A73CE9D31A6F93BE4718C442529332A87"
 deps = { std = "MoveStdlib", sui = "Sui" }
 
-[pinned.testnet.per_track]
-source = { git = "https://github.com/misonetwork/per-track.git", subdir = ".", rev = "e1bb40b0630676ae2561b19e874a7a3c75a8a160" }
-use_environment = "testnet"
-manifest_digest = "883A8585EEB252F05BA3B8E045ED605F84E63854F8C4247DD2D76E8F0B2A48DD"
-deps = { miso = "miso", std = "MoveStdlib", sui = "Sui" }
-
-[pinned.testnet.release_genre]
+[pinned.testnet.recording_language]
 source = { root = true }
 use_environment = "testnet"
-manifest_digest = "5E32B7AF2E5AAC1936FBB76E41B536E6BC0D34F3CF0BA1EC067812BC376CEC32"
-deps = { genre = "genre", miso = "miso", per_track = "per_track", std = "MoveStdlib", sui = "Sui" }
+manifest_digest = "0BA2861EA9ED6BDA2255260D44A23D520C2223D5C3D66508E3E1763D3AEF21EF"
+deps = { language_code = "language_code", miso = "miso", std = "MoveStdlib", sui = "Sui" }

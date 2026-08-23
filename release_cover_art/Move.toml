@@ -6,5 +6,5 @@ authors = ["Miso Labs, Inc. (build@miso.network)"]
 
 [dependencies]
 cover_art = { git = "https://github.com/misonetwork/cover-art.git", rev = "5f927785e0f96b44ec5fdf743094cdc51fec9f09" }
-miso = { git = "https://github.com/misonetwork/protocol.git", rev = "7c13e40a2613fd01a42353c2e98e614cfa671449" }
-per_track = { git = "https://github.com/misonetwork/per-track.git", rev = "cae740f152f52edf87940b043cbcaeb6dbb835e0" }
+miso = { git = "https://github.com/misonetwork/protocol.git", rev = "c23fe7fc4323f5ed8321be209a5efc08b6a1691a" }
+per_track = { git = "https://github.com/misonetwork/per-track.git", rev = "e1bb40b0630676ae2561b19e874a7a3c75a8a160" }

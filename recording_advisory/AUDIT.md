@@ -2,7 +2,7 @@
 
 **Revision:** working tree @ 2026-08-23 (the `misonetwork` workspace is not a
 git repository — `git rev-parse` fails; no commit hash exists). Dependency
-pin: `miso` @ `7c13e40a…` (`Move.toml`); audited dependency source is the
+pin: `miso` @ `c23fe7f…` (bumped 2026-08-23 from `7c13e40a…`, carrying the `miso_share` treasury-cap hardening `d67ff8c`) (`Move.toml`); audited dependency source is the
 on-disk `../../protocol` working tree. **Date:** 2026-08-23 · **Toolchain:**
 sui 1.77.2-51d177ad7d65
 

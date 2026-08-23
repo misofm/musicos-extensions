@@ -9,5 +9,5 @@ authors = ["Miso Labs, Inc. (build@miso.network)"]
 # (to reach `Recording` through its cap-gated `uid_mut`) and `ori` for the
 # reference type — pinned to the same rev as `recording_preview`.
 [dependencies]
-miso = { git = "https://github.com/misonetwork/protocol.git", rev = "7c13e40a2613fd01a42353c2e98e614cfa671449" }
+miso = { git = "https://github.com/misonetwork/protocol.git", rev = "c23fe7fc4323f5ed8321be209a5efc08b6a1691a" }
 ori = { git = "https://github.com/unconfirmedlabs/ori.git", subdir = "move", rev = "8a4dbb5f853b78eb7475063a840c4444421c5bbd" }

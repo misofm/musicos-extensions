@@ -22,12 +22,6 @@ use_environment = "testnet"
 manifest_digest = "5745706258F61D6CE210904B3E6AE87A73CE9D31A6F93BE4718C442529332A87"
 deps = { std = "MoveStdlib", sui = "Sui" }
 
-[pinned.testnet.genre]
-source = { git = "https://github.com/misonetwork/genre.git", subdir = ".", rev = "b94b11e31e0b0b8b30369a512c01aaa8f2bb5efa" }
-use_environment = "testnet"
-manifest_digest = "5745706258F61D6CE210904B3E6AE87A73CE9D31A6F93BE4718C442529332A87"
-deps = { std = "MoveStdlib", sui = "Sui" }
-
 [pinned.testnet.miso]
 source = { git = "https://github.com/misonetwork/protocol.git", subdir = ".", rev = "c23fe7fc4323f5ed8321be209a5efc08b6a1691a" }
 use_environment = "testnet"
@@ -40,14 +34,14 @@ use_environment = "testnet"
 manifest_digest = "5745706258F61D6CE210904B3E6AE87A73CE9D31A6F93BE4718C442529332A87"
 deps = { std = "MoveStdlib", sui = "Sui" }
 
-[pinned.testnet.per_track]
-source = { git = "https://github.com/misonetwork/per-track.git", subdir = ".", rev = "e1bb40b0630676ae2561b19e874a7a3c75a8a160" }
+[pinned.testnet.ori]
+source = { git = "https://github.com/unconfirmedlabs/ori.git", subdir = "move", rev = "8a4dbb5f853b78eb7475063a840c4444421c5bbd" }
 use_environment = "testnet"
-manifest_digest = "883A8585EEB252F05BA3B8E045ED605F84E63854F8C4247DD2D76E8F0B2A48DD"
-deps = { miso = "miso", std = "MoveStdlib", sui = "Sui" }
+manifest_digest = "5745706258F61D6CE210904B3E6AE87A73CE9D31A6F93BE4718C442529332A87"
+deps = { std = "MoveStdlib", sui = "Sui" }
 
-[pinned.testnet.release_genre]
+[pinned.testnet.recording_master_reference]
 source = { root = true }
 use_environment = "testnet"
-manifest_digest = "5E32B7AF2E5AAC1936FBB76E41B536E6BC0D34F3CF0BA1EC067812BC376CEC32"
-deps = { genre = "genre", miso = "miso", per_track = "per_track", std = "MoveStdlib", sui = "Sui" }
+manifest_digest = "2FCE5C3C1043609EE5C282BEEA29C0F801C3512C581ABCF7E9745585637860DB"
+deps = { miso = "miso", ori = "ori", std = "MoveStdlib", sui = "Sui" }
