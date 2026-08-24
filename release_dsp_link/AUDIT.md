@@ -70,6 +70,8 @@ authorization chain:
   113-115`, `release_cover_art.move:83`), and that discipline is worth
   matching if the package is ever revised. Since all packages publish
   immutable, this stays as-is by design.
+  **Disposition (2026-08-24):** accepted — the ungated path is a guaranteed
+  no-op (no state change, no event); packages publish immutable.
 
 ## Edge cases verified
 

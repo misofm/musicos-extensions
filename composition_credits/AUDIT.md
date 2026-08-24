@@ -69,6 +69,8 @@ None. Design note (not a vulnerability):
   party cannot veto or remove a credit naming it. Documented design (the
   rights holder's statement, attributable via events), but integrators should
   not treat a credit as the party's own claim.
+  **Disposition (2026-08-24):** accepted-by-design — attribution is the rights
+  holder's signed statement; every write emits an attributable event.
 
 ## Edge cases verified
 

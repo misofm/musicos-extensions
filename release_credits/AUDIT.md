@@ -71,6 +71,8 @@ None. Design note (not a vulnerability):
   `add_credit` takes `&Party` read-only (`release_credits.move:94`); a party
   cannot remove false billing naming it. Documented design; integrators should
   not treat billing as the party's own claim.
+  **Disposition (2026-08-24):** accepted-by-design — attribution is the rights
+  holder's signed statement; every write emits an attributable event.
 
 ## Edge cases verified
 

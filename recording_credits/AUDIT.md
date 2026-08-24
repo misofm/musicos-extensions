@@ -113,11 +113,15 @@ None. Two design notes (not vulnerabilities):
   rights holder's signed statement, and every write emits an attributable
   event carrying the full payload), but integrators should not treat a credit
   as the party's own claim.
+  **Disposition (2026-08-24):** accepted-by-design — attribution is the rights
+  holder's signed statement; every write emits an attributable event.
 - **N2 (Informational): view functions abort on unattached records.**
   `credits()`/`primary_artist_ids()`/`featured_artist_ids()` abort with
   `ENoCredits` when nothing is attached (`recording_credits.move:291-294`);
   `is_primary_artist`/`is_featured_artist` return `false` instead. Callers
   composing on-chain should check `has_credits` first. Documented behavior.
+  **Disposition (2026-08-24):** accepted — documented behavior; callers use
+  `has_credits` to probe before composing.
 
 ## Edge cases verified
 

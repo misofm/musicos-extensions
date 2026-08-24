@@ -58,6 +58,8 @@ None. Design note (not a vulnerability):
   carrying the new/old reference, so indexers and users can observe
   repointing. Until the attested-ingestion path lands, "the master" is only as
   stable as the cap holder.
+  **Disposition (2026-08-24):** accepted-by-design — the protocol extension
+  trust model leaves the pointer admin-mutable; every change emits an event.
 
 ## Edge cases verified
 
