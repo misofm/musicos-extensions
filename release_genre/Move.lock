@@ -23,31 +23,31 @@ manifest_digest = "5745706258F61D6CE210904B3E6AE87A73CE9D31A6F93BE4718C442529332
 deps = { std = "MoveStdlib", sui = "Sui" }
 
 [pinned.testnet.genre]
-source = { git = "https://github.com/misonetwork/genre.git", subdir = ".", rev = "6ce58a1c0de95bd115540682ef3623134f6af896" }
+source = { git = "https://github.com/misonetwork/genre.git", subdir = ".", rev = "966af110e03acf93ec7bec421879dcb0ded95019" }
 use_environment = "testnet"
 manifest_digest = "5745706258F61D6CE210904B3E6AE87A73CE9D31A6F93BE4718C442529332A87"
 deps = { std = "MoveStdlib", sui = "Sui" }
 
 [pinned.testnet.miso]
-source = { git = "https://github.com/misonetwork/protocol.git", subdir = ".", rev = "c23fe7fc4323f5ed8321be209a5efc08b6a1691a" }
+source = { git = "https://github.com/misonetwork/protocol.git", subdir = ".", rev = "7bda0bb740c32a75ef76c0739cb671b3de77d338" }
 use_environment = "testnet"
-manifest_digest = "0631488C45332A165F5F7810B9384A00412261B26C27FB427107AE56E5352E23"
+manifest_digest = "74A38A95D110CE1D6341D77397F2B998A094776B675062542A1A27751B047E3B"
 deps = { bps = "bps", miso_share = "miso_share", std = "MoveStdlib", sui = "Sui" }
 
 [pinned.testnet.miso_share]
-source = { git = "https://github.com/misonetwork/share.git", subdir = ".", rev = "d67ff8cd377db2809fc97455e82e87ff1794073e" }
+source = { git = "https://github.com/misonetwork/share.git", subdir = ".", rev = "561cfad98e4aaa63e6b34d5a6f4c22e397c70a52" }
 use_environment = "testnet"
 manifest_digest = "5745706258F61D6CE210904B3E6AE87A73CE9D31A6F93BE4718C442529332A87"
 deps = { std = "MoveStdlib", sui = "Sui" }
 
 [pinned.testnet.per_track]
-source = { git = "https://github.com/misonetwork/per-track.git", subdir = ".", rev = "e1bb40b0630676ae2561b19e874a7a3c75a8a160" }
+source = { git = "https://github.com/misonetwork/per-track.git", subdir = ".", rev = "49d6e374396ad7ac076f5c81e18f024eccc32e37" }
 use_environment = "testnet"
-manifest_digest = "883A8585EEB252F05BA3B8E045ED605F84E63854F8C4247DD2D76E8F0B2A48DD"
+manifest_digest = "0DA1FD25855C7C410E74EFB6F4639E8DD5F327148AE2B685BE11825453F2A304"
 deps = { miso = "miso", std = "MoveStdlib", sui = "Sui" }
 
 [pinned.testnet.release_genre]
 source = { root = true }
 use_environment = "testnet"
-manifest_digest = "8AD227EE0C35FEDEFCDFA3E655FFD313FEA1BFFC5C3985E9C379AFF5342A14E9"
+manifest_digest = "413C640B99A2985FE691CABD090056AD36219C1B30079692340AD8847B172D29"
 deps = { genre = "genre", miso = "miso", per_track = "per_track", std = "MoveStdlib", sui = "Sui" }

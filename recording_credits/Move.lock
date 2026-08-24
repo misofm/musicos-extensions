@@ -23,25 +23,25 @@ manifest_digest = "5745706258F61D6CE210904B3E6AE87A73CE9D31A6F93BE4718C442529332
 deps = { std = "MoveStdlib", sui = "Sui" }
 
 [pinned.testnet.miso]
-source = { git = "https://github.com/misonetwork/protocol.git", subdir = ".", rev = "c23fe7fc4323f5ed8321be209a5efc08b6a1691a" }
+source = { git = "https://github.com/misonetwork/protocol.git", subdir = ".", rev = "7bda0bb740c32a75ef76c0739cb671b3de77d338" }
 use_environment = "testnet"
-manifest_digest = "0631488C45332A165F5F7810B9384A00412261B26C27FB427107AE56E5352E23"
+manifest_digest = "74A38A95D110CE1D6341D77397F2B998A094776B675062542A1A27751B047E3B"
 deps = { bps = "bps", miso_share = "miso_share", std = "MoveStdlib", sui = "Sui" }
 
 [pinned.testnet.miso_credit]
-source = { git = "https://github.com/misonetwork/credit.git", subdir = ".", rev = "76a1afc76bd4231ce491400ac01cf3264614b416" }
+source = { git = "https://github.com/misonetwork/credit.git", subdir = ".", rev = "fb0147ad5eba2e7cc41b5ee7344c6cf6840faad2" }
 use_environment = "testnet"
 manifest_digest = "5745706258F61D6CE210904B3E6AE87A73CE9D31A6F93BE4718C442529332A87"
 deps = { std = "MoveStdlib", sui = "Sui" }
 
 [pinned.testnet.miso_party]
-source = { git = "https://github.com/misonetwork/party.git", subdir = ".", rev = "0127a1501f56461a9345aab040dfde8c62a81dd0" }
+source = { git = "https://github.com/misonetwork/party.git", subdir = ".", rev = "ffb2915b9bb1802b4c160d3230c560e40bd2b063" }
 use_environment = "testnet"
 manifest_digest = "5745706258F61D6CE210904B3E6AE87A73CE9D31A6F93BE4718C442529332A87"
 deps = { std = "MoveStdlib", sui = "Sui" }
 
 [pinned.testnet.miso_share]
-source = { git = "https://github.com/misonetwork/share.git", subdir = ".", rev = "d67ff8cd377db2809fc97455e82e87ff1794073e" }
+source = { git = "https://github.com/misonetwork/share.git", subdir = ".", rev = "561cfad98e4aaa63e6b34d5a6f4c22e397c70a52" }
 use_environment = "testnet"
 manifest_digest = "5745706258F61D6CE210904B3E6AE87A73CE9D31A6F93BE4718C442529332A87"
 deps = { std = "MoveStdlib", sui = "Sui" }
@@ -49,5 +49,5 @@ deps = { std = "MoveStdlib", sui = "Sui" }
 [pinned.testnet.recording_credits]
 source = { root = true }
 use_environment = "testnet"
-manifest_digest = "C497EA2D50DE848B0FAF1E08C375592701732B04C681F6E4EBB2A4D2181DB56D"
+manifest_digest = "FD2965FA6D28B3B6BA8DD7611F196102119C799BB568A4D78400B19F2E203FE2"
 deps = { miso = "miso", miso_credit = "miso_credit", partyos = "miso_party", std = "MoveStdlib", sui = "Sui" }
