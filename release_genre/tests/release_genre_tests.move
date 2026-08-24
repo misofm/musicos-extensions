@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /// Boundary, error-const, and event-payload coverage for `release_genre`.
-/// Runs under `sui::test_scenario` throughout — a single CURATOR sender
+/// Runs under `sui::test_scenario` throughout — a single CREATOR sender
 /// suffices here because every operation is gated by a `ReleaseAdminCap` held
 /// locally (not by sender identity), so there is nothing distinct senders
 /// would prove; the cap-gating itself is exercised adversarially (wrong cap,
@@ -12,7 +12,7 @@
 module release_genre::release_genre_tests;
 
 use genre::genre as g;
-use genre::genre::{GenreRegistry, GenreRegistryCap, Genre};
+use genre::genre::{GenreRegistry, Genre};
 use release_genre::release_genre as rg;
 use miso::release::{Self, Release, ReleaseAdminCap};
 use miso::test_helpers;
@@ -21,18 +21,16 @@ use std::unit_test::{assert_eq, destroy};
 use sui::event;
 use sui::test_scenario::{Self as ts, Scenario};
 
-const CURATOR: address = @0xC0;
+const CREATOR: address = @0xC0;
 
 // === Helpers ===
 
-/// Creates a genre in the registry (cap-gated) and returns its derived id.
+/// Creates a genre in the permissionless registry and returns its derived id.
 fun create_genre(scenario: &Scenario, name: vector<u8>): ID {
-    let cap = scenario.take_from_sender<GenreRegistryCap>();
     let mut registry = scenario.take_shared<GenreRegistry>();
     let id = g::derive_address(&registry, name.to_string()).to_id();
-    g::new(&cap, &mut registry, name.to_string());
+    g::new(&mut registry, name.to_string());
     ts::return_shared(registry);
-    scenario.return_to_sender(cap);
     id
 }
 
@@ -53,10 +51,10 @@ fun mk_release(ctx: &mut TxContext): (Release, ReleaseAdminCap) {
 
 #[test]
 fun views_before_assignment_are_empty() {
-    let mut scenario = ts::begin(CURATOR);
+    let mut scenario = ts::begin(CREATOR);
     g::init_for_testing(scenario.ctx());
 
-    scenario.next_tx(CURATOR);
+    scenario.next_tx(CREATOR);
     let (rel, cap) = mk_release(scenario.ctx());
 
     // No genre assignment has been made yet: every view reports the empty
@@ -77,13 +75,13 @@ fun views_before_assignment_are_empty() {
 
 #[test]
 fun set_primary_genre_and_tracks_inherit() {
-    let mut scenario = ts::begin(CURATOR);
+    let mut scenario = ts::begin(CREATOR);
     g::init_for_testing(scenario.ctx());
 
-    scenario.next_tx(CURATOR);
+    scenario.next_tx(CREATOR);
     let genre_id = create_genre(&scenario, b"HIP_HOP");
 
-    scenario.next_tx(CURATOR);
+    scenario.next_tx(CREATOR);
     let genre = scenario.take_immutable_by_id<Genre>(genre_id);
     let (mut rel, cap) = mk_release(scenario.ctx());
     let release_id = object::id(&rel);
@@ -114,15 +112,15 @@ fun set_primary_genre_and_tracks_inherit() {
 
 #[test]
 fun primary_can_be_replaced_immediately() {
-    let mut scenario = ts::begin(CURATOR);
+    let mut scenario = ts::begin(CREATOR);
     g::init_for_testing(scenario.ctx());
 
-    scenario.next_tx(CURATOR);
+    scenario.next_tx(CREATOR);
     let g1 = create_genre(&scenario, b"HIP_HOP");
-    scenario.next_tx(CURATOR);
+    scenario.next_tx(CREATOR);
     let g2 = create_genre(&scenario, b"ELECTRONIC");
 
-    scenario.next_tx(CURATOR);
+    scenario.next_tx(CREATOR);
     let genre1 = scenario.take_immutable_by_id<Genre>(g1);
     let genre2 = scenario.take_immutable_by_id<Genre>(g2);
     let (mut rel, cap) = mk_release(scenario.ctx());
@@ -140,17 +138,17 @@ fun primary_can_be_replaced_immediately() {
 
 #[test]
 fun add_and_remove_secondary_genres() {
-    let mut scenario = ts::begin(CURATOR);
+    let mut scenario = ts::begin(CREATOR);
     g::init_for_testing(scenario.ctx());
 
-    scenario.next_tx(CURATOR);
+    scenario.next_tx(CREATOR);
     let g1 = create_genre(&scenario, b"HIP_HOP");
-    scenario.next_tx(CURATOR);
+    scenario.next_tx(CREATOR);
     let g2 = create_genre(&scenario, b"ELECTRONIC");
-    scenario.next_tx(CURATOR);
+    scenario.next_tx(CREATOR);
     let g3 = create_genre(&scenario, b"AMBIENT");
 
-    scenario.next_tx(CURATOR);
+    scenario.next_tx(CREATOR);
     let genre1 = scenario.take_immutable_by_id<Genre>(g1);
     let genre2 = scenario.take_immutable_by_id<Genre>(g2);
     let genre3 = scenario.take_immutable_by_id<Genre>(g3);
@@ -194,13 +192,13 @@ fun add_and_remove_secondary_genres() {
 #[test]
 #[expected_failure(abort_code = 30, location = release_genre::release_genre)] // ENoPrimaryGenre
 fun secondary_before_primary_aborts() {
-    let mut scenario = ts::begin(CURATOR);
+    let mut scenario = ts::begin(CREATOR);
     g::init_for_testing(scenario.ctx());
 
-    scenario.next_tx(CURATOR);
+    scenario.next_tx(CREATOR);
     let g1 = create_genre(&scenario, b"HIP_HOP");
 
-    scenario.next_tx(CURATOR);
+    scenario.next_tx(CREATOR);
     let genre1 = scenario.take_immutable_by_id<Genre>(g1);
     let (mut rel, cap) = mk_release(scenario.ctx());
 
@@ -215,13 +213,13 @@ fun secondary_before_primary_aborts() {
 #[test]
 #[expected_failure(abort_code = 30, location = release_genre::release_genre)] // ENoPrimaryGenre
 fun remove_secondary_before_primary_aborts() {
-    let mut scenario = ts::begin(CURATOR);
+    let mut scenario = ts::begin(CREATOR);
     g::init_for_testing(scenario.ctx());
 
-    scenario.next_tx(CURATOR);
+    scenario.next_tx(CREATOR);
     let g1 = create_genre(&scenario, b"HIP_HOP");
 
-    scenario.next_tx(CURATOR);
+    scenario.next_tx(CREATOR);
     let genre1 = scenario.take_immutable_by_id<Genre>(g1);
     let (mut rel, cap) = mk_release(scenario.ctx());
 
@@ -236,15 +234,15 @@ fun remove_secondary_before_primary_aborts() {
 #[test]
 #[expected_failure(abort_code = 43, location = release_genre::release_genre)] // EGenreNotSecondary
 fun remove_non_secondary_aborts() {
-    let mut scenario = ts::begin(CURATOR);
+    let mut scenario = ts::begin(CREATOR);
     g::init_for_testing(scenario.ctx());
 
-    scenario.next_tx(CURATOR);
+    scenario.next_tx(CREATOR);
     let g1 = create_genre(&scenario, b"HIP_HOP");
-    scenario.next_tx(CURATOR);
+    scenario.next_tx(CREATOR);
     let g2 = create_genre(&scenario, b"ELECTRONIC");
 
-    scenario.next_tx(CURATOR);
+    scenario.next_tx(CREATOR);
     let genre1 = scenario.take_immutable_by_id<Genre>(g1);
     let genre2 = scenario.take_immutable_by_id<Genre>(g2);
     let (mut rel, cap) = mk_release(scenario.ctx());
@@ -262,7 +260,7 @@ fun remove_non_secondary_aborts() {
 #[test]
 #[expected_failure(abort_code = 42, location = release_genre::release_genre)] // EMaxSecondaryGenres
 fun max_secondary_genres_exceeded_aborts() {
-    let mut scenario = ts::begin(CURATOR);
+    let mut scenario = ts::begin(CREATOR);
     g::init_for_testing(scenario.ctx());
 
     let names = vector[
@@ -270,11 +268,11 @@ fun max_secondary_genres_exceeded_aborts() {
     ];
     let mut ids = vector[];
     names.do!(|name| {
-        scenario.next_tx(CURATOR);
+        scenario.next_tx(CREATOR);
         ids.push_back(create_genre(&scenario, name));
     });
 
-    scenario.next_tx(CURATOR);
+    scenario.next_tx(CREATOR);
     let genres = ids.map!(|id| scenario.take_immutable_by_id<Genre>(id));
     let (mut rel, cap) = mk_release(scenario.ctx());
 
@@ -298,13 +296,13 @@ fun max_secondary_genres_exceeded_aborts() {
 #[test]
 #[expected_failure(abort_code = 40, location = release_genre::release_genre)] // ESecondaryIsPrimary
 fun secondary_equal_primary_aborts() {
-    let mut scenario = ts::begin(CURATOR);
+    let mut scenario = ts::begin(CREATOR);
     g::init_for_testing(scenario.ctx());
 
-    scenario.next_tx(CURATOR);
+    scenario.next_tx(CREATOR);
     let g1 = create_genre(&scenario, b"HIP_HOP");
 
-    scenario.next_tx(CURATOR);
+    scenario.next_tx(CREATOR);
     let genre1 = scenario.take_immutable_by_id<Genre>(g1);
     let (mut rel, cap) = mk_release(scenario.ctx());
 
@@ -319,15 +317,15 @@ fun secondary_equal_primary_aborts() {
 
 #[test, expected_failure(abort_code = rg::EPrimaryIsSecondary)]
 fun primary_equal_secondary_aborts() {
-    let mut scenario = ts::begin(CURATOR);
+    let mut scenario = ts::begin(CREATOR);
     g::init_for_testing(scenario.ctx());
 
-    scenario.next_tx(CURATOR);
+    scenario.next_tx(CREATOR);
     let g1 = create_genre(&scenario, b"HIP_HOP");
-    scenario.next_tx(CURATOR);
+    scenario.next_tx(CREATOR);
     let g2 = create_genre(&scenario, b"ELECTRONIC");
 
-    scenario.next_tx(CURATOR);
+    scenario.next_tx(CREATOR);
     let genre1 = scenario.take_immutable_by_id<Genre>(g1);
     let genre2 = scenario.take_immutable_by_id<Genre>(g2);
     let (mut rel, cap) = mk_release(scenario.ctx());
@@ -345,15 +343,15 @@ fun primary_equal_secondary_aborts() {
 
 #[test]
 fun former_primary_becomes_secondary() {
-    let mut scenario = ts::begin(CURATOR);
+    let mut scenario = ts::begin(CREATOR);
     g::init_for_testing(scenario.ctx());
 
-    scenario.next_tx(CURATOR);
+    scenario.next_tx(CREATOR);
     let g1 = create_genre(&scenario, b"HIP_HOP");
-    scenario.next_tx(CURATOR);
+    scenario.next_tx(CREATOR);
     let g2 = create_genre(&scenario, b"ELECTRONIC");
 
-    scenario.next_tx(CURATOR);
+    scenario.next_tx(CREATOR);
     let genre1 = scenario.take_immutable_by_id<Genre>(g1);
     let genre2 = scenario.take_immutable_by_id<Genre>(g2);
     let (mut rel, cap) = mk_release(scenario.ctx());
@@ -376,15 +374,15 @@ fun former_primary_becomes_secondary() {
 #[test]
 #[expected_failure(abort_code = 41, location = release_genre::release_genre)] // EGenreAlreadySecondary
 fun duplicate_secondary_aborts() {
-    let mut scenario = ts::begin(CURATOR);
+    let mut scenario = ts::begin(CREATOR);
     g::init_for_testing(scenario.ctx());
 
-    scenario.next_tx(CURATOR);
+    scenario.next_tx(CREATOR);
     let g1 = create_genre(&scenario, b"HIP_HOP");
-    scenario.next_tx(CURATOR);
+    scenario.next_tx(CREATOR);
     let g2 = create_genre(&scenario, b"ELECTRONIC");
 
-    scenario.next_tx(CURATOR);
+    scenario.next_tx(CREATOR);
     let genre1 = scenario.take_immutable_by_id<Genre>(g1);
     let genre2 = scenario.take_immutable_by_id<Genre>(g2);
     let (mut rel, cap) = mk_release(scenario.ctx());
@@ -404,15 +402,15 @@ fun duplicate_secondary_aborts() {
 
 #[test]
 fun track_override_resolves_over_album() {
-    let mut scenario = ts::begin(CURATOR);
+    let mut scenario = ts::begin(CREATOR);
     g::init_for_testing(scenario.ctx());
 
-    scenario.next_tx(CURATOR);
+    scenario.next_tx(CREATOR);
     let g1 = create_genre(&scenario, b"HIP_HOP");
-    scenario.next_tx(CURATOR);
+    scenario.next_tx(CREATOR);
     let g2 = create_genre(&scenario, b"ELECTRONIC");
 
-    scenario.next_tx(CURATOR);
+    scenario.next_tx(CREATOR);
     let genre1 = scenario.take_immutable_by_id<Genre>(g1);
     let genre2 = scenario.take_immutable_by_id<Genre>(g2);
     let (mut rel, cap) = mk_release(scenario.ctx());
@@ -457,13 +455,13 @@ fun track_override_resolves_over_album() {
 #[test]
 #[expected_failure(abort_code = 30, location = release_genre::release_genre)] // ENoPrimaryGenre
 fun track_override_before_primary_aborts() {
-    let mut scenario = ts::begin(CURATOR);
+    let mut scenario = ts::begin(CREATOR);
     g::init_for_testing(scenario.ctx());
 
-    scenario.next_tx(CURATOR);
+    scenario.next_tx(CREATOR);
     let g1 = create_genre(&scenario, b"HIP_HOP");
 
-    scenario.next_tx(CURATOR);
+    scenario.next_tx(CREATOR);
     let genre1 = scenario.take_immutable_by_id<Genre>(g1);
     let (mut rel, cap) = mk_release(scenario.ctx());
 
@@ -478,13 +476,13 @@ fun track_override_before_primary_aborts() {
 #[test]
 #[expected_failure(abort_code = 50, location = release_genre::release_genre)] // ETrackIndexOutOfBounds
 fun track_override_out_of_bounds_aborts() {
-    let mut scenario = ts::begin(CURATOR);
+    let mut scenario = ts::begin(CREATOR);
     g::init_for_testing(scenario.ctx());
 
-    scenario.next_tx(CURATOR);
+    scenario.next_tx(CREATOR);
     let g1 = create_genre(&scenario, b"HIP_HOP");
 
-    scenario.next_tx(CURATOR);
+    scenario.next_tx(CREATOR);
     let genre1 = scenario.take_immutable_by_id<Genre>(g1);
     let (mut rel, cap) = mk_release(scenario.ctx());
 
@@ -500,10 +498,10 @@ fun track_override_out_of_bounds_aborts() {
 #[test]
 #[expected_failure(abort_code = 30, location = release_genre::release_genre)] // ENoPrimaryGenre
 fun unset_track_override_before_primary_aborts() {
-    let mut scenario = ts::begin(CURATOR);
+    let mut scenario = ts::begin(CREATOR);
     g::init_for_testing(scenario.ctx());
 
-    scenario.next_tx(CURATOR);
+    scenario.next_tx(CREATOR);
     let (mut rel, cap) = mk_release(scenario.ctx());
 
     rg::unset_track_primary_genre(&mut rel, &cap, 0); // no album primary yet
@@ -516,13 +514,13 @@ fun unset_track_override_before_primary_aborts() {
 #[test]
 #[expected_failure(abort_code = 50, location = release_genre::release_genre)] // ETrackIndexOutOfBounds
 fun unset_track_override_out_of_bounds_aborts() {
-    let mut scenario = ts::begin(CURATOR);
+    let mut scenario = ts::begin(CREATOR);
     g::init_for_testing(scenario.ctx());
 
-    scenario.next_tx(CURATOR);
+    scenario.next_tx(CREATOR);
     let g1 = create_genre(&scenario, b"HIP_HOP");
 
-    scenario.next_tx(CURATOR);
+    scenario.next_tx(CREATOR);
     let genre1 = scenario.take_immutable_by_id<Genre>(g1);
     let (mut rel, cap) = mk_release(scenario.ctx());
 
@@ -538,13 +536,13 @@ fun unset_track_override_out_of_bounds_aborts() {
 #[test]
 #[expected_failure(abort_code = 50, location = release_genre::release_genre)] // ETrackIndexOutOfBounds
 fun track_primary_genre_view_out_of_bounds_aborts() {
-    let mut scenario = ts::begin(CURATOR);
+    let mut scenario = ts::begin(CREATOR);
     g::init_for_testing(scenario.ctx());
 
-    scenario.next_tx(CURATOR);
+    scenario.next_tx(CREATOR);
     let g1 = create_genre(&scenario, b"HIP_HOP");
 
-    scenario.next_tx(CURATOR);
+    scenario.next_tx(CREATOR);
     let genre1 = scenario.take_immutable_by_id<Genre>(g1);
     let (mut rel, cap) = mk_release(scenario.ctx());
 

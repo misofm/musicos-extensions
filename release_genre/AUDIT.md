@@ -1,10 +1,8 @@
 # Security Audit — `release_genre`
 
-**Revision:** working tree @ 2026-08-23 (the `misonetwork` workspace is not a
-git repository — `git rev-parse` fails; no commit hash exists). Dependency
-pins: `genre` @ `b94b11e3…`, `miso` @ `c23fe7f…` (bumped 2026-08-23 from `7c13e40a…`, carrying the `miso_share` treasury-cap hardening `d67ff8c`), `per_track` @ `e1bb40b…` (bumped 2026-08-23 alongside `miso`)
-(`Move.toml`); audited dependency sources are the on-disk `../../genre`,
-`../../protocol`, `../../per-track` trees. **Date:** 2026-08-23 ·
+**Revision:** working tree @ 2026-08-24. Dependency pins: `genre` @
+`2a90a48a…`, `miso` @ `7bda0bb7…`, `per_track` @ `49d6e374…`
+(`Move.toml`). **Date:** 2026-08-24 ·
 **Toolchain:** sui 1.77.2-51d177ad7d65
 
 Audit of `release_genre` (270 LOC, `sources/release_genre.move`), the
@@ -16,7 +14,7 @@ primary overrides to a release. Verdict: **safe to publish — no findings.**
 One dynamic field under `ExtensionKey()` (`release_genre.move:58`) holding a
 `ReleaseGenre { primary: ID, secondary: vector<ID>, track_primary:
 PerTrack<Option<ID>> }` (`release_genre.move:63-67`) — genre *object IDs* from
-the curated `genre` vocabulary, not strings. Mutators: `set_primary_genre`,
+the canonical `genre` vocabulary, not strings. Mutators: `set_primary_genre`,
 `add_secondary_genre`, `remove_secondary_genre`, `set_track_primary_genre`,
 `unset_track_primary_genre`; views are permissionless with
 override-then-primary resolution (`track_primary_genre`,
@@ -36,10 +34,10 @@ eligibility may key off genre, per the module doc's contrast with
   `cap.release_id == object::id(self)` — ID-level binding; no cap, no write.
 - **Genre IDs are real vocabulary members:** all mutators take `&Genre` and
   store `object::id(genre)` (`release_genre.move:115` etc.). `Genre` objects
-  are frozen, name-derived singletons created only by the `GenreRegistryCap`
-  holder (see the `genre` audit) — an attacker cannot mint a fake `Genre`
-  (private fields, no public constructor) or point a release at a
-  non-vocabulary id without the object existing.
+  are frozen, name-derived singletons. Creation is permissionless, but the
+  validated name fixes both id and contents (see the `genre` audit); a caller
+  cannot forge arbitrary fields or point a release at an id without the
+  canonical object existing.
 - **Primary/secondary disjointness** is enforced both directions:
   `set_primary_genre` rejects a current secondary (`EPrimaryIsSecondary`,
   `release_genre.move:119`); `add_secondary_genre` rejects the current primary

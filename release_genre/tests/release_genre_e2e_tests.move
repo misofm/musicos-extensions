@@ -8,7 +8,7 @@
 /// releases are create-and-publish atomic, then shared for their whole life;
 /// see `miso::release`'s module doc).
 ///
-/// Scope: vocabulary curation (`genre::genre`, upstream context) feeding a
+/// Scope: canonical vocabulary creation (`genre::genre`, upstream context) feeding a
 /// published, shared `Release`'s genre assignment — album primary, album
 /// secondaries, per-track overrides — plus the cap-gated adversarial case
 /// (wrong `ReleaseAdminCap` from a second release).
@@ -16,7 +16,7 @@
 module release_genre::release_genre_e2e_tests;
 
 use genre::genre as g;
-use genre::genre::{GenreRegistry, GenreRegistryCap, Genre};
+use genre::genre::{GenreRegistry, Genre};
 use miso::release::{Self, Release, ReleaseAdminCap};
 use miso::test_helpers;
 use miso::track;
@@ -26,23 +26,21 @@ use sui::clock;
 use sui::event;
 use sui::test_scenario::{Self as ts, Scenario};
 
-// CURATOR curates the genre vocabulary. LABEL creates and owns releases
+// CREATOR creates canonical genres. LABEL creates and owns releases
 // (the ReleaseAdminCap holder). STRANGER owns nothing relevant to either
 // release and plays the wrong-cap adversary.
-const CURATOR: address = @0xC0;
+const CREATOR: address = @0xC0;
 const LABEL: address = @0xAD;
 const STRANGER: address = @0x51;
 
 // === Helpers ===
 
-/// Creates a genre in the registry (cap-gated) and returns its derived id.
+/// Creates a genre in the permissionless registry and returns its derived id.
 fun create_genre(scenario: &Scenario, name: vector<u8>): ID {
-    let cap = scenario.take_from_sender<GenreRegistryCap>();
     let mut registry = scenario.take_shared<GenreRegistry>();
     let id = g::derive_address(&registry, name.to_string()).to_id();
-    g::new(&cap, &mut registry, name.to_string());
+    g::new(&mut registry, name.to_string());
     ts::return_shared(registry);
-    scenario.return_to_sender(cap);
     id
 }
 
@@ -77,13 +75,13 @@ fun publish_and_share_release(scenario: &mut Scenario): (ReleaseAdminCap, ID) {
 
 #[test]
 fun genre_lifecycle_on_published_shared_release() {
-    let mut scenario = ts::begin(CURATOR);
+    let mut scenario = ts::begin(CREATOR);
     g::init_for_testing(scenario.ctx());
 
-    // --- Tx 1 (CURATOR): seed the vocabulary ---
-    scenario.next_tx(CURATOR);
+    // --- Tx 1 (CREATOR): create the vocabulary entries ---
+    scenario.next_tx(CREATOR);
     let hiphop_id = create_genre(&scenario, b"HIP_HOP");
-    scenario.next_tx(CURATOR);
+    scenario.next_tx(CREATOR);
     let electronic_id = create_genre(&scenario, b"ELECTRONIC");
 
     // --- Tx 2 (LABEL): create-and-publish the release (shares it) ---
@@ -146,10 +144,10 @@ fun genre_lifecycle_on_published_shared_release() {
 #[test]
 #[expected_failure(abort_code = 0, location = miso::release)] // EUnauthorized
 fun wrong_cap_from_other_release_aborts() {
-    let mut scenario = ts::begin(CURATOR);
+    let mut scenario = ts::begin(CREATOR);
     g::init_for_testing(scenario.ctx());
 
-    scenario.next_tx(CURATOR);
+    scenario.next_tx(CREATOR);
     let hiphop_id = create_genre(&scenario, b"HIP_HOP");
 
     // --- Tx (LABEL): publish two distinct, shared releases ---
