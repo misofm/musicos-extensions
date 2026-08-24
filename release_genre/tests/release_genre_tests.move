@@ -57,7 +57,7 @@ fun views_before_assignment_are_empty() {
     g::init_for_testing(scenario.ctx());
 
     scenario.next_tx(CURATOR);
-    let (mut rel, cap) = mk_release(scenario.ctx());
+    let (rel, cap) = mk_release(scenario.ctx());
 
     // No genre assignment has been made yet: every view reports the empty
     // state, including the track view's early-return branch (it never
