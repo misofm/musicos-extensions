@@ -399,6 +399,7 @@ public fun set_release_link(self: &mut Release, cap: &ReleaseAdminCap, link: Dsp
 
 /// Clears a DSP's album-level link. No-op if unset.
 public fun clear_release_link(self: &mut Release, cap: &ReleaseAdminCap, platform: u8) {
+    self.authorize(cap);
     if (df::exists(self.uid(), ReleaseLinkKey(platform))) {
         let release_id = object::id(self);
         let _: DspLinkData = df::remove(self.uid_mut(cap), ReleaseLinkKey(platform));
@@ -433,6 +434,7 @@ public fun clear_track_link(
     platform: u8,
     track_index: u64,
 ) {
+    self.authorize(cap);
     if (df::exists(self.uid(), TrackLinksKey(platform))) {
         assert!(track_index < self.tracks().length(), ETrackIndexOutOfBounds);
         let release_id = object::id(self);
@@ -444,6 +446,7 @@ public fun clear_track_link(
 
 /// Removes a DSP's entire per-track array. No-op if absent.
 public fun clear_track_links(self: &mut Release, cap: &ReleaseAdminCap, platform: u8) {
+    self.authorize(cap);
     if (df::exists(self.uid(), TrackLinksKey(platform))) {
         let release_id = object::id(self);
         let _: PerTrack<Option<DspLinkData>> = df::remove(

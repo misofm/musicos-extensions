@@ -304,6 +304,36 @@ fun another_releases_cap_is_rejected() {
     destroy(b_cap);
 }
 
+#[test, expected_failure(abort_code = EUnauthorized, location = miso::release)]
+fun clear_release_link_requires_the_cap_when_unset() {
+    let ctx = &mut tx_context::dummy();
+    let (mut release, _release_cap) = mk_release(ctx);
+    let (_foreign_release, foreign_cap) = mk_release(ctx);
+
+    links::clear_release_link(&mut release, &foreign_cap, links::platform_spotify());
+    abort
+}
+
+#[test, expected_failure(abort_code = EUnauthorized, location = miso::release)]
+fun clear_track_link_requires_the_cap_when_unset() {
+    let ctx = &mut tx_context::dummy();
+    let (mut release, _release_cap) = mk_release(ctx);
+    let (_foreign_release, foreign_cap) = mk_release(ctx);
+
+    links::clear_track_link(&mut release, &foreign_cap, links::platform_spotify(), 0);
+    abort
+}
+
+#[test, expected_failure(abort_code = EUnauthorized, location = miso::release)]
+fun clear_track_links_requires_the_cap_when_unset() {
+    let ctx = &mut tx_context::dummy();
+    let (mut release, _release_cap) = mk_release(ctx);
+    let (_foreign_release, foreign_cap) = mk_release(ctx);
+
+    links::clear_track_links(&mut release, &foreign_cap, links::platform_spotify());
+    abort
+}
+
 // === Constructor Validation ===
 
 #[test, expected_failure(abort_code = links::EEmptySpotifyId)]

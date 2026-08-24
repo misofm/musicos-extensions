@@ -9,8 +9,8 @@ dependency sources are the on-disk `../../protocol`, `../../per-track` trees.
 Audit of `release_dsp_link` (530 LOC,
 `sources/release_dsp_link.move`), the largest extension: per-DSP streaming
 deep links — one album-level link per platform plus optional per-track links.
-Verdict: **safe to publish — no exploitable findings; one informational
-hardening note.**
+Verdict: **safe to publish — the one informational authorization-consistency
+finding is fixed and regression-tested.**
 
 ## What it does
 
@@ -31,11 +31,9 @@ The threat is unauthorized attach/alter/removal of DSP links on someone else's
 release (metadata integrity — clients build playable URLs from these). The
 authorization chain:
 
-- Every *state-changing* path passes through `self.uid_mut(cap)` before the
-  write: `set_release_link` (`release_dsp_link.move:391`), `set_track_link`
-  via `track_links_mut_or_init` (`release_dsp_link.move:503,505`), and the
-  three clear functions inside their existence branches
-  (`release_dsp_link.move:404,439,449-452`). `miso::release::uid_mut`
+- Every write API authenticates the cap before inspecting whether a field is
+  present. Mutating paths then pass through `self.uid_mut(cap)` before the
+  write. `miso::release::uid_mut`
   (`protocol/sources/release.move:337-340`) enforces `cap.release_id ==
   object::id(self)` — ID-level binding. **No mutation is possible without the
   release's own cap.**
@@ -58,20 +56,12 @@ authorization chain:
 
 ## Findings
 
-- **F1 (Informational): the three `clear_*` functions skip the cap check on
-  their no-op paths.** `clear_release_link` (`release_dsp_link.move:401-407`),
-  `clear_track_link` (`release_dsp_link.move:430-443`), and
-  `clear_track_links` (`release_dsp_link.move:446-455`) check field existence
-  first and only call `uid_mut(cap)` inside the branch. With nothing attached,
-  anyone can call them — but the call is a guaranteed no-op: no state change,
-  no event, nothing read that `has_release_link` doesn't already reveal. There
-  is no exploitable impact; the note exists because sibling packages
-  deliberately gate first even on no-op paths (`release_description.move:
-  113-115`, `release_cover_art.move:83`), and that discipline is worth
-  matching if the package is ever revised. Since all packages publish
-  immutable, this stays as-is by design.
-  **Disposition (2026-08-24):** accepted — the ungated path is a guaranteed
-  no-op (no state change, no event); packages publish immutable.
+- **F1 (Informational — FIXED 2026-08-24): the three `clear_*` functions
+  skipped the cap check on their no-op paths.** `clear_release_link`,
+  `clear_track_link`, and `clear_track_links` now call `self.authorize(cap)`
+  before checking field existence. This makes every nominally privileged API
+  consistently reject a cap for another release even when no link is stored.
+  Three expected-failure regressions cover the previously ungated paths.
 
 ## Edge cases verified
 
@@ -94,7 +84,7 @@ authorization chain:
 
 ## Verification
 
-- **51/51 tests pass** (`sui move test`, sui 1.77.2) — the largest extension
+- **54/54 tests pass** (`sui move test --warnings-are-errors`, sui 1.77.2) — the largest extension
   suite, covering every constructor's validation, both storage levels, clear
   paths, and view behavior with nothing stored.
 - Full source read; auth contract cross-checked against
