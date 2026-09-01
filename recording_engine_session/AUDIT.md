@@ -1,32 +1,31 @@
 # Security review — `recording_engine_session`
 
-**Date:** 2026-09-01
+Reviewed 2026-09-02 for immutable publication. Verdict: no exploitable
+findings in the reviewed source.
 
-## Security claim
+## Dependency provenance
 
-The extension stores exactly one canonical, directly derivable engine-session
-reference under a Recording. Only the matching `RecordingAdminCap` can attach,
-replace, or remove it. The root must be a standalone, unencrypted `WalrusData`
-blob, so clients can discover the public delivery manifest without an indexer or
-an access-control circular dependency.
+`Move.toml` pins `miso` at
+`6de5f9881ee62c81c57ce16832efc24dc33ae429` and `ori` at
+`1ca4e5016848bd946072db19415086a309b9930f`. Both network lock graphs resolve
+`bps` at `4ca1972a67d35c972ca567de7b08315e3778e52b` without duplicate aliases.
 
-Initial attachment and replacement are separate functions. This prevents a
-generic uploader from silently overwriting purchaser-visible audio unless it
-deliberately selects the replacement operation. Removal is idempotent.
+## Threat model and findings
 
-## Adversarial coverage
+Only the matching `RecordingAdminCap` can attach, replace, or unset the one
+module-keyed `EngineSession`. Attach never silently overwrites; replacement is
+explicit. The outer `WalrusData` must be a standalone, unencrypted blob, so the
+root delivery graph is publicly discoverable; separately referenced audio may
+still use independent encryption policy. On-chain validation proves reference
+shape, not the truth, availability, or semantics of off-chain blob contents.
+This data extension contains no custody or economic logic.
 
-Move tests cover first attachment, explicit replacement, idempotent removal,
-missing and occupied slots, Recording isolation, public reads after sharing,
-quilt-patch rejection, and encrypted-root rejection. The concrete cap type and
-`Recording::uid_mut` enforce the Recording/cap pairing in the protocol package.
+The package is published immutably. Changed validation or schema requires a
+new package identity and an explicit client/data migration path.
 
-## Residual assumptions
+## Evidence
 
-- A Recording administrator can deliberately replace or remove the pointer.
-- Walrus availability and retention remain operator obligations; replacement
-  does not erase already published blobs.
-- The plaintext document is public metadata. Stem confidentiality belongs to
-  its Seal-wrapped AES key and authenticated ciphertext, not to this extension.
-- Package upgrades can change reviewed behavior and require a new deployment
-  review and client allowlist entry.
+With `sui 1.78.1-722ac4fcf484`, strict Testnet and Mainnet lint,
+warnings-as-errors builds, and tests pass: 9/9 on each network. The production
+module reports 100.00% coverage, including a published/shared Recording flow,
+wrong shape and encryption rejection, attach/replace/unset, scoping, and events.

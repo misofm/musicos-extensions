@@ -127,10 +127,9 @@ const MAX_YOUTUBE_MUSIC_ID_LENGTH: u64 = 64;
 ///
 /// **Variant order is frozen.** Storage keys off `platform()`, a `u8`
 /// discriminant matching declaration order (`Spotify = 0` … `YouTubeMusic =
-/// 7`). Sui's compatible-upgrade policy allows appending new enum variants but
-/// not reordering or removing existing ones, so a new platform is always
-/// appended at the end in a package upgrade — existing BCS variant indices,
-/// and therefore existing dynamic-field keys, stay stable.
+/// 7`). This immutable package never changes those indices. Supporting another
+/// platform requires a new immutable package identity and an explicit
+/// client/data migration; existing variants are never reordered.
 public enum DspLinkData has copy, drop, store {
     /// Spotify addresses both albums and tracks by a single 22-char base62 id
     /// (`open.spotify.com/album/{id}` or `/track/{id}`); album-vs-track is

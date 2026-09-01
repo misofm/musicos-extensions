@@ -25,9 +25,10 @@ validated against the release's tracklist.
 
 ## Publishing
 
-This simplified data layout is intentionally incompatible with the historical
-version 1 package. It must be published under a fresh package ID rather than
-upgraded from that deployment.
+This data layout is intentionally distinct from the historical version 1
+package. It is published as a fresh immutable package identity and is never
+upgraded from that deployment. Clients migrate explicitly by selecting the new
+package and its dynamic-field key type.
 
 ## Build and test
 

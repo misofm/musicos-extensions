@@ -1,68 +1,25 @@
-# Security Audit — `release_description`
+# Security review — `release_description`
 
-**Revision:** working tree @ 2026-08-23 (the `misonetwork` workspace is not a
-git repository — `git rev-parse` fails; no commit hash exists). Dependency
-pin: `miso` @ `c23fe7f…` (bumped 2026-08-23 from `7c13e40a…`, carrying the `miso_share` treasury-cap hardening `d67ff8c`) (`Move.toml`); audited dependency source is the
-on-disk `../../protocol` working tree. **Date:** 2026-08-23 · **Toolchain:**
-sui 1.77.2-51d177ad7d65
+Reviewed 2026-09-02 for immutable publication. Verdict: no exploitable
+findings in the reviewed source.
 
-Audit of `release_description` (142 LOC,
-`sources/release_description.move`), the extension storing a release's
-free-text description (≤ 8 KB). Verdict: **safe to publish — no findings.**
+## Dependency provenance
 
-## What it does
+`Move.toml` pins `miso` at
+`6de5f9881ee62c81c57ce16832efc24dc33ae429`. Both network lock graphs resolve
+`bps` at `4ca1972a67d35c972ca567de7b08315e3778e52b` without duplicate aliases.
 
-One dynamic field under `ExtensionKey()` (`release_description.move:71`)
-holding a `String`. `set_description` validates (non-empty, ≤ 8192 bytes —
-`release_description.move:95-97`) then upserts
-(`release_description.move:94-107`); `clear_description` removes idempotently
-(`release_description.move:111-120`); views are permissionless.
+## Threat model and findings
 
-## Threat model
+Set and clear require the matching `ReleaseAdminCap`, including the empty
+clear path. The module-owned key stores one private bounded, non-empty UTF-8
+String; validation is byte-length based and atomic. The value is descriptive
+and has no economic or authorization meaning. No Vault, Action, or Plugin code
+is present.
 
-The threat is unauthorized set/clear of the description on someone else's
-release (metadata integrity). It fails on the authorization chain:
+## Evidence
 
-- Both mutators call `self.uid_mut(cap)` before any field access
-  (`release_description.move:100,115`). `miso::release::uid_mut`
-  (`protocol/sources/release.move:337-340`) enforces `cap.release_id ==
-  object::id(self)` via `authorize` (`release.move:303-305`) — ID-level
-  binding; a cap for release A can never touch release B.
-- `clear_description` cap-gates *before* the existence check, deliberately
-  (`release_description.move:113-115` comment): a wrong cap aborts even when
-  nothing is attached. This is the strictest gating discipline in the
-  extension set.
-- Validation runs before authorization but touches no state
-  (`release_description.move:95-97`) — pure input checks.
-- `ExtensionKey()` is module-local; the value is a plain `String`; `df::add`
-  aborts on re-add, and the upsert uses `*df::borrow_mut = description` for
-  the replace path.
-- DoS: the 8 KB ceiling bounds storage on the shared object
-  (`release_description.move:52`); writer-paid gas. Empty string is rejected
-  so "attached" always means "someone wrote something"
-  (`release_description.move:96`).
-
-## Findings
-
-None.
-
-## Edge cases verified
-
-- Empty description aborts `EEmptyDescription`; 8193-byte description aborts
-  `EMaxDescriptionLengthExceeded`.
-- Replace-over-existing overwrites in place; `clear` on an unattached release
-  is a silent no-op; `description()` aborts `ENoDescription` when unattached —
-  absence never collapses into an empty string
-  (`release_description.move:131-134`).
-- Multi-byte UTF-8 content: the bound is on bytes, and `String` guarantees
-  valid UTF-8; a 4-byte-per-char string hits the byte ceiling first — no
-  truncation is possible since the string is stored whole or the tx aborts.
-- Events carry the full description on set
-  (`release_description.move:106`).
-
-## Verification
-
-- **14/14 tests pass** (`sui move test`, sui 1.77.2), including the
-  set/read/replace/clear lifecycle and e2e tests on shared published releases.
-- Full source read; auth contract cross-checked against
-  `miso::release::uid_mut`/`authorize`.
+With `sui 1.78.1-722ac4fcf484`, strict Testnet and Mainnet lint,
+warnings-as-errors builds, and tests pass: 14/14 on each network. The production
+module reports 100.00% coverage across published/shared lifecycle, wrong caps,
+absence, byte bounds, replacement, clearing, and events.

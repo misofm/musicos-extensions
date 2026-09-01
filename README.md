@@ -9,13 +9,16 @@ of those objects. Writes require the object's matching admin capability through
 its cap-gated `uid_mut`; reads are permissionless.
 
 Extensions do not custody capabilities, automate administrative authority, or
-route economic value. Those responsibilities belong to separate layers:
+route economic value. Actions compose those workflows around a caller-supplied
+raw capability, while optional platform adapters bridge Vault custody to an Action:
 
 | Repository | Responsibility |
 |------------|----------------|
 | [`misonetwork/protocol`](https://github.com/misonetwork/protocol) | Core music objects and the canonical `ReleaseRegistry` namespace. |
+| [`misonetwork/protocol-actions`](https://github.com/misonetwork/protocol-actions) | Custody-agnostic, return-oriented Composition, Recording, and Release workflows. |
+| [`misonetwork/party-actions`](https://github.com/misonetwork/party-actions) | Custody-agnostic, return-oriented Party workflows. |
 | [`misofm/vault`](https://github.com/misofm/vault) | Generic capability custody and temporary exact-return leases. |
-| [`misofm/vault-plugins`](https://github.com/misofm/vault-plugins) | Installed business logic that exercises a custodied protocol admin capability. |
+| [`misofm/vault-plugins`](https://github.com/misofm/vault-plugins) | Thin installed adapters that borrow a custodied admin capability, call a matching Action, and return the capability. |
 
 Each directory in this repository is an independently versioned and published
 Move package. Applications should depend only on the extensions they use.
@@ -27,6 +30,7 @@ Move package. Applications should depend only on the extensions they use.
 | [`composition_credits`](./composition_credits) | Composition | Songwriting and publishing attribution keyed by Party ID. |
 | [`recording_advisory`](./recording_advisory) | Recording | Explicit, not-explicit, or cleaned advisory classification. |
 | [`recording_credits`](./recording_credits) | Recording | Performance and production credits with primary and featured artist designations. |
+| [`recording_engine_session`](./recording_engine_session) | Recording | Canonical plaintext Walrus pointer to an engine-session delivery graph. |
 | [`recording_language`](./recording_language) | Recording | Ordered ISO 639-1 language metadata; an empty list explicitly denotes instrumental content. |
 | [`recording_master_reference`](./recording_master_reference) | Recording | Transitional, unverified Walrus reference to a master-audio blob. |
 | [`recording_preview`](./recording_preview) | Recording | Public Walrus reference to a preview-audio blob. |
@@ -36,6 +40,7 @@ Move package. Applications should depend only on the extensions they use.
 | [`release_dsp_link`](./release_dsp_link) | Release | Typed release and per-track identifiers for supported streaming services. |
 | [`release_genre`](./release_genre) | Release | Primary, secondary, and optional per-track genre metadata with no timing or economic policy. |
 | [`release_kind`](./release_kind) | Release | Bounded free-text release classification such as Album, EP, or Mixtape. |
+| [`release_mix_reference`](./release_mix_reference) | Release | Optional per-track pointers to plaintext Walrus mix-delivery descriptors. |
 
 ## Usage
 
@@ -47,13 +52,20 @@ release_genre = { git = "https://github.com/misonetwork/protocol-extensions.git"
 ```
 
 Each package's `Move.toml` pins its own protocol and supporting dependencies.
-If the protocol admin capability is held in a Vault, the `VaultAdminCap` holder
-can use `borrow_as_admin`, call the extension's public write function, and
-return the capability in the same programmable transaction block.
 
-Published package identities are recorded per package in `Published.toml` when
-the current source is upgrade-compatible with that deployment. The simplified
-`release_genre` package intentionally requires a fresh package ID.
+Existing `Published.toml` files are retained as records of the currently
+deployed, prior package generation. Some historical Mainnet records include an
+`upgrade-capability`; that is provenance, not authorization to upgrade. Every
+package in this repository is released by publishing a fresh package identity
+and immediately making it immutable. After a successful publication, the admin
+CLI replaces only that network's `Published.toml` block with the new immutable
+generation. Clients migrate explicitly to the new package identity; these
+packages are never upgraded in place.
+
+When an admin capability is held in a Vault, applications should use the
+matching custody-agnostic Action. A thin Vault plugin may borrow the capability,
+call that Action, and return the capability within one programmable transaction
+block.
 
 ## Development
 
