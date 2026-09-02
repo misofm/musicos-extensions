@@ -1,0 +1,13 @@
+[package]
+name = "recording_preview"
+edition = "2024"
+license = "Apache 2.0"
+authors = ["Miso Labs, Inc. (build@miso.network)"]
+
+# V1 is a bare Walrus blob reference attached to the recording — no ingestion
+# or attestation of the preview audio, so no audio/ingester dependencies. It
+# depends on miso core to operate on `Recording` directly (cap-gated
+# `uid_mut`) and on `ori` for the `WalrusBlob` reference type.
+[dependencies]
+miso = { git = "https://github.com/misonetwork/protocol.git", rev = "6de5f9881ee62c81c57ce16832efc24dc33ae429" }
+ori = { git = "https://github.com/unconfirmedlabs/ori.git", subdir = "move", rev = "367ed5fe92a8b62da02c1116537cf08d111e0789" }
