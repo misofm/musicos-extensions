@@ -16,7 +16,6 @@ Applications should depend only on the extensions they use.
 | Package | Target | Purpose |
 |---------|--------|---------|
 | [`recording_master_reference`](./recording_master_reference) | Recording | Transitional Walrus reference to a recording's master-audio blob. |
-| [`recording_preview`](./recording_preview) | Recording | Walrus reference to a preview-audio blob. |
 | [`release_dsp_link`](./release_dsp_link) | Release | Typed release and per-track identifiers for supported streaming services. |
 
 ## Usage
@@ -25,7 +24,7 @@ Reference an extension by repository subdirectory and exact commit:
 
 ```toml
 [dependencies]
-recording_preview = { git = "https://github.com/misofm/protocol-extensions.git", subdir = "recording_preview", rev = "<40-character-commit>" }
+recording_master_reference = { git = "https://github.com/misofm/protocol-extensions.git", subdir = "recording_master_reference", rev = "<40-character-commit>" }
 ```
 
 Existing `Published.toml` files preserve the deployment records created before
@@ -36,7 +35,7 @@ these packages moved from `misonetwork/protocol-extensions`.
 Run build and test commands from an individual package directory:
 
 ```sh
-cd recording_preview
+cd recording_master_reference
 sui move build
 sui move test --coverage
 ```

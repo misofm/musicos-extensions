@@ -7,7 +7,7 @@ authors = ["Miso Labs, Inc. (build@miso.network)"]
 # A deliberate holdover: a bare Walrus reference to a recording's master, with no
 # attestation and no technical claims about the audio. Depends only on miso core
 # (to reach `Recording` through its cap-gated `uid_mut`) and `ori` for the
-# reference type — pinned to the same rev as `recording_preview`.
+# reference type.
 [dependencies]
 miso = { git = "https://github.com/misonetwork/protocol.git", rev = "6de5f9881ee62c81c57ce16832efc24dc33ae429" }
 ori = { git = "https://github.com/unconfirmedlabs/ori.git", subdir = "move", rev = "367ed5fe92a8b62da02c1116537cf08d111e0789" }

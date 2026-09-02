@@ -7,7 +7,6 @@ protocol extensions. Each top-level package extends a Miso `Composition`,
 ## Project Structure
 
 - `recording_master_reference/` — transitional master-audio references.
-- `recording_preview/` — preview-audio references.
 - `release_dsp_link/` — release and track links for supported DSPs.
 
 Each package owns its manifest, lockfile, publication record, source, tests, and
