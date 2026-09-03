@@ -25,6 +25,14 @@ fun new_recording(ctx: &mut TxContext): (
     recording::new_for_testing<REC, COMP>(test_helpers::fake_id(ctx), ctx)
 }
 
+fun new_transcode(quilt_id: u256): transcode::StreamingTranscode {
+    transcode::new(data::new_quilt(quilt_id))
+}
+
+fun quilt_id(value: &transcode::StreamingTranscode): u256 {
+    transcode::quilt(value).quilt_id()
+}
+
 #[test]
 fun set_read_replace_unset_lifecycle() {
     let ctx = &mut tx_context::dummy();
@@ -32,12 +40,12 @@ fun set_read_replace_unset_lifecycle() {
 
     assert!(!transcode::has_streaming_transcode(&recording));
 
-    transcode::set_streaming_transcode(&mut recording, &cap, data::new_quilt(111));
+    transcode::set_streaming_transcode(&mut recording, &cap, new_transcode(111));
     assert!(transcode::has_streaming_transcode(&recording));
-    assert_eq!(transcode::streaming_transcode(&recording).quilt_id(), 111);
+    assert_eq!(quilt_id(transcode::streaming_transcode(&recording)), 111);
 
-    transcode::set_streaming_transcode(&mut recording, &cap, data::new_quilt(222));
-    assert_eq!(transcode::streaming_transcode(&recording).quilt_id(), 222);
+    transcode::set_streaming_transcode(&mut recording, &cap, new_transcode(222));
+    assert_eq!(quilt_id(transcode::streaming_transcode(&recording)), 222);
 
     transcode::unset_streaming_transcode(&mut recording, &cap);
     assert!(!transcode::has_streaming_transcode(&recording));
@@ -55,8 +63,8 @@ fun complete_u256_quilt_id_domain_is_preserved() {
     let ctx = &mut tx_context::dummy();
     let (mut recording, cap) = new_recording(ctx);
 
-    transcode::set_streaming_transcode(&mut recording, &cap, data::new_quilt(MAX_U256));
-    assert_eq!(transcode::streaming_transcode(&recording).quilt_id(), MAX_U256);
+    transcode::set_streaming_transcode(&mut recording, &cap, new_transcode(MAX_U256));
+    assert_eq!(quilt_id(transcode::streaming_transcode(&recording)), MAX_U256);
 
     destroy(recording);
     destroy(cap);
@@ -71,7 +79,7 @@ fun transcodes_are_isolated_per_recording() {
         ctx,
     );
 
-    transcode::set_streaming_transcode(&mut a, &a_cap, data::new_quilt(9));
+    transcode::set_streaming_transcode(&mut a, &a_cap, new_transcode(9));
 
     assert!(transcode::has_streaming_transcode(&a));
     assert!(!transcode::has_streaming_transcode(&b));
@@ -83,18 +91,19 @@ fun transcodes_are_isolated_per_recording() {
 }
 
 #[test]
-fun set_event_carries_recording_and_quilt() {
+fun set_event_carries_recording_and_transcode() {
     let ctx = &mut tx_context::dummy();
     let (mut recording, cap) = new_recording(ctx);
     let recording_id = object::id(&recording);
 
-    transcode::set_streaming_transcode(&mut recording, &cap, data::new_quilt(7));
+    transcode::set_streaming_transcode(&mut recording, &cap, new_transcode(7));
 
     let events = event::events_by_type<transcode::StreamingTranscodeSetEvent>();
     assert_eq!(events.length(), 1);
-    let (event_recording_id, quilt) = transcode::set_event_fields(&events[0]);
+    let (event_recording_id, value) = transcode::set_event_fields(&events[0]);
     assert_eq!(event_recording_id, recording_id);
-    assert_eq!(quilt, data::new_quilt(7));
+    assert_eq!(value, new_transcode(7));
+    assert_eq!(quilt_id(&value), 7);
 
     destroy(recording);
     destroy(cap);
@@ -112,7 +121,7 @@ fun unset_event_is_emitted_only_after_removal() {
         0,
     );
 
-    transcode::set_streaming_transcode(&mut recording, &cap, data::new_quilt(5));
+    transcode::set_streaming_transcode(&mut recording, &cap, new_transcode(5));
     transcode::unset_streaming_transcode(&mut recording, &cap);
 
     let events = event::events_by_type<transcode::StreamingTranscodeUnsetEvent>();
