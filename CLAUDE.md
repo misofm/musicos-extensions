@@ -19,7 +19,7 @@ audit. Run Move commands from the package directory.
 - Pin Git dependencies to exact 40-character commit SHAs.
 - Preserve `Published.toml` as deployment provenance.
 - Keep platform-specific behavior here; neutral metadata extensions belong in
-  `misonetwork/protocol-extensions`.
+  `misofm/protocol-extensions`.
 
 ## Sui Development Skills
 

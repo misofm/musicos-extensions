@@ -5,6 +5,6 @@ license = "Apache 2.0"
 authors = ["Miso Labs, Inc. (build@miso.network)"]
 
 [dependencies]
-genre = { git = "https://github.com/misonetwork/genre.git", rev = "069fee03d7cae357d5a805e28eeb24171f10c303" }
-miso = { git = "https://github.com/misonetwork/protocol.git", rev = "6de5f9881ee62c81c57ce16832efc24dc33ae429" }
-per_track = { git = "https://github.com/misonetwork/per-track.git", rev = "547befbb33be14ac7400fabc01962a96bd54fb1e" }
+genre = { git = "https://github.com/misofm/genre.git", rev = "069fee03d7cae357d5a805e28eeb24171f10c303" }
+miso = { git = "https://github.com/misofm/protocol.git", rev = "6de5f9881ee62c81c57ce16832efc24dc33ae429" }
+per_track = { git = "https://github.com/misofm/per-track.git", rev = "547befbb33be14ac7400fabc01962a96bd54fb1e" }
