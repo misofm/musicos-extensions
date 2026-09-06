@@ -1,0 +1,11 @@
+[package]
+name = "release_description"
+edition = "2024"
+license = "Apache 2.0"
+authors = ["Miso Labs, Inc. (build@miso.network)"]
+
+# Free-form prose with no vocabulary to enforce and nothing to validate against,
+# so there is nothing to depend on beyond miso core — needed only to reach
+# `Release` through its cap-gated `uid_mut`.
+[dependencies]
+miso = { git = "https://github.com/misonetwork/protocol.git", rev = "6de5f9881ee62c81c57ce16832efc24dc33ae429" }

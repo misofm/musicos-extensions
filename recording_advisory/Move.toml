@@ -1,0 +1,11 @@
+[package]
+name = "recording_advisory"
+edition = "2024"
+license = "Apache 2.0"
+authors = ["Miso Labs, Inc. (build@miso.network)"]
+
+# One concern, one package: the parental advisory rating and nothing else. It
+# needs only miso core, to operate on `Recording` through its cap-gated
+# `uid_mut`.
+[dependencies]
+miso = { git = "https://github.com/misonetwork/protocol.git", rev = "6de5f9881ee62c81c57ce16832efc24dc33ae429" }
