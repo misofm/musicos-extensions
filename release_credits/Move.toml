@@ -1,0 +1,10 @@
+[package]
+name = "release_credits"
+edition = "2024"
+license = "Apache 2.0"
+authors = ["Miso Labs, Inc. (build@miso.network)"]
+
+[dependencies]
+miso = { git = "https://github.com/misonetwork/protocol.git", rev = "6de5f9881ee62c81c57ce16832efc24dc33ae429" }
+partyos = { git = "https://github.com/misonetwork/party.git", rev = "ffb2915b9bb1802b4c160d3230c560e40bd2b063", rename-from = "miso_party" }
+miso_credit = { git = "https://github.com/misonetwork/credit.git", rev = "fb0147ad5eba2e7cc41b5ee7344c6cf6840faad2" }
