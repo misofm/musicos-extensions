@@ -57,6 +57,7 @@ distribution conventions.
 | Package | Target | Purpose |
 |---------|--------|---------|
 | [`recording_master_reference`](./recording_master_reference) | Recording | Transitional Walrus reference to a recording's master-audio blob. |
+| [`recording_streaming_transcode`](./recording_streaming_transcode) | Recording | Walrus Quilt reference to a recording's streaming transcode package. |
 | [`release_dsp_link`](./release_dsp_link) | Release | Typed release and per-track identifiers for supported streaming services. |
 
 ## Usage
