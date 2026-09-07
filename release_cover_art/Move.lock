@@ -23,39 +23,39 @@ manifest_digest = "E41BBD67BE8940D26C79D78B028477EF5B33BA217A1282C78ACB344CF8A5E
 deps = { std = "MoveStdlib", sui = "Sui" }
 
 [pinned.mainnet.cover_art]
-source = { git = "https://github.com/misonetwork/cover-art.git", subdir = ".", rev = "7672ad1c656c23bb6dda20a62661d83a6c9e75bd" }
+source = { git = "https://github.com/misofm/cover-art.git", subdir = ".", rev = "7ea953a37bc77fa1f10a7665e43245bc528ff050" }
 use_environment = "mainnet"
-manifest_digest = "25AA9DE5D5CE95AC10C25EF1D233EDB398E2C428619CC8440C7591335CE404A3"
+manifest_digest = "C384006492A520ABD3E2A62AB659441D512D76DE2A045F94E46B6DAB0BC0E6A2"
 deps = { ori = "ori", std = "MoveStdlib", sui = "Sui" }
 
 [pinned.mainnet.miso]
-source = { git = "https://github.com/misonetwork/protocol.git", subdir = ".", rev = "6de5f9881ee62c81c57ce16832efc24dc33ae429" }
+source = { git = "https://github.com/misofm/protocol.git", subdir = ".", rev = "ffa0e38b8ba4815d81de1076101ea37d2c71c623" }
 use_environment = "mainnet"
-manifest_digest = "C39E753912AE68EC77F0ADE25C4B46362DC32E653CCE60054108A74B7A93F5A2"
+manifest_digest = "F1538B296F5BE05AEE0D9AFAF8855CA7B7FA20480A631D23395D2C5F7D636B48"
 deps = { bps = "bps", miso_share = "miso_share", std = "MoveStdlib", sui = "Sui" }
 
 [pinned.mainnet.miso_share]
-source = { git = "https://github.com/misonetwork/share.git", subdir = ".", rev = "561cfad98e4aaa63e6b34d5a6f4c22e397c70a52" }
+source = { git = "https://github.com/misofm/share.git", subdir = ".", rev = "36dcbf2db710c9544c80427e128324733b6f6044" }
 use_environment = "mainnet"
 manifest_digest = "E41BBD67BE8940D26C79D78B028477EF5B33BA217A1282C78ACB344CF8A5ECF6"
 deps = { std = "MoveStdlib", sui = "Sui" }
 
 [pinned.mainnet.ori]
-source = { git = "https://github.com/unconfirmedlabs/ori.git", subdir = "move", rev = "1ca4e5016848bd946072db19415086a309b9930f" }
+source = { git = "https://github.com/unconfirmedlabs/ori.git", subdir = "move", rev = "367ed5fe92a8b62da02c1116537cf08d111e0789" }
 use_environment = "mainnet"
 manifest_digest = "E41BBD67BE8940D26C79D78B028477EF5B33BA217A1282C78ACB344CF8A5ECF6"
 deps = { std = "MoveStdlib", sui = "Sui" }
 
 [pinned.mainnet.per_track]
-source = { git = "https://github.com/misonetwork/per-track.git", subdir = ".", rev = "547befbb33be14ac7400fabc01962a96bd54fb1e" }
+source = { git = "https://github.com/misofm/per-track.git", subdir = ".", rev = "5048c8fbd6f3b725bda5b1dd9dfcd31e3dde8b50" }
 use_environment = "mainnet"
-manifest_digest = "F1A94C40A897038804F59CD7330C99C26F16480F98D11F104284097870D65090"
+manifest_digest = "0CE252ECBFC67C3D251D6F5E96EE31DF7BFED582D2CFF18B2B67AC3A7D825830"
 deps = { miso = "miso", std = "MoveStdlib", sui = "Sui" }
 
 [pinned.mainnet.release_cover_art]
 source = { root = true }
 use_environment = "mainnet"
-manifest_digest = "E200C9AB7BD06E0F033FC2304CF6FAC4B92DC55F776710442FCF96C0B6F31A21"
+manifest_digest = "E5405F4534353C6D0CA8905777F2DDB5A5609D7059513CD296D4C0E0D735F2B4"
 deps = { cover_art = "cover_art", miso = "miso", per_track = "per_track", std = "MoveStdlib", sui = "Sui" }
 
 [pinned.testnet.MoveStdlib]
