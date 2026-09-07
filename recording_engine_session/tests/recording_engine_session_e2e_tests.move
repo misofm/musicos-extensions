@@ -18,8 +18,22 @@ public struct COMP {}
 const ADMIN: address = @0xAD;
 const READER: address = @0x51;
 
+fun plain_blob(blob_id: u256): data::WalrusBlob {
+    data::new_blob(blob_id, confidentiality::new_unencrypted())
+}
+
+/// One session blob plus a single stem whose digest is all zeroes.
 fun new_session(blob_id: u256): session::EngineSession {
-    session::new(data::new_blob(blob_id, confidentiality::new_unencrypted()))
+    let mut digest = vector[];
+    let mut i = 0u64;
+    while (i < 32) {
+        digest.push_back(0);
+        i = i + 1;
+    };
+    session::new(
+        plain_blob(blob_id),
+        vector[session::new_stem(digest, plain_blob(blob_id + 1))],
+    )
 }
 
 fun blob_id(value: &session::EngineSession): u256 {
@@ -47,6 +61,10 @@ fun lifecycle_works_on_a_published_shared_recording() {
     let recording_id = object::id(&recording);
     session::set_engine_session(&mut recording, &cap, new_session(111));
     assert_eq!(blob_id(session::engine_session(&recording)), 111);
+    assert_eq!(
+        session::stem_data(&session::stems(session::engine_session(&recording))[0]).blob_id(),
+        112,
+    );
 
     let set_events = event::events_by_type<session::EngineSessionSetEvent>();
     assert_eq!(set_events.length(), 1);

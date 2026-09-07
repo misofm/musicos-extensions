@@ -56,7 +56,7 @@ distribution conventions.
 
 | Package | Target | Purpose |
 |---------|--------|---------|
-| [`recording_engine_session`](./recording_engine_session) | Recording | Unencrypted Walrus reference to a recording's Miso Engine session file. |
+| [`recording_engine_session`](./recording_engine_session) | Recording | Unencrypted Walrus references to a recording's Miso Engine session document and each stem it plays, paired with the stem's canonical PCM digest. |
 | [`recording_master_reference`](./recording_master_reference) | Recording | Transitional Walrus reference to a recording's master-audio blob. |
 | [`recording_streaming_transcode`](./recording_streaming_transcode) | Recording | Walrus Quilt reference to a recording's streaming transcode package. |
 | [`release_dsp_link`](./release_dsp_link) | Release | Typed release and per-track identifiers for supported streaming services. |
