@@ -8,10 +8,10 @@
 /// releases are create-and-publish atomic, then shared for their whole life;
 /// see `miso::release`'s module doc).
 ///
-/// Scope: canonical vocabulary creation (`genre::genre`, upstream context) feeding a
-/// published, shared `Release`'s genre assignment — album primary, album
-/// secondaries, per-track overrides — plus the cap-gated adversarial case
-/// (wrong `ReleaseAdminCap` from a second release).
+/// Scope: canonical vocabulary creation (`genre::genre`, upstream context)
+/// feeding a published, shared `Release`'s ordered genre list — appending in
+/// the desired primary-first order, and clearing — plus the cap-gated
+/// adversarial case (wrong `ReleaseAdminCap` from a second release).
 #[test_only]
 module release_genre::release_genre_e2e_tests;
 
@@ -96,41 +96,44 @@ fun genre_lifecycle_on_published_shared_release() {
     let hiphop = scenario.take_immutable_by_id<Genre>(hiphop_id);
     let electronic = scenario.take_immutable_by_id<Genre>(electronic_id);
 
-    assert!(!rg::has_genre(&rel));
-    rg::set_primary_genre(&mut rel, &cap, &hiphop);
-    rg::add_secondary_genre(&mut rel, &cap, &electronic);
-    rg::set_track_primary_genre(&mut rel, &cap, 1, &electronic);
+    assert!(rg::genres(&rel).is_empty());
+    // Add in the desired final order directly — electronic is meant to be
+    // primary, so it is added first.
+    rg::add_genre(&mut rel, &cap, &electronic);
+    rg::add_genre(&mut rel, &cap, &hiphop);
 
-    assert_eq!(rg::primary_genre(&rel), option::some(hiphop_id));
-    assert_eq!(rg::secondary_genres(&rel), vector[electronic_id]);
-    assert_eq!(rg::track_primary_genre(&rel, 0), option::some(hiphop_id));
-    assert_eq!(rg::track_primary_genre(&rel, 1), option::some(electronic_id));
+    assert_eq!(rg::genres(&rel), vector[electronic_id, hiphop_id]);
 
     // Full event payloads, pinned against the real (post-publish) release id.
-    let primary_events = event::events_by_type<rg::PrimaryGenreSetEvent>();
-    assert_eq!(primary_events.length(), 1);
-    let (p_release_id, p_genre_id) =
-        rg::primary_genre_set_event_fields(&primary_events[0]);
-    assert_eq!(p_release_id, release_id);
-    assert_eq!(p_genre_id, hiphop_id);
-
-    let secondary_events = event::events_by_type<rg::SecondaryGenreAddedEvent>();
-    assert_eq!(secondary_events.length(), 1);
-    let (s_release_id, s_genre_id) =
-        rg::secondary_genre_added_event_fields(&secondary_events[0]);
-    assert_eq!(s_release_id, release_id);
-    assert_eq!(s_genre_id, electronic_id);
-
-    let track_events = event::events_by_type<rg::TrackPrimaryGenreSetEvent>();
-    assert_eq!(track_events.length(), 1);
-    let (t_release_id, t_track_index, t_genre_id) =
-        rg::track_primary_genre_set_event_fields(&track_events[0]);
-    assert_eq!(t_release_id, release_id);
-    assert_eq!(t_track_index, 1);
-    assert_eq!(t_genre_id, electronic_id);
+    let added_events = event::events_by_type<rg::GenreAddedEvent>();
+    assert_eq!(added_events.length(), 2);
+    let (a0_release_id, a0_genre_id) = rg::genre_added_event_fields(&added_events[0]);
+    assert_eq!(a0_release_id, release_id);
+    assert_eq!(a0_genre_id, electronic_id);
+    let (a1_release_id, a1_genre_id) = rg::genre_added_event_fields(&added_events[1]);
+    assert_eq!(a1_release_id, release_id);
+    assert_eq!(a1_genre_id, hiphop_id);
 
     ts::return_immutable(hiphop);
     ts::return_immutable(electronic);
+    ts::return_shared(rel);
+
+    // --- Tx 4 (STRANGER): reads are open to anyone, no cap required ---
+    scenario.next_tx(STRANGER);
+    let rel = scenario.take_shared<Release>();
+    assert_eq!(rg::genres(&rel), vector[electronic_id, hiphop_id]);
+    ts::return_shared(rel);
+
+    // --- Tx 5 (LABEL): clears the whole list in one call ---
+    scenario.next_tx(LABEL);
+    let mut rel = scenario.take_shared<Release>();
+    rg::clear_genres(&mut rel, &cap);
+
+    assert!(rg::genres(&rel).is_empty());
+    let cleared_events = event::events_by_type<rg::GenresClearedEvent>();
+    assert_eq!(cleared_events.length(), 1);
+    assert_eq!(rg::genres_cleared_event_release_id(&cleared_events[0]), release_id);
+
     ts::return_shared(rel);
     destroy(cap);
     scenario.end();
@@ -139,8 +142,8 @@ fun genre_lifecycle_on_published_shared_release() {
 // === Adversarial: wrong ReleaseAdminCap from a second release ===
 
 /// A stranger holding the *other* release's admin cap cannot touch this
-/// release's genre assignment — `uid_mut`'s `authorize` check (core) rejects
-/// it before `release_genre` ever runs its own logic.
+/// release's genre list — `uid_mut`'s `authorize` check (core) rejects it
+/// before `release_genre` ever runs its own logic.
 #[test]
 #[expected_failure(abort_code = 0, location = miso::release)] // EUnauthorized
 fun wrong_cap_from_other_release_aborts() {
@@ -156,11 +159,11 @@ fun wrong_cap_from_other_release_aborts() {
     scenario.next_tx(LABEL);
     let (cap_b, _release_id_b) = publish_and_share_release(&mut scenario);
 
-    // --- Tx (STRANGER): try to set release A's genre using cap B ---
+    // --- Tx (STRANGER): try to tag release A's genre using cap B ---
     scenario.next_tx(STRANGER);
     let mut rel_a = scenario.take_shared_by_id<Release>(release_id_a);
     let hiphop = scenario.take_immutable_by_id<Genre>(hiphop_id);
-    rg::set_primary_genre(&mut rel_a, &cap_b, &hiphop); // aborts: wrong cap
+    rg::add_genre(&mut rel_a, &cap_b, &hiphop); // aborts: wrong cap
 
     // Unreachable, but the compiler requires all non-drop values consumed on
     // any path that returns normally; this path never does.

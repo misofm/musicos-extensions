@@ -1,241 +1,174 @@
 // Copyright (c) Miso Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-/// Genre assignment for a Miso release: an album-level primary + secondary
-/// genres, plus optional per-track primary overrides.
+/// The genre(s) a Miso `Release` is classified under, stored as a dynamic
+/// field on the release's UID and written through its cap-gated `uid_mut`.
 ///
-/// Genre is presentation, not objective recording data, so it is assigned on
-/// the release (the consumer object), not the recording. Stored as a single
-/// `ReleaseGenre` dynamic field on the release's UID, gated by the
-/// `ReleaseAdminCap`.
+/// Genre is intrinsic to a recording — a fact about the master, not about any
+/// one product it appears on — so a recording's own genre lives in the
+/// sibling package `recording_genre`, on the recording itself. This package
+/// carries the different claim: what a release, as a released product, is
+/// classified as. A compilation can be "Jazz" on the shelf even when half its
+/// tracks are Blues or Funk on their own terms; that classification belongs
+/// to nobody but the release, and no amount of inspecting its recordings
+/// derives it. The intended read order for a track's genre is the
+/// recording's own (`recording_genre`), falling back to this release's
+/// primary when the recording has none — the release is the product-level
+/// default, not a per-track override, because a `Recording` carries no
+/// back-reference to any release and one recording can appear on many.
 ///
-/// A track's effective primary genre resolves as: its per-track override if
-/// set, else the album primary.
+/// Its own package, for the same reason genre is separated from every other
+/// release fact: it is set by different people, at different times, under a
+/// vocabulary (the shared `genre` registry) that evolves on its own schedule.
+/// A consumer building a metadata profile picks this extension up or ignores
+/// it, and revising it never disturbs anything else the release carries.
 ///
-/// A genre is either the album primary or a secondary, never both — the two
-/// are kept disjoint: setting the primary to a current secondary aborts
-/// (remove it from the secondaries first), and adding the current primary as
-/// a secondary aborts.
+/// Genres are kept as one ordered list, primary first, rather than a primary
+/// field plus a separate secondary set. A release either has a primary genre
+/// or it has no genre assignment at all — there is no state where secondaries
+/// exist without a primary, or where the primary and a secondary are the same
+/// entry needing to be kept disjoint — so the two structures collapse to one
+/// without losing anything the list needs to say. Reordering — including
+/// promoting an existing entry to primary — is `clear_genres` followed by
+/// `add_genre` in the desired order, atomically within one programmable
+/// transaction block. That is preferable to a dedicated set-primary function:
+/// one fewer function to review and keep in sync with `recording_genre`, no
+/// conditional-capacity branch (insert-new-at-front vs. move-existing-to-
+/// front), and the client expresses its intended final order directly instead
+/// of encoding it as a sequence of promotions. Order beyond index 0 is the
+/// caller's, in the same convention `recording_language` uses for its
+/// language vector: first is authoritative, the rest are unranked.
+///
+/// The stored value is a bare `vector<ID>` under the package's own key, with
+/// no wrapper struct — the same shape `party_genre` uses for its `VecSet<ID>`
+/// and `recording_language` for its `vector<LanguageCode>`. The list is
+/// non-empty by construction: `remove_genre` drops the field the moment the
+/// last entry leaves, so "the field exists" and "there is a primary" are the
+/// same fact and no reader has to handle an attached-but-empty case. Every
+/// write takes `&Genre`, so only an id that the shared vocabulary actually
+/// minted can ever enter the list; removal takes a bare `ID` because nothing
+/// about proving membership is needed to take an entry back out.
+///
+/// This module exposes no function derivable by composing the others. This
+/// package is never upgraded — every publish is a fresh identity at a fresh
+/// address — so every public function is permanent surface: once live, it
+/// must be carried, re-published, and re-audited for as long as the package
+/// is in use. A predicate or accessor a caller can compute from `genres()`
+/// earns nothing by also living on-chain. Concretely: emptiness is
+/// `genres(release).is_empty()`, and the primary is `genres(release)[0]`
+/// (valid whenever the vector is non-empty, by the non-empty-by-construction
+/// invariant above).
 module release_genre::release_genre;
 
 use genre::genre::Genre;
 use miso::release::{Release, ReleaseAdminCap};
-use per_track::per_track::{Self, PerTrack};
 use sui::dynamic_field as df;
 use sui::event::emit;
 
 // === Errors ===
 
-// State errors (30-39)
-/// An album primary genre must be set before adding secondaries or per-track overrides.
-const ENoPrimaryGenre: u64 = 30;
-
 // Conflict errors (40-49)
-/// The genre is already the album primary genre.
-const ESecondaryIsPrimary: u64 = 40;
-/// The genre is already an album secondary genre.
-const EGenreAlreadySecondary: u64 = 41;
-/// The release has the maximum number of secondary genres.
-const EMaxSecondaryGenres: u64 = 42;
-/// The genre is not an album secondary genre on this release.
-const EGenreNotSecondary: u64 = 43;
-/// The genre is an album secondary genre; remove it from the secondaries
-/// before making it the primary.
-const EPrimaryIsSecondary: u64 = 44;
-
-// Reference errors (50-59)
-/// Track index is out of bounds for this release's track count.
-const ETrackIndexOutOfBounds: u64 = 50;
+/// The genre is already assigned to this release.
+const EDuplicateGenre: u64 = 40;
+/// The release already carries `MAX_GENRES` genres.
+const EMaxGenres: u64 = 41;
+/// The genre is not assigned to this release.
+const EGenreNotPresent: u64 = 42;
 
 // === Constants ===
 
-/// Maximum number of album secondary genres.
-const MAX_SECONDARY_GENRES: u64 = 5;
+/// Maximum genres on one release: the primary plus up to five more.
+const MAX_GENRES: u64 = 6;
 
 // === Structs ===
 
-/// Dynamic-field key for a release's genre assignment.
+/// Dynamic-field key — one ordered genre list per release. The value is a
+/// bare `vector<ID>` of `genre::Genre` ids; index 0 is the primary. Non-empty
+/// by construction: removing the last genre drops the field.
 public struct ExtensionKey() has copy, drop, store;
-
-/// A release's genre assignment: an album-level primary + secondaries, plus
-/// per-track primary overrides (a track with no override inherits the album
-/// primary).
-public struct ReleaseGenre has store {
-    primary: ID,
-    secondary: vector<ID>,
-    track_primary: PerTrack<Option<ID>>,
-}
 
 // === Events ===
 
-/// Emitted when the album primary genre is set or changed.
-public struct PrimaryGenreSetEvent has copy, drop {
+/// Emitted when a genre is appended (`add_genre`).
+public struct GenreAddedEvent has copy, drop {
     release_id: ID,
     genre_id: ID,
 }
 
-/// Emitted when an album secondary genre is added.
-public struct SecondaryGenreAddedEvent has copy, drop {
+/// Emitted when a genre is removed (`remove_genre`).
+public struct GenreRemovedEvent has copy, drop {
     release_id: ID,
     genre_id: ID,
 }
 
-/// Emitted when an album secondary genre is removed.
-public struct SecondaryGenreRemovedEvent has copy, drop {
+/// Emitted when the release's genre list is dropped entirely — either because
+/// `remove_genre` removed the last genre, or because `clear_genres` removed
+/// an attached list outright.
+public struct GenresClearedEvent has copy, drop {
     release_id: ID,
-    genre_id: ID,
-}
-
-/// Emitted when a track's primary-genre override is set or changed.
-public struct TrackPrimaryGenreSetEvent has copy, drop {
-    release_id: ID,
-    track_index: u64,
-    genre_id: ID,
-}
-
-/// Emitted when a track's primary-genre override is removed.
-public struct TrackPrimaryGenreUnsetEvent has copy, drop {
-    release_id: ID,
-    track_index: u64,
 }
 
 // === Public Functions ===
 
-// Album-level assignment
-
-/// Sets (or replaces) the album primary genre. Gated by the release admin cap.
-/// Aborts if the genre is currently an album secondary — remove it from the
-/// secondaries first (primary and secondary are kept disjoint).
-public fun set_primary_genre(
-    self: &mut Release,
-    cap: &ReleaseAdminCap,
-    genre: &Genre,
-) {
-    let release_id = object::id(self);
+/// Appends a genre to the release's list. Creates the field on first use, in
+/// which case that genre becomes the primary by being the only entry. Aborts
+/// `EDuplicateGenre` if the genre is already present, `EMaxGenres` if the
+/// release is already at capacity.
+public fun add_genre(self: &mut Release, cap: &ReleaseAdminCap, genre: &Genre) {
+    let release_id = object::id(self); // read before uid_mut borrows self
     let genre_id = object::id(genre);
-
     if (df::exists(self.uid(), ExtensionKey())) {
-        let assignment: &mut ReleaseGenre = df::borrow_mut(self.uid_mut(cap), ExtensionKey());
-        assert!(!assignment.secondary.contains(&genre_id), EPrimaryIsSecondary);
-        assignment.primary = genre_id;
+        // The immutable borrow above ends here, before uid_mut's mutable one.
+        let genres: &mut vector<ID> = df::borrow_mut(self.uid_mut(cap), ExtensionKey());
+        assert!(!genres.contains(&genre_id), EDuplicateGenre);
+        assert!(genres.length() < MAX_GENRES, EMaxGenres);
+        genres.push_back(genre_id);
     } else {
-        // First set: size the per-track overrides to the tracklist (all empty).
-        let track_primary = per_track::filled(self, option::none<ID>());
-        df::add(
-            self.uid_mut(cap),
-            ExtensionKey(),
-            ReleaseGenre {
-                primary: genre_id,
-                secondary: vector[],
-                track_primary,
-            },
-        );
+        df::add(self.uid_mut(cap), ExtensionKey(), vector[genre_id]);
     };
-
-    emit(PrimaryGenreSetEvent { release_id, genre_id });
+    emit(GenreAddedEvent { release_id, genre_id });
 }
 
-/// Adds an album secondary genre. Requires the album primary first. Rejects a
-/// secondary equal to the primary, duplicates, and counts at/above the maximum.
-public fun add_secondary_genre(self: &mut Release, cap: &ReleaseAdminCap, genre: &Genre) {
+/// Removes a genre from the release by id. If it was the primary, the next
+/// entry (if any) becomes primary by virtue of now sitting at index 0.
+/// Removing the last genre drops the field entirely and additionally emits
+/// `GenresClearedEvent`. Aborts `EGenreNotPresent` if the genre is not
+/// currently assigned, including when the release has no genres at all.
+public fun remove_genre(self: &mut Release, cap: &ReleaseAdminCap, genre_id: ID) {
     let release_id = object::id(self);
-    let genre_id = object::id(genre);
-
-    assert!(df::exists(self.uid(), ExtensionKey()), ENoPrimaryGenre);
-    let assignment: &mut ReleaseGenre = df::borrow_mut(self.uid_mut(cap), ExtensionKey());
-    assert!(genre_id != assignment.primary, ESecondaryIsPrimary);
-    assert!(!assignment.secondary.contains(&genre_id), EGenreAlreadySecondary);
-    assert!(assignment.secondary.length() < MAX_SECONDARY_GENRES, EMaxSecondaryGenres);
-    assignment.secondary.push_back(genre_id);
-
-    emit(SecondaryGenreAddedEvent { release_id, genre_id });
+    assert!(df::exists(self.uid(), ExtensionKey()), EGenreNotPresent);
+    let uid = self.uid_mut(cap);
+    let genres: &mut vector<ID> = df::borrow_mut(uid, ExtensionKey());
+    let (found, idx) = genres.index_of(&genre_id);
+    assert!(found, EGenreNotPresent);
+    genres.remove(idx);
+    let now_empty = genres.is_empty(); // last read of `genres`, before reuse of `uid`
+    emit(GenreRemovedEvent { release_id, genre_id });
+    if (now_empty) {
+        let _: vector<ID> = df::remove(uid, ExtensionKey()); // vector<ID> has drop
+        emit(GenresClearedEvent { release_id });
+    }
 }
 
-/// Removes an album secondary genre.
-public fun remove_secondary_genre(self: &mut Release, cap: &ReleaseAdminCap, genre: &Genre) {
+/// Removes the release's entire genre list. A no-op when nothing is
+/// attached. Emits `GenresClearedEvent` only when a list was actually
+/// removed.
+public fun clear_genres(self: &mut Release, cap: &ReleaseAdminCap) {
     let release_id = object::id(self);
-    let genre_id = object::id(genre);
-
-    assert!(df::exists(self.uid(), ExtensionKey()), ENoPrimaryGenre);
-    let assignment: &mut ReleaseGenre = df::borrow_mut(self.uid_mut(cap), ExtensionKey());
-    let (found, idx) = assignment.secondary.index_of(&genre_id);
-    assert!(found, EGenreNotSecondary);
-    assignment.secondary.remove(idx);
-
-    emit(SecondaryGenreRemovedEvent { release_id, genre_id });
-}
-
-// Per-track overrides
-
-/// Sets (or replaces) a track's primary-genre override (by tracklist index).
-/// Requires the album primary first. Aborts if the index is out of range.
-public fun set_track_primary_genre(
-    self: &mut Release,
-    cap: &ReleaseAdminCap,
-    track_index: u64,
-    genre: &Genre,
-) {
-    let release_id = object::id(self);
-    let genre_id = object::id(genre);
-
-    assert!(df::exists(self.uid(), ExtensionKey()), ENoPrimaryGenre);
-    assert!(track_index < self.tracks().length(), ETrackIndexOutOfBounds);
-    let assignment: &mut ReleaseGenre = df::borrow_mut(self.uid_mut(cap), ExtensionKey());
-    assignment.track_primary.borrow_mut(track_index).swap_or_fill(genre_id);
-
-    emit(TrackPrimaryGenreSetEvent { release_id, track_index, genre_id });
-}
-
-/// Removes a track's primary-genre override — the track falls back to the album
-/// primary. Aborts if the index is out of range.
-public fun unset_track_primary_genre(self: &mut Release, cap: &ReleaseAdminCap, track_index: u64) {
-    let release_id = object::id(self);
-
-    assert!(df::exists(self.uid(), ExtensionKey()), ENoPrimaryGenre);
-    assert!(track_index < self.tracks().length(), ETrackIndexOutOfBounds);
-    let assignment: &mut ReleaseGenre = df::borrow_mut(self.uid_mut(cap), ExtensionKey());
-    *assignment.track_primary.borrow_mut(track_index) = option::none();
-
-    emit(TrackPrimaryGenreUnsetEvent { release_id, track_index });
+    let uid = self.uid_mut(cap);
+    if (df::exists(uid, ExtensionKey())) {
+        let _: vector<ID> = df::remove(uid, ExtensionKey());
+        emit(GenresClearedEvent { release_id });
+    }
 }
 
 // === View Functions ===
 
-/// Returns whether the release has a genre assignment.
-public fun has_genre(self: &Release): bool {
-    df::exists(self.uid(), ExtensionKey())
-}
-
-/// Returns the album primary genre id, if set.
-public fun primary_genre(self: &Release): Option<ID> {
+/// The release's genre ids, in order, primary first. Empty when nothing is
+/// attached.
+public fun genres(self: &Release): vector<ID> {
     let uid = self.uid();
-    if (df::exists(uid, ExtensionKey())) {
-        option::some(df::borrow<ExtensionKey, ReleaseGenre>(uid, ExtensionKey()).primary)
-    } else {
-        option::none()
-    }
-}
-
-/// Returns the album secondary genre ids (empty if none).
-public fun secondary_genres(self: &Release): vector<ID> {
-    let uid = self.uid();
-    if (df::exists(uid, ExtensionKey())) {
-        df::borrow<ExtensionKey, ReleaseGenre>(uid, ExtensionKey()).secondary
-    } else {
-        vector[]
-    }
-}
-
-/// Returns a track's effective primary genre: its override if set, else the
-/// album primary. None if no genre is assigned to the release. Aborts if the
-/// track index is out of range (when an assignment exists).
-public fun track_primary_genre(self: &Release, track_index: u64): Option<ID> {
-    let uid = self.uid();
-    if (!df::exists(uid, ExtensionKey())) return option::none();
-    assert!(track_index < self.tracks().length(), ETrackIndexOutOfBounds);
-    let assignment = df::borrow<ExtensionKey, ReleaseGenre>(uid, ExtensionKey());
-    let override = assignment.track_primary.borrow(track_index);
-    if (override.is_some()) *override else option::some(assignment.primary)
+    if (df::exists(uid, ExtensionKey())) *df::borrow(uid, ExtensionKey()) else vector[]
 }
 
 // === Test Functions ===
@@ -245,26 +178,16 @@ public fun track_primary_genre(self: &Release, track_index: u64): Option<ID> {
 // than just "an event fired".
 
 #[test_only]
-public fun primary_genre_set_event_fields(event: &PrimaryGenreSetEvent): (ID, ID) {
-    (event.release_id, event.genre_id)
+public fun genre_added_event_fields(e: &GenreAddedEvent): (ID, ID) {
+    (e.release_id, e.genre_id)
 }
 
 #[test_only]
-public fun secondary_genre_added_event_fields(event: &SecondaryGenreAddedEvent): (ID, ID) {
-    (event.release_id, event.genre_id)
+public fun genre_removed_event_fields(e: &GenreRemovedEvent): (ID, ID) {
+    (e.release_id, e.genre_id)
 }
 
 #[test_only]
-public fun secondary_genre_removed_event_fields(event: &SecondaryGenreRemovedEvent): (ID, ID) {
-    (event.release_id, event.genre_id)
-}
-
-#[test_only]
-public fun track_primary_genre_set_event_fields(event: &TrackPrimaryGenreSetEvent): (ID, u64, ID) {
-    (event.release_id, event.track_index, event.genre_id)
-}
-
-#[test_only]
-public fun track_primary_genre_unset_event_fields(event: &TrackPrimaryGenreUnsetEvent): (ID, u64) {
-    (event.release_id, event.track_index)
+public fun genres_cleared_event_release_id(e: &GenresClearedEvent): ID {
+    e.release_id
 }

@@ -40,7 +40,7 @@ use_environment = "mainnet"
 manifest_digest = "E41BBD67BE8940D26C79D78B028477EF5B33BA217A1282C78ACB344CF8A5ECF6"
 deps = { std = "MoveStdlib", sui = "Sui" }
 
-[pinned.mainnet.release_genre]
+[pinned.mainnet.recording_genre]
 source = { root = true }
 use_environment = "mainnet"
 manifest_digest = "46F9D8ABF0BFA85904882F8F63EBBC9346D4AADC3338E02969CDF698548217B4"
@@ -82,7 +82,7 @@ use_environment = "testnet"
 manifest_digest = "5745706258F61D6CE210904B3E6AE87A73CE9D31A6F93BE4718C442529332A87"
 deps = { std = "MoveStdlib", sui = "Sui" }
 
-[pinned.testnet.release_genre]
+[pinned.testnet.recording_genre]
 source = { root = true }
 use_environment = "testnet"
 manifest_digest = "3F37580834F207CD3807EA1BBF06EFCC6E69DD786634570F4F96466977C714BA"
