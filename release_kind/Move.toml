@@ -7,4 +7,4 @@ authors = ["Miso Labs, Inc. (build@miso.network)"]
 # Self-asserted, with no vocabulary to enforce — hence no dependency beyond miso
 # core, which is only needed to reach `Release` through its cap-gated `uid_mut`.
 [dependencies]
-miso = { git = "https://github.com/misofm/protocol.git", rev = "ffa0e38b8ba4815d81de1076101ea37d2c71c623" }
+miso = { git = "https://github.com/misofm/protocol.git", rev = "09f0dc699a112c37d8da8a765596cc1ed623fe79" }

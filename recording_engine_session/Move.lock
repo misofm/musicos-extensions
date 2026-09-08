@@ -65,13 +65,13 @@ manifest_digest = "5745706258F61D6CE210904B3E6AE87A73CE9D31A6F93BE4718C442529332
 deps = { std = "MoveStdlib", sui = "Sui" }
 
 [pinned.testnet.miso]
-source = { git = "https://github.com/misofm/protocol.git", subdir = ".", rev = "ffa0e38b8ba4815d81de1076101ea37d2c71c623" }
+source = { git = "https://github.com/misofm/protocol.git", subdir = ".", rev = "09f0dc699a112c37d8da8a765596cc1ed623fe79" }
 use_environment = "testnet"
-manifest_digest = "973EE2F7AB28EEDA581771A1D2CCFB198762A9A3892D836A881F7BBD8A5D9FF0"
+manifest_digest = "8ABEF6728361420B2EDD62D2E4292AEE53C7FB6EE6DD6953C4CB77A522CA8AA7"
 deps = { bps = "bps", miso_share = "miso_share", std = "MoveStdlib", sui = "Sui" }
 
 [pinned.testnet.miso_share]
-source = { git = "https://github.com/misofm/share.git", subdir = ".", rev = "36dcbf2db710c9544c80427e128324733b6f6044" }
+source = { git = "https://github.com/misofm/share.git", subdir = ".", rev = "4999b7d639131fbd5b416b14ca798c28c0a6107d" }
 use_environment = "testnet"
 manifest_digest = "5745706258F61D6CE210904B3E6AE87A73CE9D31A6F93BE4718C442529332A87"
 deps = { std = "MoveStdlib", sui = "Sui" }
@@ -85,5 +85,5 @@ deps = { std = "MoveStdlib", sui = "Sui" }
 [pinned.testnet.recording_engine_session]
 source = { root = true }
 use_environment = "testnet"
-manifest_digest = "3A7C7389FDB4D8E549DBB860860C02B3081595DF775AEFDC5927BF751F99CBED"
+manifest_digest = "FAF01001968CEE27D8AA253ADD0C69A25F540B860058D3AB3C4C6784334869CF"
 deps = { miso = "miso", ori = "ori", std = "MoveStdlib", sui = "Sui" }

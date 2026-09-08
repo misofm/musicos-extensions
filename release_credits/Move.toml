@@ -5,6 +5,6 @@ license = "Apache 2.0"
 authors = ["Miso Labs, Inc. (build@miso.network)"]
 
 [dependencies]
-miso = { git = "https://github.com/misofm/protocol.git", rev = "ffa0e38b8ba4815d81de1076101ea37d2c71c623" }
-partyos = { git = "https://github.com/misofm/party.git", rev = "72fa0c9c982166f51527d20846c2bc365b5c17f6", rename-from = "miso_party" }
-miso_credit = { git = "https://github.com/misofm/credit.git", rev = "70cce6ed4246384067f891230584657987e8b380" }
+miso = { git = "https://github.com/misofm/protocol.git", rev = "09f0dc699a112c37d8da8a765596cc1ed623fe79" }
+partyos = { git = "https://github.com/misofm/party.git", rev = "d63a052247317ac2d3a9ac8f775df49bfeadc177", rename-from = "miso_party" }
+miso_credit = { git = "https://github.com/misofm/credit.git", rev = "b96fae3faf8836e5ad718b1a7700fbd11e07708b" }
