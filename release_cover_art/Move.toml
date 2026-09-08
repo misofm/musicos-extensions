@@ -5,6 +5,6 @@ license = "Apache 2.0"
 authors = ["Miso Labs, Inc. (build@miso.network)"]
 
 [dependencies]
-cover_art = { git = "https://github.com/misofm/cover-art.git", rev = "21fb2c04417fb0075d47f20c28149100e90af2cb" }
-musicos = { git = "https://github.com/misofm/musicos.git", rev = "b3d5d4005fe36044d90e318f864dbc8b01de41da" }
-per_track = { git = "https://github.com/misofm/per-track.git", rev = "95b9830bda45fd82412c7653711ce9a2044a8be8" }
+cover_art = { git = "https://github.com/misofm/cover-art.git", rev = "603981fd563d10f3f89afe74851c1c4d3d50b0b4" }
+musicos = { git = "https://github.com/misofm/musicos.git", rev = "4cb3c926b1f9bb5103f3f7194e4e1e34b6c87840" }
+per_track = { git = "https://github.com/misofm/per-track.git", rev = "cba820dec3e058a1c543d5e8595ba8aed32e9dc6" }

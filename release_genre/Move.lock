@@ -65,25 +65,25 @@ manifest_digest = "5745706258F61D6CE210904B3E6AE87A73CE9D31A6F93BE4718C442529332
 deps = { std = "MoveStdlib", sui = "Sui" }
 
 [pinned.testnet.genre]
-source = { git = "https://github.com/misofm/genre.git", subdir = ".", rev = "09f6882b57b19498f36fa15840cd7ed61094dc41" }
+source = { git = "https://github.com/misofm/genre.git", subdir = ".", rev = "cddf9491426723e2c468cebf40fb4231d9fb0d5a" }
 use_environment = "testnet"
 manifest_digest = "5745706258F61D6CE210904B3E6AE87A73CE9D31A6F93BE4718C442529332A87"
 deps = { std = "MoveStdlib", sui = "Sui" }
 
 [pinned.testnet.musicos]
-source = { git = "https://github.com/misofm/musicos.git", subdir = ".", rev = "b3d5d4005fe36044d90e318f864dbc8b01de41da" }
+source = { git = "https://github.com/misofm/musicos.git", subdir = ".", rev = "4cb3c926b1f9bb5103f3f7194e4e1e34b6c87840" }
 use_environment = "testnet"
-manifest_digest = "2B0310BD0BE225E02688BE35EC89B7F53E1494F234743C15A5FA3699DA2F1720"
+manifest_digest = "B570E2104B35C19F25B955D3C87C48FE00C559F83B11F558F680DBBAF50EEB73"
 deps = { bps = "bps", share = "share", std = "MoveStdlib", sui = "Sui" }
 
 [pinned.testnet.release_genre]
 source = { root = true }
 use_environment = "testnet"
-manifest_digest = "F4B63ADEC08F421C9C6AA6ECFE6E5735F75A003EACE83362324342392B5E6F41"
+manifest_digest = "FA6A5F7070DBEC7A9B27C7BAB671B96DDE3A327A08F0CD0BB43F6720D2A35DB7"
 deps = { genre = "genre", musicos = "musicos", std = "MoveStdlib", sui = "Sui" }
 
 [pinned.testnet.share]
-source = { git = "https://github.com/misofm/share.git", subdir = ".", rev = "4311b8400272cf641d35569a8a262fc12a957c75" }
+source = { git = "https://github.com/misofm/share.git", subdir = ".", rev = "3fd8e0ce2803c12d41e04db23a7f79e51982298e" }
 use_environment = "testnet"
 manifest_digest = "5745706258F61D6CE210904B3E6AE87A73CE9D31A6F93BE4718C442529332A87"
 deps = { std = "MoveStdlib", sui = "Sui" }
