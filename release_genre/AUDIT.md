@@ -17,8 +17,8 @@ use `df::exists` directly against the release's `UID`.
 ## Dependency provenance
 
 `Move.toml` pins `genre` at
-`09f6882b57b19498f36fa15840cd7ed61094dc41` and `miso` at
-`09f0dc699a112c37d8da8a765596cc1ed623fe79`. Both the Testnet and Mainnet lock
+`09f6882b57b19498f36fa15840cd7ed61094dc41` and `musicos` at
+`4fed48b2b5632122fb677d742881259c65b1bc78`. Both the Testnet and Mainnet lock
 graphs resolve `bps` at `4ca1972a67d35c972ca567de7b08315e3778e52b` with no
 duplicate package aliases.
 

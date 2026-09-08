@@ -21,7 +21,7 @@ module recording_genre::recording_genre_tests;
 
 use genre::genre as g;
 use genre::genre::{GenreRegistry, Genre};
-use miso::recording;
+use musicos::recording;
 use recording_genre::recording_genre as rg;
 use std::unit_test::{assert_eq, destroy};
 use sui::event;

@@ -4,8 +4,8 @@
 #[test_only]
 module recording_streaming_transcode::recording_streaming_transcode_e2e_tests;
 
-use miso::recording::{Self, Recording, RecordingAdminCap};
-use miso::test_helpers;
+use musicos::recording::{Self, Recording, RecordingAdminCap};
+use musicos::test_helpers;
 use ori::data;
 use recording_streaming_transcode::recording_streaming_transcode as transcode;
 use std::unit_test::{assert_eq, destroy};

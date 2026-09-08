@@ -5,9 +5,9 @@ findings in the reviewed source.
 
 ## Dependency provenance
 
-`Move.toml` pins `miso` at
-`6de5f9881ee62c81c57ce16832efc24dc33ae429`, `partyos` at
-`ffb2915b9bb1802b4c160d3230c560e40bd2b063`, and `miso_credit` at
+`Move.toml` pins `musicos` at
+`4fed48b2b5632122fb677d742881259c65b1bc78`, `partyos` at
+`819fde6f34c0bc7eeb57ec7340cdf13dc56b3fca`, and `miso_credit` at
 `fb0147ad5eba2e7cc41b5ee7344c6cf6840faad2`. Both lock graphs resolve `bps` at
 `4ca1972a67d35c972ca567de7b08315e3778e52b` without duplicate aliases.
 

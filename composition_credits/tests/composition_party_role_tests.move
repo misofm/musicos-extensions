@@ -12,7 +12,7 @@
 module composition_credits::composition_party_role_tests;
 
 use composition_credits::composition_party_role as cpr;
-use miso::test_helpers;
+use musicos::test_helpers;
 use std::unit_test::assert_eq;
 
 #[test]

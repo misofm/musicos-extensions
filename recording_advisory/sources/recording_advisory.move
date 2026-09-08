@@ -25,7 +25,7 @@
 /// holder, and a recording with nothing attached has simply said nothing.
 module recording_advisory::recording_advisory;
 
-use miso::recording::{Recording, RecordingAdminCap};
+use musicos::recording::{Recording, RecordingAdminCap};
 use sui::dynamic_field as df;
 use sui::event::emit;
 

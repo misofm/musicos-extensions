@@ -14,9 +14,9 @@
 #[test_only]
 module release_kind::release_kind_tests;
 
-use miso::release::{Self, Release, ReleaseAdminCap};
-use miso::test_helpers;
-use miso::track;
+use musicos::release::{Self, Release, ReleaseAdminCap};
+use musicos::test_helpers;
+use musicos::track;
 use release_kind::release_kind as rk;
 use std::unit_test::{assert_eq, destroy};
 use sui::event;
@@ -212,7 +212,7 @@ fun over_max_length_aborts() {
 
 /// A `Release` binds its cap at runtime, so unlike the recording extensions this
 /// gate is testable — and must hold.
-#[test, expected_failure(abort_code = EUnauthorized, location = miso::release)]
+#[test, expected_failure(abort_code = EUnauthorized, location = musicos::release)]
 fun another_releases_cap_is_rejected() {
     let ctx = &mut tx_context::dummy();
     let (mut a, a_cap) = mk_release(ctx);

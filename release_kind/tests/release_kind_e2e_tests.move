@@ -5,7 +5,7 @@
 /// `sui::test_scenario`: the release is published and shared exactly as in
 /// production — core's release is atomic (an `Initialized` release cannot
 /// outlive its creating transaction; every release that exists on-chain is
-/// `Published` and shared, per `miso::release`'s module doc) — and the kind
+/// `Published` and shared, per `musicos::release`'s module doc) — and the kind
 /// extension operates on it via `take_shared` in later transactions, exactly
 /// as client PTBs would.
 ///
@@ -16,9 +16,9 @@
 #[test_only]
 module release_kind::release_kind_e2e_tests;
 
-use miso::release::{Self, Release, ReleaseAdminCap};
-use miso::test_helpers;
-use miso::track;
+use musicos::release::{Self, Release, ReleaseAdminCap};
+use musicos::test_helpers;
+use musicos::track;
 use release_kind::release_kind as rk;
 use std::unit_test::{assert_eq, destroy};
 use sui::event;
@@ -104,7 +104,7 @@ fun kind_lifecycle_against_a_published_shared_release() {
 /// against a freshly created object. STRANGER owns nothing of the shared
 /// release; the only thing it brings to the call is a cap for an unrelated
 /// object.
-#[test, expected_failure(abort_code = EUnauthorized, location = miso::release)]
+#[test, expected_failure(abort_code = EUnauthorized, location = musicos::release)]
 fun wrong_cap_is_rejected_against_the_shared_release() {
     let mut ts = test_scenario::begin(ADMIN);
     let cap = publish_and_share(&mut ts);

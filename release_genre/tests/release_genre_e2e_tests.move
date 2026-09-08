@@ -6,7 +6,7 @@
 /// the release genuinely published and shared before genre operations touch
 /// it via `take_shared` in a later transaction — the production shape (core
 /// releases are create-and-publish atomic, then shared for their whole life;
-/// see `miso::release`'s module doc).
+/// see `musicos::release`'s module doc).
 ///
 /// Scope: canonical vocabulary creation (`genre::genre`, upstream context)
 /// feeding a published, shared `Release`'s ordered genre list — appending in
@@ -17,9 +17,9 @@ module release_genre::release_genre_e2e_tests;
 
 use genre::genre as g;
 use genre::genre::{GenreRegistry, Genre};
-use miso::release::{Self, Release, ReleaseAdminCap};
-use miso::test_helpers;
-use miso::track;
+use musicos::release::{Self, Release, ReleaseAdminCap};
+use musicos::test_helpers;
+use musicos::track;
 use release_genre::release_genre as rg;
 use std::unit_test::{assert_eq, destroy};
 use sui::clock;
@@ -45,7 +45,7 @@ fun create_genre(scenario: &Scenario, name: vector<u8>): ID {
 }
 
 /// Builds a 2-track release and publishes it in the same transaction —
-/// create-and-publish is atomic in production (`miso::release`'s module
+/// create-and-publish is atomic in production (`musicos::release`'s module
 /// doc): a fresh `Initialized` release cannot outlive its creating
 /// transaction, so every release that exists on chain is already `Published`
 /// and shared. Returns the admin cap and the release's real (post-creation)
@@ -145,7 +145,7 @@ fun genre_lifecycle_on_published_shared_release() {
 /// release's genre list — `uid_mut`'s `authorize` check (core) rejects it
 /// before `release_genre` ever runs its own logic.
 #[test]
-#[expected_failure(abort_code = 0, location = miso::release)] // EUnauthorized
+#[expected_failure(abort_code = 0, location = musicos::release)] // EUnauthorized
 fun wrong_cap_from_other_release_aborts() {
     let mut scenario = ts::begin(CREATOR);
     g::init_for_testing(scenario.ctx());

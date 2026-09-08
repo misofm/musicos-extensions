@@ -1,6 +1,6 @@
 # release_genre
 
-The genre(s) a Miso `Release` is classified under as a product: an ordered
+The genre(s) a musicos `Release` is classified under as a product: an ordered
 list of `genre::Genre` object ids, primary first, attached to the release
 through its cap-gated `&mut UID`. It does not carry per-track genre — a
 recording's own intrinsic classification lives in the sibling package
@@ -28,7 +28,7 @@ release's primary when the recording has none.
 
 All writes require `&ReleaseAdminCap` for the exact release and go through
 `release::uid_mut(cap)`; a wrong cap aborts with `EUnauthorized` (0) at
-`miso::release`. Views are permissionless.
+`musicos::release`. Views are permissionless.
 
 ### Writes
 
@@ -59,12 +59,12 @@ All writes require `&ReleaseAdminCap` for the exact release and go through
 | 40 | `EDuplicateGenre` | `release_genre::release_genre` | `add_genre` with a genre already assigned |
 | 41 | `EMaxGenres` | `release_genre::release_genre` | `add_genre` when the release already holds 6 genres |
 | 42 | `EGenreNotPresent` | `release_genre::release_genre` | `remove_genre` with an id not currently assigned |
-| 0 | `EUnauthorized` | `miso::release` | any write with a cap for a different release |
+| 0 | `EUnauthorized` | `musicos::release` | any write with a cap for a different release |
 
 ## Dependencies
 
-- [`miso`](https://github.com/misofm/protocol) at
-  `09f0dc699a112c37d8da8a765596cc1ed623fe79` — `Release` authorization
+- [`musicos`](https://github.com/misofm/musicos) at
+  `4fed48b2b5632122fb677d742881259c65b1bc78` — `Release` authorization
   through `uid`/`uid_mut`.
 - [`genre`](https://github.com/misofm/genre) at
   `09f6882b57b19498f36fa15840cd7ed61094dc41` — the canonical shared genre

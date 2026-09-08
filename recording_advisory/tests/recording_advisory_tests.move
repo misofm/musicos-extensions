@@ -4,7 +4,7 @@
 #[test_only]
 module recording_advisory::recording_advisory_tests;
 
-use miso::recording;
+use musicos::recording;
 use recording_advisory::recording_advisory as adv;
 use std::unit_test::{assert_eq, destroy};
 use sui::event;

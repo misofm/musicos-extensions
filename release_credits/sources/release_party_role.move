@@ -17,7 +17,7 @@
 /// - **`name()` is the canonical identifier**, returned as a stable PascalCase
 ///   token (`"Primary"` / `"Featured"`).
 ///
-/// These identifiers are Miso's own canonical vocabulary; any overlap with an
+/// These identifiers are musicos's own canonical vocabulary; any overlap with an
 /// external standard (e.g. DDEX) is coincidental, not a reproduction of it.
 module release_credits::release_party_role;
 

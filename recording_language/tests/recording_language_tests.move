@@ -17,7 +17,7 @@
 module recording_language::recording_language_tests;
 
 use language_code::language_code;
-use miso::recording;
+use musicos::recording;
 use recording_language::recording_language as rl;
 use std::unit_test::{assert_eq, destroy};
 use sui::event;

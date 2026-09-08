@@ -1,8 +1,8 @@
 # `recording_credits`
 
-> Miso's canonical attribution standard for recordings: per-party credits (display name + roles) plus primary/featured artist designations.
+> musicos's canonical attribution standard for recordings: per-party credits (display name + roles) plus primary/featured artist designations.
 
-**Attaches to:** `miso::recording::Recording` via a dynamic field on the recording's `&mut UID`. The credits record is stored under the `ExtensionKey()` key, reached through the recording's cap-gated `uid_mut`, so every mutation is authorized by a `RecordingAdminCap`. Read views use the recording's `uid`.
+**Attaches to:** `musicos::recording::Recording` via a dynamic field on the recording's `&mut UID`. The credits record is stored under the `ExtensionKey()` key, reached through the recording's cap-gated `uid_mut`, so every mutation is authorized by a `RecordingAdminCap`. Read views use the recording's `uid`.
 
 Attribution is display-oriented and varies across platforms, so it lives in this extension rather than in immutable core. A single `RecordingCredits` record holds a `VecMap<ID, Credit<RecordingPartyRole>>` (party ID to credit) plus two `VecSet<ID>` of primary and featured artist IDs. The record is created lazily on the first `add_credit`, and credits can be attached before or after the recording is published. Credits are pure attribution — they are not read by the protocol's economics.
 
@@ -34,7 +34,7 @@ All `recording_credits` write functions are cap-gated by `RecordingAdminCap`.
 
 ## Dependencies
 
-- **`miso`** — provides `Recording`, `RecordingAdminCap`, and the cap-gated `uid_mut`/`uid` access this extension attaches to.
+- **`musicos`** — provides `Recording`, `RecordingAdminCap`, and the cap-gated `uid_mut`/`uid` access this extension attaches to.
 - **`partyos`** — provides `Party` (credited identity) and `Credit<RecordingPartyRole>` (display name + roles).
 
 ## Build & test

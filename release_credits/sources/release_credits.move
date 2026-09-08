@@ -10,7 +10,7 @@
 /// and credits survive into any lifecycle state (they may be attached before or
 /// after the release is published).
 ///
-/// This is Miso's canonical credits standard; because it is an extension, other
+/// This is musicos's canonical credits standard; because it is an extension, other
 /// parties may publish their own release-credits standard against the same
 /// `Release`. Credits are NOT read by the economics — they are attribution.
 ///
@@ -18,7 +18,7 @@
 /// `Primary` or a `Featured` artist on the release.
 module release_credits::release_credits;
 
-use miso::release::{Release, ReleaseAdminCap};
+use musicos::release::{Release, ReleaseAdminCap};
 use miso_credit::credit::Credit;
 use partyos::party::Party;
 use release_credits::release_party_role::ReleasePartyRole;

@@ -21,7 +21,7 @@ module recording_genre::recording_genre_e2e_tests;
 
 use genre::genre as g;
 use genre::genre::{GenreRegistry, Genre};
-use miso::recording::{Self, Recording};
+use musicos::recording::{Self, Recording};
 use recording_genre::recording_genre as rg;
 use std::unit_test::{assert_eq, destroy};
 use sui::event;

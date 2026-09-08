@@ -5,8 +5,8 @@ findings in the reviewed source.
 
 ## Dependency provenance
 
-`Move.toml` pins `miso` at
-`6de5f9881ee62c81c57ce16832efc24dc33ae429` and `ori` at
+`Move.toml` pins `musicos` at
+`4fed48b2b5632122fb677d742881259c65b1bc78` and `ori` at
 `367ed5fe92a8b62da02c1116537cf08d111e0789`. Both lock graphs resolve `bps` at
 `4ca1972a67d35c972ca567de7b08315e3778e52b` without duplicate aliases.
 

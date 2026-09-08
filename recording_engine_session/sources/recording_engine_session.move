@@ -24,7 +24,7 @@
 /// attachment.
 module recording_engine_session::recording_engine_session;
 
-use miso::recording::{Recording, RecordingAdminCap};
+use musicos::recording::{Recording, RecordingAdminCap};
 use ori::data::WalrusBlob;
 use sui::dynamic_field as df;
 use sui::event::emit;

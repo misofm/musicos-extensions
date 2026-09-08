@@ -20,7 +20,7 @@
 #[test_only]
 module recording_advisory::recording_advisory_e2e_tests;
 
-use miso::recording::{Self, Recording};
+use musicos::recording::{Self, Recording};
 use recording_advisory::recording_advisory as adv;
 use std::unit_test::{assert_eq, destroy};
 use sui::event;

@@ -21,7 +21,7 @@
 module recording_language::recording_language_e2e_tests;
 
 use language_code::language_code;
-use miso::recording::{Self, Recording};
+use musicos::recording::{Self, Recording};
 use recording_language::recording_language as rl;
 use std::unit_test::{assert_eq, destroy};
 use sui::event;

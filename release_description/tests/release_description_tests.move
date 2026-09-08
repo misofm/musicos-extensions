@@ -12,9 +12,9 @@
 #[test_only]
 module release_description::release_description_tests;
 
-use miso::release::{Self, Release, ReleaseAdminCap};
-use miso::test_helpers;
-use miso::track;
+use musicos::release::{Self, Release, ReleaseAdminCap};
+use musicos::test_helpers;
+use musicos::track;
 use release_description::release_description as rd;
 use std::unit_test::{assert_eq, destroy};
 use sui::event;

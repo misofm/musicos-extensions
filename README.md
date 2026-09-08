@@ -68,7 +68,7 @@ Reference an extension by repository subdirectory and exact commit:
 
 ```toml
 [dependencies]
-release_genre = { git = "https://github.com/misofm/protocol-extensions.git", subdir = "release_genre", rev = "<40-character-commit>" }
+release_genre = { git = "https://github.com/misofm/musicos-extensions.git", subdir = "release_genre", rev = "<40-character-commit>" }
 ```
 
 Each package's `Move.toml` pins its own protocol and supporting dependencies.

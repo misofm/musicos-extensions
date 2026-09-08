@@ -4,8 +4,8 @@ Reviewed 2026-09-07 (stems generation). Verdict: no exploitable findings in the 
 
 ## Dependency provenance
 
-`Move.toml` pins `miso` at
-`22e247741581df95ec02f61b5e795dc44c31b9fb` and `ori` at
+`Move.toml` pins `musicos` at
+`4fed48b2b5632122fb677d742881259c65b1bc78` and `ori` at
 `367ed5fe92a8b62da02c1116537cf08d111e0789`. The Testnet and Mainnet lock
 graphs resolve one copy of each dependency and pin every Git source to an exact
 40-character commit.

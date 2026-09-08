@@ -10,13 +10,13 @@
 /// composition's admin and credits survive into any lifecycle state (they may be
 /// attached before or after the composition is published).
 ///
-/// This is Miso's canonical credits standard; because it is an extension, other
+/// This is musicos's canonical credits standard; because it is an extension, other
 /// parties may publish their own composition-credits standard against the same
 /// `Composition`. Credits are NOT read by the economics — they are attribution.
 module composition_credits::composition_credits;
 
 use composition_credits::composition_party_role::CompositionPartyRole;
-use miso::composition::{Composition, CompositionAdminCap};
+use musicos::composition::{Composition, CompositionAdminCap};
 use miso_credit::credit::Credit;
 use partyos::party::Party;
 use sui::dynamic_field as df;

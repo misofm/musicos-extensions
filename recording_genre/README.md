@@ -5,7 +5,7 @@ small, bounded `vector<ID>` of `genre::Genre` object ids drawn from the shared
 Miso genre vocabulary, so a recording's genres are exactly the ids everything
 else uses.
 
-Genre lives here, on the recording, rather than on the release. `miso::track`
+Genre lives here, on the recording, rather than on the release. `musicos::track`
 embeds only facts "genuinely release-specific and not derivable from the
 recording" — title and cover art were excluded on the same principle — and
 genre is a fact about the audio, not the product. One published `Recording`
@@ -72,8 +72,8 @@ different type and does not compile. Views are permissionless.
 
 ## Dependencies
 
-- [`miso`](https://github.com/misofm/protocol) at
-  `09f0dc699a112c37d8da8a765596cc1ed623fe79` — `Recording` and
+- [`musicos`](https://github.com/misofm/musicos) at
+  `4fed48b2b5632122fb677d742881259c65b1bc78` — `Recording` and
   `RecordingAdminCap`.
 - [`genre`](https://github.com/misofm/genre) at
   `09f6882b57b19498f36fa15840cd7ed61094dc41` — the canonical shared genre

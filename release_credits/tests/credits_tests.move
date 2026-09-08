@@ -4,7 +4,7 @@
 #[test_only]
 module release_credits::credits_tests;
 
-use miso::release::{Self, Release, ReleaseAdminCap};
+use musicos::release::{Self, Release, ReleaseAdminCap};
 use miso_credit::credit;
 use partyos::party::{Self, Party, PartyAdminCap};
 use release_credits::release_credits as credits;

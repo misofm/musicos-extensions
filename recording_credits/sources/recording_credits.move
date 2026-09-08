@@ -10,12 +10,12 @@
 /// recording's admin and credits survive into any lifecycle state (they may be
 /// attached before or after the recording is published).
 ///
-/// This is Miso's canonical credits standard; because it is an extension, other
+/// This is musicos's canonical credits standard; because it is an extension, other
 /// parties may publish their own recording-credits standard against the same
 /// `Recording`. Credits are NOT read by the economics — they are attribution.
 module recording_credits::recording_credits;
 
-use miso::recording::{Recording, RecordingAdminCap};
+use musicos::recording::{Recording, RecordingAdminCap};
 use miso_credit::credit::Credit;
 use partyos::party::Party;
 use recording_credits::recording_party_role::RecordingPartyRole;

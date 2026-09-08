@@ -20,7 +20,7 @@
 ///   token (e.g. `"Songwriter"`). For `Custom`, `name()` returns the
 ///   user-supplied string.
 ///
-/// These identifiers are Miso's own canonical vocabulary; any overlap with an
+/// These identifiers are musicos's own canonical vocabulary; any overlap with an
 /// external standard (e.g. DDEX) is coincidental, not a reproduction of it.
 module composition_credits::composition_party_role;
 

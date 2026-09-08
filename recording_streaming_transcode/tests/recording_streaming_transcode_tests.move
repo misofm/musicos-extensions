@@ -4,8 +4,8 @@
 #[test_only]
 module recording_streaming_transcode::recording_streaming_transcode_tests;
 
-use miso::recording;
-use miso::test_helpers;
+use musicos::recording;
+use musicos::test_helpers;
 use ori::data;
 use recording_streaming_transcode::recording_streaming_transcode as transcode;
 use std::unit_test::{assert_eq, destroy};

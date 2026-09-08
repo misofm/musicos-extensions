@@ -10,9 +10,9 @@
 #[test_only]
 module release_description::release_description_e2e_tests;
 
-use miso::release::{Self, Release, ReleaseAdminCap};
-use miso::test_helpers;
-use miso::track;
+use musicos::release::{Self, Release, ReleaseAdminCap};
+use musicos::test_helpers;
+use musicos::track;
 use release_description::release_description as rd;
 use std::unit_test::{assert_eq, destroy};
 use sui::event;
@@ -121,7 +121,7 @@ fun description_lifecycle_on_a_published_and_shared_release() {
 /// shape of a wrong-cap attempt (`uid_mut` works in any lifecycle state, so
 /// the interesting adversarial case is post-publish, cross-actor, not
 /// pre-publish same-transaction).
-#[test, expected_failure(abort_code = EUnauthorized, location = miso::release)]
+#[test, expected_failure(abort_code = EUnauthorized, location = musicos::release)]
 fun wrong_cap_is_rejected_on_set() {
     let mut ts = test_scenario::begin(LABEL);
     let (label_cap, label_rel_id) = publish_titled_release(&mut ts, b"Label's Album");
@@ -148,7 +148,7 @@ fun wrong_cap_is_rejected_on_set() {
 /// existence-first clear would let silently succeed. Proven with a real
 /// adversary: STRANGER's own, validly-scoped cap against LABEL's shared,
 /// description-less release.
-#[test, expected_failure(abort_code = EUnauthorized, location = miso::release)]
+#[test, expected_failure(abort_code = EUnauthorized, location = musicos::release)]
 fun wrong_cap_is_rejected_on_clear_of_nothing() {
     let mut ts = test_scenario::begin(LABEL);
     let (label_cap, label_rel_id) = publish_titled_release(&mut ts, b"Label's Album");

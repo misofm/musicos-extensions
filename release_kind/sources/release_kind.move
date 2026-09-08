@@ -26,7 +26,7 @@
 /// normalise (case-fold at minimum) rather than expect canonical strings.
 module release_kind::release_kind;
 
-use miso::release::{Release, ReleaseAdminCap};
+use musicos::release::{Release, ReleaseAdminCap};
 use std::string::String;
 use sui::dynamic_field as df;
 use sui::event::emit;

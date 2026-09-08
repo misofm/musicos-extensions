@@ -11,8 +11,8 @@
 #[test_only]
 module recording_master_reference::recording_master_reference_tests;
 
-use miso::recording;
-use miso::test_helpers;
+use musicos::recording;
+use musicos::test_helpers;
 use ori::{confidentiality, data};
 use recording_master_reference::recording_master_reference as mref;
 use std::unit_test::{assert_eq, destroy};

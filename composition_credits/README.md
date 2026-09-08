@@ -1,8 +1,8 @@
 # `composition_credits`
 
-> Miso's canonical writing-credits (attribution) standard for Miso `Composition` objects.
+> musicos's canonical writing-credits (attribution) standard for musicos `Composition` objects.
 
-**Attaches to:** `miso::composition::Composition<CompositionShare>` via the object's cap-gated `uid_mut`. A single `CompositionCredits` record is stored as a dynamic field under the `ExtensionKey()` key, gated by `CompositionAdminCap<CompositionShare>`.
+**Attaches to:** `musicos::composition::Composition<CompositionShare>` via the object's cap-gated `uid_mut`. A single `CompositionCredits` record is stored as a dynamic field under the `ExtensionKey()` key, gated by `CompositionAdminCap<CompositionShare>`.
 
 Writing credits are display-oriented and vary across platforms, so they live in this extension rather than in immutable core. A credit maps a `partyos` `Party` ID to a `Credit<CompositionPartyRole>` (a display name plus 1-5 roles). Credits are pure attribution — they are NOT read by any economics. The record is lazily created on the first `add_credit` and survives into any composition lifecycle state (it may be attached before or after publish). Because this is an extension, other parties may publish their own competing composition-credits standard against the same `Composition`.
 
@@ -28,7 +28,7 @@ Invariants enforced on write: each credit must carry 1-5 roles (`MIN_ROLES_PER_C
 
 ## Dependencies
 
-- **`miso`** — provides `Composition` and `CompositionAdminCap`; the host object this extension attaches to and the cap that authorizes mutations.
+- **`musicos`** — provides `Composition` and `CompositionAdminCap`; the host object this extension attaches to and the cap that authorizes mutations.
 - **`partyos`** — provides `Party` (credited identity) and the generic `Credit<T>` (display name + roles) wrapped over `CompositionPartyRole`.
 
 ## Build & test

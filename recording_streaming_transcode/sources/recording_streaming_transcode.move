@@ -15,7 +15,7 @@
 /// playback. Those checks belong in the publication workflow before attachment.
 module recording_streaming_transcode::recording_streaming_transcode;
 
-use miso::recording::{Recording, RecordingAdminCap};
+use musicos::recording::{Recording, RecordingAdminCap};
 use ori::data::WalrusQuilt;
 use sui::dynamic_field as df;
 use sui::event::emit;

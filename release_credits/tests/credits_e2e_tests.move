@@ -9,7 +9,7 @@
 #[test_only]
 module release_credits::credits_e2e_tests;
 
-use miso::release::{Self, Release};
+use musicos::release::{Self, Release};
 use miso_credit::credit;
 use partyos::party::{Self, Party};
 use release_credits::release_credits as credits;
@@ -123,7 +123,7 @@ fun credits_lifecycle_against_a_published_shared_release() {
 /// A cap that legitimately authorizes a different release cannot be used to
 /// credit this one — `add_credit` routes through `release::uid_mut`, whose
 /// authorization check is the real enforcement point.
-#[test, expected_failure(abort_code = 0, location = miso::release)] // EUnauthorized
+#[test, expected_failure(abort_code = 0, location = musicos::release)] // EUnauthorized
 fun add_credit_aborts_for_a_cap_from_a_different_release() {
     let mut ts = test_scenario::begin(LABEL);
 
@@ -149,7 +149,7 @@ fun add_credit_aborts_for_a_cap_from_a_different_release() {
         &stranger_cap, // wrong cap: authorizes `stranger_rel`, not the shared `rel`
         &party,
         credit::new(b"Eve".to_string(), vector[rpr::new_primary_role()]),
-    ); // aborts: miso::release::EUnauthorized
+    ); // aborts: musicos::release::EUnauthorized
 
     abort
 }

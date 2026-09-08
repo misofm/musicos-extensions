@@ -1,7 +1,7 @@
 // Copyright (c) Miso Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-/// The genre(s) a Miso `Release` is classified under, stored as a dynamic
+/// The genre(s) a musicos `Release` is classified under, stored as a dynamic
 /// field on the release's UID and written through its cap-gated `uid_mut`.
 ///
 /// Genre is intrinsic to a recording — a fact about the master, not about any
@@ -61,7 +61,7 @@
 module release_genre::release_genre;
 
 use genre::genre::Genre;
-use miso::release::{Release, ReleaseAdminCap};
+use musicos::release::{Release, ReleaseAdminCap};
 use sui::dynamic_field as df;
 use sui::event::emit;
 

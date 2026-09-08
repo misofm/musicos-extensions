@@ -26,7 +26,7 @@
 module recording_language::recording_language;
 
 use language_code::language_code::LanguageCode;
-use miso::recording::{Recording, RecordingAdminCap};
+use musicos::recording::{Recording, RecordingAdminCap};
 use sui::dynamic_field as df;
 use sui::event::emit;
 use sui::vec_set;

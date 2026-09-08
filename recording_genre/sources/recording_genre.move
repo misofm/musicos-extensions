@@ -12,7 +12,7 @@
 /// profile picks this extension up or ignores it, and replacing it never
 /// disturbs anything else attached to the recording.
 ///
-/// **Why the recording, and not the release.** `miso::track`'s module doc is
+/// **Why the recording, and not the release.** `musicos::track`'s module doc is
 /// explicit that a `Track` embeds only facts "genuinely release-specific and
 /// not derivable from the recording" — title and cover art were excluded for
 /// exactly this reason. Genre is not release-specific: it is a fact about the
@@ -75,7 +75,7 @@
 module recording_genre::recording_genre;
 
 use genre::genre::Genre;
-use miso::recording::{Recording, RecordingAdminCap};
+use musicos::recording::{Recording, RecordingAdminCap};
 use sui::dynamic_field as df;
 use sui::event::emit;
 

@@ -9,7 +9,7 @@
 #[test_only]
 module recording_credits::recording_party_role_tests;
 
-use miso::test_helpers;
+use musicos::test_helpers;
 use recording_credits::recording_party_role as rpr;
 use std::unit_test::assert_eq;
 

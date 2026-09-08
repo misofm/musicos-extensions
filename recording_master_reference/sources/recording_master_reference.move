@@ -29,7 +29,7 @@
 /// attesting, and belongs in the ingested `Audio` rather than here.
 module recording_master_reference::recording_master_reference;
 
-use miso::recording::{Recording, RecordingAdminCap};
+use musicos::recording::{Recording, RecordingAdminCap};
 use ori::data::WalrusBlob;
 use sui::dynamic_field as df;
 use sui::event::emit;

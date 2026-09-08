@@ -37,7 +37,7 @@
 /// than stored. There is no such thing as an empty description.
 module release_description::release_description;
 
-use miso::release::{Release, ReleaseAdminCap};
+use musicos::release::{Release, ReleaseAdminCap};
 use std::string::String;
 use sui::dynamic_field as df;
 use sui::event::emit;
