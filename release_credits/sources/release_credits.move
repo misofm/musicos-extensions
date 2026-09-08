@@ -19,7 +19,7 @@
 module release_credits::release_credits;
 
 use musicos::release::{Release, ReleaseAdminCap};
-use miso_credit::credit::Credit;
+use credit::credit::Credit;
 use partyos::party::Party;
 use release_credits::release_party_role::ReleasePartyRole;
 use sui::dynamic_field as df;

@@ -10,7 +10,7 @@
 /// else is client-side convention.
 ///
 /// That thinness is the point. Miso's attested path — the Nautilus-verified
-/// master flow (`audio_ingester` producing a `miso_audio::Audio`), deferred —
+/// master flow (`audio_ingester` producing a `audio::Audio`), deferred —
 /// carries channel count, bit depth, sample rate, sample count and a PCM digest,
 /// and every one of those is backed by a Nautilus enclave signature over the
 /// measured audio. Until that path is running, stating the same fields

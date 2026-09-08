@@ -17,7 +17,7 @@ module composition_credits::composition_credits;
 
 use composition_credits::composition_party_role::CompositionPartyRole;
 use musicos::composition::{Composition, CompositionAdminCap};
-use miso_credit::credit::Credit;
+use credit::credit::Credit;
 use partyos::party::Party;
 use sui::dynamic_field as df;
 use sui::event::emit;
@@ -91,7 +91,7 @@ public fun add_credit<CompositionShare>(
     credit: Credit<CompositionPartyRole>,
 ) {
     // Non-emptiness needs no check here: `Credit`'s only constructor
-    // (`miso_credit::credit::new`, private fields, no mutators) already
+    // (`credit::credit::new`, private fields, no mutators) already
     // guarantees at least one role for every value that can exist.
     assert!(credit.roles().length() <= MAX_ROLES_PER_CREDIT, EExceedsMaxRoles);
 

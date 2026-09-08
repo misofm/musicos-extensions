@@ -19,7 +19,7 @@ use `df::exists` directly against the recording's `UID`.
 `Move.toml` pins `genre` at `09f6882b57b19498f36fa15840cd7ed61094dc41` and
 `musicos` at `4fed48b2b5632122fb677d742881259c65b1bc78`. The generated Testnet and
 Mainnet lock graphs agree on every transitive dependency (`bps` at
-`4ca1972a67d35c972ca567de7b08315e3778e52b`, `miso_share` at
+`4ca1972a67d35c972ca567de7b08315e3778e52b`, `share` at
 `4999b7d639131fbd5b416b14ca798c28c0a6107d`) with no duplicate package aliases.
 
 ## Threat model and findings

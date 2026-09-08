@@ -22,7 +22,7 @@ module recording_credits::recording_credits_e2e_tests;
 
 use musicos::recording::{Self, Recording, RecordingAdminCap};
 use musicos::test_helpers::{Self, RecordingShare, CompositionShare};
-use miso_credit::credit;
+use credit::credit;
 use partyos::party;
 use recording_credits::recording_credits as credits;
 use recording_credits::recording_party_role as rpr;

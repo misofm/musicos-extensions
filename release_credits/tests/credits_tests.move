@@ -5,7 +5,7 @@
 module release_credits::credits_tests;
 
 use musicos::release::{Self, Release, ReleaseAdminCap};
-use miso_credit::credit;
+use credit::credit;
 use partyos::party::{Self, Party, PartyAdminCap};
 use release_credits::release_credits as credits;
 use release_credits::release_party_role as rpr;

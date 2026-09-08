@@ -16,7 +16,7 @@
 module recording_credits::recording_credits;
 
 use musicos::recording::{Recording, RecordingAdminCap};
-use miso_credit::credit::Credit;
+use credit::credit::Credit;
 use partyos::party::Party;
 use recording_credits::recording_party_role::RecordingPartyRole;
 use sui::dynamic_field as df;
@@ -133,7 +133,7 @@ public fun add_credit<RecordingShare, CompositionShare>(
     credit: Credit<RecordingPartyRole>,
 ) {
     // Non-emptiness needs no check here: `Credit`'s only constructor
-    // (`miso_credit::credit::new`, private fields, no mutators) already
+    // (`credit::credit::new`, private fields, no mutators) already
     // guarantees at least one role for every value that can exist.
     assert!(credit.roles().length() <= MAX_ROLES_PER_CREDIT, EExceedsMaxRoles);
 

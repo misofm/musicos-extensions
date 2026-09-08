@@ -6,7 +6,7 @@ module recording_credits::credits_tests;
 
 use musicos::recording::{Self, Recording, RecordingAdminCap};
 use musicos::test_helpers::{Self, RecordingShare, CompositionShare};
-use miso_credit::credit;
+use credit::credit;
 use partyos::party::{Self, Party, PartyAdminCap};
 use recording_credits::recording_credits as credits;
 use recording_credits::recording_party_role as rpr;
@@ -304,7 +304,7 @@ fun primary_artist_changes_emit_events() {
 
 // NOTE on EMinRolesNotMet (20): `add_credit`'s own `roles().length() >=
 // MIN_ROLES_PER_CREDIT` guard is unreachable from any test. `Credit<Role>`
-// can only be constructed via `miso_credit::credit::new`, which already
+// can only be constructed via `credit::credit::new`, which already
 // enforces `roles.length() >= MIN_ROLES` (its own `ENoRoles`, code 32) before
 // a `Credit` value can exist at all — there is no way to hand `add_credit` a
 // zero-role credit to trip its defensive duplicate of the same rule. Left

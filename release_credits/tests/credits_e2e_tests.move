@@ -10,7 +10,7 @@
 module release_credits::credits_e2e_tests;
 
 use musicos::release::{Self, Release};
-use miso_credit::credit;
+use credit::credit;
 use partyos::party::{Self, Party};
 use release_credits::release_credits as credits;
 use release_credits::release_party_role as rpr;

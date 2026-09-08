@@ -7,7 +7,7 @@ findings in the reviewed source.
 
 `Move.toml` pins `musicos` at
 `4fed48b2b5632122fb677d742881259c65b1bc78`, `partyos` at
-`819fde6f34c0bc7eeb57ec7340cdf13dc56b3fca`, and `miso_credit` at
+`819fde6f34c0bc7eeb57ec7340cdf13dc56b3fca`, and `credit` at
 `b96fae3faf8836e5ad718b1a7700fbd11e07708b`. Both lock graphs resolve `bps` at
 `4ca1972a67d35c972ca567de7b08315e3778e52b` without duplicate aliases.
 
