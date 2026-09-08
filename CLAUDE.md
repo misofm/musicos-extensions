@@ -1,13 +1,16 @@
 # Repository Guidance
 
-This repository contains independent Sui Move packages for platform-aware Miso.fm
-protocol extensions. Each top-level package extends a Miso `Composition`,
-`Recording`, or `Release` through cap-gated dynamic fields.
+This repository contains independent Sui Move packages that extend a `musicos`
+`Composition`, `Recording`, or `Release` through cap-gated dynamic fields. It
+consolidates two families: neutral, first-party protocol extensions with no
+platform-specific assumptions, and extensions shaped by Miso.fm product,
+storage, delivery, and distribution conventions.
 
 ## Project Structure
 
-- `recording_master_reference/` — transitional master-audio references.
-- `release_dsp_link/` — release and track links for supported DSPs.
+14 packages, each an independently versioned and published top-level
+directory; see the package tables in `README.md` for the full list, each
+package's target object, and its purpose.
 
 Each package owns its manifest, lockfile, publication record, source, tests, and
 audit. Run Move commands from the package directory.
@@ -18,8 +21,9 @@ audit. Run Move commands from the package directory.
 - Keep packages independently buildable and versioned.
 - Pin Git dependencies to exact 40-character commit SHAs.
 - Preserve `Published.toml` as deployment provenance.
-- Keep platform-specific behavior here; neutral metadata extensions belong in
-  `misonetwork/protocol-extensions`.
+- Neutral, platform-agnostic metadata extensions and Miso.fm platform-specific
+  extensions both live in this repository; keep each package's own
+  target-object contract free of the other family's assumptions.
 
 ## Sui Development Skills
 

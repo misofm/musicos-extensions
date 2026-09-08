@@ -9,7 +9,7 @@ Cover art is presentation, not objective recording data, so it lives on the **re
 The release holds a single `ReleaseCoverArt` record: an **album-level cover** plus **per-track overrides**, a `PerTrack<Option<CoverArt>>` (one slot per track, aligned to the tracklist by construction). A track's effective cover resolves as its override if set, otherwise the album cover. All writes are gated by the `ReleaseAdminCap`; views are permissionless.
 
 The `CoverArt` value type is provided by the independently versioned
-[`misonetwork/cover-art`](https://github.com/misonetwork/cover-art) package.
+[`misofm/cover-art`](https://github.com/misofm/cover-art) package.
 
 ## Entry points
 

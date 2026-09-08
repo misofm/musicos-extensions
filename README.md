@@ -1,7 +1,7 @@
-# Miso Protocol Extensions
+# MusicOS Extensions
 
 Data-model extensions for
-[`misonetwork/protocol`](https://github.com/misonetwork/protocol) on Sui.
+[`misofm/musicos`](https://github.com/misofm/musicos) on Sui.
 
 Miso keeps `Composition`, `Recording`, and `Release` focused on constitutive
 protocol state. An extension adds optional typed data as a dynamic field on one
@@ -14,9 +14,9 @@ raw capability, while optional platform adapters bridge Vault custody to an Acti
 
 | Repository | Responsibility |
 |------------|----------------|
-| [`misonetwork/protocol`](https://github.com/misonetwork/protocol) | Core music objects and the canonical `ReleaseRegistry` namespace. |
-| [`misonetwork/protocol-actions`](https://github.com/misonetwork/protocol-actions) | Custody-agnostic, return-oriented Composition, Recording, and Release workflows. |
-| [`misonetwork/party-actions`](https://github.com/misonetwork/party-actions) | Custody-agnostic, return-oriented Party workflows. |
+| [`misofm/musicos`](https://github.com/misofm/musicos) | Core music objects and the canonical `ReleaseRegistry` namespace. |
+| [`misofm/musicos-actions`](https://github.com/misofm/musicos-actions) | Custody-agnostic, return-oriented Composition, Recording, and Release workflows. |
+| [`misofm/partyos-actions`](https://github.com/misofm/partyos-actions) | Custody-agnostic, return-oriented Party workflows. |
 | [`misofm/vault`](https://github.com/misofm/vault) | Generic capability custody and temporary exact-return leases. |
 | [`misofm/vault-plugins`](https://github.com/misofm/vault-plugins) | Thin installed adapters that borrow a custodied admin capability, call a matching Action, and return the capability. |
 
@@ -27,7 +27,7 @@ This repository consolidates two families of extension:
 
 - **Protocol extensions** are neutral, first-party metadata extensions with no
   platform-specific assumptions. They originated in
-  [`misonetwork/protocol-extensions`](https://github.com/misonetwork/protocol-extensions).
+  [`misofm/protocol-extensions`](https://github.com/misofm/protocol-extensions).
 - **Platform extensions** are shaped by Miso.fm product, storage, delivery, and
   distribution conventions.
 
