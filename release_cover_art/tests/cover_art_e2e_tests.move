@@ -15,9 +15,9 @@
 module release_cover_art::cover_art_e2e_tests;
 
 use cover_art::cover_art as cover;
-use miso::release::{Self, Release, ReleaseAdminCap};
-use miso::test_helpers;
-use miso::track::{Self, Track};
+use musicos::release::{Self, Release, ReleaseAdminCap};
+use musicos::test_helpers;
+use musicos::track::{Self, Track};
 use release_cover_art::release_cover_art;
 use std::unit_test::{assert_eq, destroy};
 use sui::event;
@@ -31,7 +31,7 @@ const ADMIN: address = @0xAD;
 const READER: address = @0xFA;
 const STRANGER: address = @0x51;
 
-// Mirrored from miso::release::EUnauthorized (private there).
+// Mirrored from musicos::release::EUnauthorized (private there).
 const EUnauthorized: u64 = 0;
 
 // A 3-track tracklist. `release::new_for_testing` patches every track's
@@ -141,7 +141,7 @@ fun cover_art_lifecycle_against_published_shared_release() {
 
 // === Adversarial: a stranger's unrelated cap ===
 
-#[test, expected_failure(abort_code = EUnauthorized, location = miso::release)]
+#[test, expected_failure(abort_code = EUnauthorized, location = musicos::release)]
 fun set_cover_with_strangers_cap_aborts() {
     let mut ts = test_scenario::begin(ADMIN);
     let _admin_cap = setup_published_release(&mut ts);
@@ -162,7 +162,7 @@ fun set_cover_with_strangers_cap_aborts() {
 // before checking attachment, so a stranger's cap aborts even when nothing
 // is attached yet — the old existence-check-first code would have skipped
 // the gate entirely and silently no-op'd.
-#[test, expected_failure(abort_code = EUnauthorized, location = miso::release)]
+#[test, expected_failure(abort_code = EUnauthorized, location = musicos::release)]
 fun unset_cover_with_strangers_cap_aborts_when_unattached() {
     let mut ts = test_scenario::begin(ADMIN);
     let _admin_cap = setup_published_release(&mut ts);
@@ -178,7 +178,7 @@ fun unset_cover_with_strangers_cap_aborts_when_unattached() {
     abort
 }
 
-#[test, expected_failure(abort_code = EUnauthorized, location = miso::release)]
+#[test, expected_failure(abort_code = EUnauthorized, location = musicos::release)]
 fun set_track_cover_with_strangers_cap_aborts() {
     let mut ts = test_scenario::begin(ADMIN);
     let _admin_cap = setup_published_release(&mut ts);
@@ -194,7 +194,7 @@ fun set_track_cover_with_strangers_cap_aborts() {
     abort
 }
 
-#[test, expected_failure(abort_code = EUnauthorized, location = miso::release)]
+#[test, expected_failure(abort_code = EUnauthorized, location = musicos::release)]
 fun unset_track_cover_with_strangers_cap_aborts_when_unattached() {
     let mut ts = test_scenario::begin(ADMIN);
     let _admin_cap = setup_published_release(&mut ts);

@@ -14,9 +14,9 @@
 module release_cover_art::cover_art_tests;
 
 use cover_art::cover_art as cover;
-use miso::release::{Release, ReleaseAdminCap};
-use miso::test_helpers;
-use miso::track;
+use musicos::release::{Release, ReleaseAdminCap};
+use musicos::test_helpers;
+use musicos::track;
 use release_cover_art::release_cover_art;
 use std::unit_test::{assert_eq, destroy};
 use sui::event;
@@ -41,7 +41,7 @@ fun mk_release(ctx: &mut TxContext): (Release, ReleaseAdminCap) {
         track::new_for_testing(comp_id, r1, rel_id, 3000u16),
         track::new_for_testing(comp_id, r2, rel_id, 3000u16),
     ];
-    miso::release::new_for_testing(b"Album".to_string(), tracks, ctx)
+    musicos::release::new_for_testing(b"Album".to_string(), tracks, ctx)
 }
 
 #[test]

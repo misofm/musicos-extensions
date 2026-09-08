@@ -13,7 +13,7 @@
 module release_cover_art::release_cover_art;
 
 use cover_art::cover_art::CoverArt;
-use miso::release::{Release, ReleaseAdminCap};
+use musicos::release::{Release, ReleaseAdminCap};
 use per_track::per_track::{Self, PerTrack};
 use sui::dynamic_field as df;
 use sui::event::emit;

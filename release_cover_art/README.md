@@ -1,8 +1,8 @@
 # `release_cover_art`
 
-> Album-level cover art plus optional per-track cover overrides for a Miso release, stored off the frozen protocol core.
+> Album-level cover art plus optional per-track cover overrides for a musicos release, stored off the frozen protocol core.
 
-**Attaches to:** `Release` (Miso core) as a dynamic field on its `&mut UID`, reached through the release's cap-gated `uid_mut`.
+**Attaches to:** `Release` (musicos core) as a dynamic field on its `&mut UID`, reached through the release's cap-gated `uid_mut`.
 
 Cover art is presentation, not objective recording data, so it lives on the **release** (the consumer object), not the recording — a recording carries only objective facts about its underlying sound file.
 
@@ -27,7 +27,7 @@ The `CoverArt` value type is provided by the independently versioned
 ## Dependencies
 
 - **`cover_art`** — the external `CoverArt` value type package.
-- **`miso`** — core protocol; provides `Release` and its admin cap + `uid_mut`/`uid` accessors.
+- **`musicos`** — core protocol; provides `Release` and its admin cap + `uid_mut`/`uid` accessors.
 - **`per_track`** — the `PerTrack<Data>` primitive backing the per-track overrides.
 
 ## Build & test

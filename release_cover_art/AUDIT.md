@@ -6,9 +6,9 @@ findings in the reviewed source.
 ## Dependency provenance
 
 `Move.toml` pins `cover_art` at
-`7672ad1c656c23bb6dda20a62661d83a6c9e75bd`, `miso` at
-`6de5f9881ee62c81c57ce16832efc24dc33ae429`, and `per_track` at
-`547befbb33be14ac7400fabc01962a96bd54fb1e`. Both lock graphs resolve `bps` at
+`7672ad1c656c23bb6dda20a62661d83a6c9e75bd`, `musicos` at
+`4fed48b2b5632122fb677d742881259c65b1bc78`, and `per_track` at
+`8d6dfdd3955b2f0e3d0e9651802ec49d30197da1`. Both lock graphs resolve `bps` at
 `4ca1972a67d35c972ca567de7b08315e3778e52b` and `ori` at
 `1ca4e5016848bd946072db19415086a309b9930f`, with no duplicate aliases.
 

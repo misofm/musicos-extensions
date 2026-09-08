@@ -5,9 +5,9 @@ findings in the reviewed source.
 
 ## Dependency provenance
 
-`Move.toml` pins `miso` at
-`6de5f9881ee62c81c57ce16832efc24dc33ae429` and `per_track` at
-`547befbb33be14ac7400fabc01962a96bd54fb1e`. Both network lock graphs resolve
+`Move.toml` pins `musicos` at
+`4fed48b2b5632122fb677d742881259c65b1bc78` and `per_track` at
+`8d6dfdd3955b2f0e3d0e9651802ec49d30197da1`. Both network lock graphs resolve
 `bps` at `4ca1972a67d35c972ca567de7b08315e3778e52b` without duplicate aliases.
 
 ## Threat model and findings

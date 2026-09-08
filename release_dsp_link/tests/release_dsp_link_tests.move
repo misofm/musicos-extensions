@@ -16,9 +16,9 @@
 module release_dsp_link::release_dsp_link_tests;
 
 use release_dsp_link::release_dsp_link as links;
-use miso::release::{Self, Release, ReleaseAdminCap};
-use miso::test_helpers;
-use miso::track;
+use musicos::release::{Self, Release, ReleaseAdminCap};
+use musicos::test_helpers;
+use musicos::track;
 use std::string::String;
 use std::unit_test::{assert_eq, destroy};
 use sui::event;
@@ -290,7 +290,7 @@ fun platform_matches_declared_variant_order() {
 
 /// A `Release` binds its cap at runtime (`uid_mut` calls `authorize`), so a
 /// foreign cap is testable here — unlike the type-bound recording caps.
-#[test, expected_failure(abort_code = EUnauthorized, location = miso::release)]
+#[test, expected_failure(abort_code = EUnauthorized, location = musicos::release)]
 fun another_releases_cap_is_rejected() {
     let ctx = &mut tx_context::dummy();
     let (mut a, _a_cap) = mk_release(ctx);
@@ -304,7 +304,7 @@ fun another_releases_cap_is_rejected() {
     destroy(b_cap);
 }
 
-#[test, expected_failure(abort_code = EUnauthorized, location = miso::release)]
+#[test, expected_failure(abort_code = EUnauthorized, location = musicos::release)]
 fun clear_release_link_requires_the_cap_when_unset() {
     let ctx = &mut tx_context::dummy();
     let (mut release, _release_cap) = mk_release(ctx);
@@ -314,7 +314,7 @@ fun clear_release_link_requires_the_cap_when_unset() {
     abort
 }
 
-#[test, expected_failure(abort_code = EUnauthorized, location = miso::release)]
+#[test, expected_failure(abort_code = EUnauthorized, location = musicos::release)]
 fun clear_track_link_requires_the_cap_when_unset() {
     let ctx = &mut tx_context::dummy();
     let (mut release, _release_cap) = mk_release(ctx);
@@ -324,7 +324,7 @@ fun clear_track_link_requires_the_cap_when_unset() {
     abort
 }
 
-#[test, expected_failure(abort_code = EUnauthorized, location = miso::release)]
+#[test, expected_failure(abort_code = EUnauthorized, location = musicos::release)]
 fun clear_track_links_requires_the_cap_when_unset() {
     let ctx = &mut tx_context::dummy();
     let (mut release, _release_cap) = mk_release(ctx);

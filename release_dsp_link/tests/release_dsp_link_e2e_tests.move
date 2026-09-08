@@ -4,7 +4,7 @@
 /// End-to-end scenario for this package's full use case, run under
 /// `sui::test_scenario`: real transaction boundaries and distinct senders,
 /// against a `Release` that is genuinely PUBLISHED AND SHARED — the
-/// production shape, since `miso::release::publish` calls
+/// production shape, since `musicos::release::publish` calls
 /// `transfer::share_object`. DSP-link writes (release-level and per-track)
 /// and reads happen on the shared object via `take_shared` in later
 /// transactions, exactly as a client PTB would compose them. Complements the
@@ -12,9 +12,9 @@
 #[test_only]
 module release_dsp_link::release_dsp_link_e2e_tests;
 
-use miso::release::{Self, Release};
-use miso::test_helpers;
-use miso::track;
+use musicos::release::{Self, Release};
+use musicos::test_helpers;
+use musicos::track;
 use release_dsp_link::release_dsp_link as links;
 use std::unit_test::{assert_eq, destroy};
 use sui::event;
@@ -135,10 +135,10 @@ fun published_shared_release_dsp_links_full_lifecycle() {
 
 /// Adversarial: a cap minted for a different release is rejected against a
 /// live, published, shared release — the mismatch is on the cap's bound
-/// release id (checked in `miso::release::authorize`), not on the sender, so
+/// release id (checked in `musicos::release::authorize`), not on the sender, so
 /// a stranger presenting a foreign-but-real cap aborts exactly like the
 /// cap's rightful owner would.
-#[test, expected_failure(abort_code = 0, location = miso::release)] // release::EUnauthorized
+#[test, expected_failure(abort_code = 0, location = musicos::release)] // release::EUnauthorized
 fun wrong_cap_rejected_against_shared_release() {
     let mut ts = test_scenario::begin(ADMIN);
 

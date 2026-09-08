@@ -1,8 +1,8 @@
 // Copyright (c) Miso Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-/// Streaming deep links for a Miso release, one Digital Service Provider (DSP)
-/// at a time. Attaches `DspLinkData` records to a `miso::release::Release`: an
+/// Streaming deep links for a musicos release, one Digital Service Provider (DSP)
+/// at a time. Attaches `DspLinkData` records to a `musicos::release::Release`: an
 /// album-level link per DSP, plus an optional per-track link per DSP.
 ///
 /// `DspLinkData` is a single built-in enum with one variant per DSP, holding
@@ -25,7 +25,7 @@
 /// are gated by the `ReleaseAdminCap` via `uid_mut`; views are permissionless.
 module release_dsp_link::release_dsp_link;
 
-use miso::release::{Release, ReleaseAdminCap};
+use musicos::release::{Release, ReleaseAdminCap};
 use per_track::per_track::{Self, PerTrack};
 use std::string::String;
 use sui::dynamic_field as df;
