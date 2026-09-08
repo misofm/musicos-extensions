@@ -27,7 +27,7 @@ This repository consolidates two families of extension:
 
 - **Protocol extensions** are neutral, first-party metadata extensions with no
   platform-specific assumptions. They originated in
-  [`misofm/protocol-extensions`](https://github.com/misofm/protocol-extensions).
+  `misonetwork/protocol-extensions`, which no longer exists.
 - **Platform extensions** are shaped by Miso.fm product, storage, delivery, and
   distribution conventions.
 
