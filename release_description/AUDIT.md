@@ -22,7 +22,9 @@ authorization meaning. No Vault, Action, or Plugin code is present.
 ## Evidence
 
 With `sui 1.79.0`, strict Testnet and Mainnet lint, warnings-as-errors builds,
-and tests pass: 20/20 on each network. The production module reports 100.00%
+and tests pass: 22/22 on each network. The production module reports 100.00%
 coverage across published/shared lifecycle, wrong caps, validation precedence,
 absence, byte bounds and exact BCS boundaries, raw UTF-8 replacement, clearing,
-event replay, and silent views.
+and silent views. The tests also apply an event-only optional-byte projector
+through initial, different, equal, and clear transitions and compare it with
+storage after each transition.

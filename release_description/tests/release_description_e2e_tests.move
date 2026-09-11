@@ -183,3 +183,29 @@ fun wrong_cap_is_rejected_on_clear_of_nothing() {
     destroy(stranger_cap);
     abort
 }
+
+/// A wrong cap is rejected on clear even when a description is present. The
+/// existence check must not replace the core release authorization boundary.
+#[test, expected_failure(abort_code = EUnauthorized, location = musicos::release)]
+fun wrong_cap_is_rejected_on_clear_of_present_description() {
+    let mut ts = test_scenario::begin(LABEL);
+    let (label_cap, label_rel_id) = publish_titled_release(&mut ts, b"Label's Album");
+
+    ts.next_tx(LABEL);
+    let mut label_rel = test_scenario::take_shared_by_id<Release>(&ts, label_rel_id);
+    rd::set_description(&mut label_rel, &label_cap, b"Label-owned prose.".to_string());
+    test_scenario::return_shared(label_rel);
+
+    ts.next_tx(STRANGER);
+    let (stranger_cap, _stranger_rel_id) = publish_titled_release(&mut ts, b"Stranger's Album");
+
+    ts.next_tx(STRANGER);
+    let mut label_rel = test_scenario::take_shared_by_id<Release>(&ts, label_rel_id);
+    assert!(rd::has_description(&label_rel));
+    rd::clear_description(&mut label_rel, &stranger_cap);
+
+    test_scenario::return_shared(label_rel);
+    destroy(label_cap);
+    destroy(stranger_cap);
+    abort
+}

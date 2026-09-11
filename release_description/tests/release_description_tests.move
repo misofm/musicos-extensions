@@ -16,6 +16,7 @@ use musicos::release::{Self, Release, ReleaseAdminCap};
 use musicos::test_helpers;
 use musicos::track;
 use release_description::release_description as rd;
+use std::option::{Self, Option};
 use std::unit_test::{assert_eq, destroy};
 use sui::event;
 
@@ -27,6 +28,57 @@ fun mk_release(ctx: &mut TxContext): (Release, ReleaseAdminCap) {
     let target_release_id = test_helpers::fake_id(ctx);
     let tracks = vector[track::new_for_testing(comp_id, rec_id, target_release_id, 10000u16)];
     release::new_for_testing(b"Some Record".to_string(), tracks, ctx)
+}
+
+/// The state an indexer can maintain from the event stream alone: absence is
+/// `none`, while an attached description is its raw UTF-8 byte vector.
+fun project_storage(rel: &Release): Option<vector<u8>> {
+    if (rd::has_description(rel)) {
+        option::some(*rd::description(rel).as_bytes())
+    } else {
+        option::none()
+    }
+}
+
+fun assert_projection_matches_storage(
+    projection: &Option<vector<u8>>,
+    rel: &Release,
+) {
+    let stored = project_storage(rel);
+    assert_eq!(projection.is_some(), stored.is_some());
+    if (projection.is_some()) {
+        assert_eq!(*projection.borrow(), *stored.borrow());
+    };
+}
+
+/// Apply a set event without reading the object. The event's prior snapshot
+/// must agree with the projector's prior optional value before the new bytes
+/// become the projected state.
+fun apply_set_event(
+    projection: Option<vector<u8>>,
+    event: &rd::ReleaseDescriptionSetEvent,
+): Option<vector<u8>> {
+    let (_, _, existed, before, after) = rd::set_event_fields(event);
+    if (existed) {
+        assert!(projection.is_some());
+        assert_eq!(*projection.borrow(), before);
+    } else {
+        assert!(projection.is_none());
+        assert_eq!(before, vector[]);
+    };
+    option::some(after)
+}
+
+/// Apply a clear event without reading the object. A clear always removes the
+/// projector's currently attached value because absent clears emit nothing.
+fun apply_clear_event(
+    projection: Option<vector<u8>>,
+    event: &rd::ReleaseDescriptionClearedEvent,
+): Option<vector<u8>> {
+    let (_, _, before) = rd::clear_event_fields(event);
+    assert!(projection.is_some());
+    assert_eq!(*projection.borrow(), before);
+    option::none()
 }
 
 #[test]
@@ -198,22 +250,37 @@ fun max_payloads_are_raw_and_have_exact_bcs_sizes() {
     assert_eq!(after, max_bytes);
     assert_eq!(sui::bcs::to_bytes(&sets[0]).length(), 8260);
 
-    // String is copyable; equal replacement still writes and emits a full
-    // before/after snapshot, yielding the two-max-vector payload.
-    rd::set_description(&mut rel, &cap, max);
+    // A different 8192-byte value exercises the full before/after replacement
+    // payload, rather than only repeating the same max string.
+    let mut different = b"B".to_string();
+    different.append(test_helpers::long_string(8191));
+    let different_bytes = *different.as_bytes();
+    assert_eq!(different_bytes.length(), 8192);
+    rd::set_description(&mut rel, &cap, different);
     let sets = event::events_by_type<rd::ReleaseDescriptionSetEvent>();
     assert_eq!(sets.length(), 2);
     let (_, _, existed, before, after) = rd::set_event_fields(&sets[1]);
     assert!(existed);
     assert_eq!(before, max_bytes);
-    assert_eq!(after, max_bytes);
+    assert_eq!(after, different_bytes);
     assert_eq!(sui::bcs::to_bytes(&sets[1]).length(), 16453);
+
+    // String is copyable; equal replacement still writes and emits a full
+    // before/after snapshot, also at the two-max-vector boundary.
+    rd::set_description(&mut rel, &cap, different);
+    let sets = event::events_by_type<rd::ReleaseDescriptionSetEvent>();
+    assert_eq!(sets.length(), 3);
+    let (_, _, existed, before, after) = rd::set_event_fields(&sets[2]);
+    assert!(existed);
+    assert_eq!(before, different_bytes);
+    assert_eq!(after, different_bytes);
+    assert_eq!(sui::bcs::to_bytes(&sets[2]).length(), 16453);
 
     rd::clear_description(&mut rel, &cap);
     let clears = event::events_by_type<rd::ReleaseDescriptionClearedEvent>();
     assert_eq!(clears.length(), 1);
     let (_, _, before) = rd::clear_event_fields(&clears[0]);
-    assert_eq!(before, max_bytes);
+    assert_eq!(before, different_bytes);
     assert_eq!(sui::bcs::to_bytes(&clears[0]).length(), 8258);
 
     destroy(rel);
@@ -227,20 +294,23 @@ fun views_and_absent_clear_are_silent() {
     let ctx = &mut tx_context::dummy();
     let (mut rel, cap) = mk_release(ctx);
 
+    let events_before = event::num_events();
     assert!(!rd::has_description(&rel));
+    assert_eq!(event::num_events(), events_before);
     rd::clear_description(&mut rel, &cap);
-    assert_eq!(event::events_by_type<rd::ReleaseDescriptionSetEvent>().length(), 0);
-    assert_eq!(event::events_by_type<rd::ReleaseDescriptionClearedEvent>().length(), 0);
+    assert_eq!(event::num_events(), events_before);
 
     rd::set_description(&mut rel, &cap, b"No event from reading.".to_string());
+    let events_after_set = event::num_events();
     assert!(rd::has_description(&rel));
     assert_eq!(*rd::description(&rel), b"No event from reading.".to_string());
-    assert_eq!(event::events_by_type<rd::ReleaseDescriptionSetEvent>().length(), 1);
-    assert_eq!(event::events_by_type<rd::ReleaseDescriptionClearedEvent>().length(), 0);
+    assert_eq!(event::num_events(), events_after_set);
 
     rd::clear_description(&mut rel, &cap);
+    let events_after_clear = event::num_events();
     rd::clear_description(&mut rel, &cap);
-    assert_eq!(event::events_by_type<rd::ReleaseDescriptionClearedEvent>().length(), 1);
+    assert_eq!(event::num_events(), events_after_clear);
+    assert_eq!(events_after_clear, events_after_set + 1);
 
     destroy(rel);
     destroy(cap);
@@ -301,6 +371,39 @@ fun event_replay_preserves_whitespace_case_and_utf8() {
     let clears = event::events_by_type<rd::ReleaseDescriptionClearedEvent>();
     let (_, _, before_clear) = rd::clear_event_fields(&clears[0]);
     assert_eq!(before_clear, *second.as_bytes());
+
+    destroy(rel);
+    destroy(cap);
+}
+
+/// An indexer can replay every successful transition using only the optional
+/// byte snapshots in the events, including a different replacement and an
+/// equal replacement, and match the stored state after each operation.
+#[test]
+fun event_only_optional_projector_matches_storage() {
+    let ctx = &mut tx_context::dummy();
+    let (mut rel, cap) = mk_release(ctx);
+    let mut projection: Option<vector<u8>> = option::none();
+
+    rd::set_description(&mut rel, &cap, b"Initial words.".to_string());
+    let sets = event::events_by_type<rd::ReleaseDescriptionSetEvent>();
+    projection = apply_set_event(projection, &sets[0]);
+    assert_projection_matches_storage(&projection, &rel);
+
+    rd::set_description(&mut rel, &cap, b"A different edit.".to_string());
+    let sets = event::events_by_type<rd::ReleaseDescriptionSetEvent>();
+    projection = apply_set_event(projection, &sets[1]);
+    assert_projection_matches_storage(&projection, &rel);
+
+    rd::set_description(&mut rel, &cap, b"A different edit.".to_string());
+    let sets = event::events_by_type<rd::ReleaseDescriptionSetEvent>();
+    projection = apply_set_event(projection, &sets[2]);
+    assert_projection_matches_storage(&projection, &rel);
+
+    rd::clear_description(&mut rel, &cap);
+    let clears = event::events_by_type<rd::ReleaseDescriptionClearedEvent>();
+    projection = apply_clear_event(projection, &clears[0]);
+    assert_projection_matches_storage(&projection, &rel);
 
     destroy(rel);
     destroy(cap);
