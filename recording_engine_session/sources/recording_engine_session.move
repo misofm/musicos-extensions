@@ -24,8 +24,9 @@
 /// attachment.
 module recording_engine_session::recording_engine_session;
 
-use musicos::recording::{Recording, RecordingAdminCap};
+use musicos::recording::{Self, Recording, RecordingAdminCap};
 use ori::data::WalrusBlob;
+use sui::bcs;
 use sui::dynamic_field as df;
 use sui::event::emit;
 
@@ -88,15 +89,33 @@ public struct EngineSession has copy, drop, store {
 
 // === Events ===
 
-/// Emitted when a Miso Engine session is set or replaced.
-public struct EngineSessionSetEvent has copy, drop {
-    recording_id: ID,
-    session: EngineSession,
+/// Emitted when a Miso Engine session is set or replaced. The payload is a
+/// bounded primitive snapshot of the previous and current session values.
+public struct EngineSessionSetEvent<phantom RecordingShare, phantom CompositionShare>
+    has copy, drop {
+    recording_id: address,
+    composition_id: address,
+    admin_cap_id: address,
+    had_previous: bool,
+    value_changed: bool,
+    previous_session_blob_id: u256,
+    previous_stem_count: u64,
+    session_blob_id: u256,
+    stem_count: u64,
+    stem_digests: vector<vector<u8>>,
+    stem_blob_ids: vector<u256>,
 }
 
 /// Emitted when a Miso Engine session is removed.
-public struct EngineSessionUnsetEvent has copy, drop {
-    recording_id: ID,
+public struct EngineSessionUnsetEvent<phantom RecordingShare, phantom CompositionShare>
+    has copy, drop {
+    recording_id: address,
+    composition_id: address,
+    admin_cap_id: address,
+    removed_session_blob_id: u256,
+    removed_stem_count: u64,
+    removed_stem_digests: vector<vector<u8>>,
+    removed_stem_blob_ids: vector<u256>,
 }
 
 // === Public Functions ===
@@ -149,14 +168,40 @@ public fun set_engine_session<RecordingShare, CompositionShare>(
     cap: &RecordingAdminCap<RecordingShare>,
     session: EngineSession,
 ) {
-    let recording_id = object::id(self);
+    let recording_id = object::id(self).to_address();
+    let composition_id = recording::composition_id(self).to_address();
+    let admin_cap_id = object::id(cap).to_address();
     let uid = self.uid_mut(cap);
-    if (df::exists(uid, ExtensionKey())) {
+    let had_previous = df::exists(uid, ExtensionKey());
+    let (previous_session_blob_id, previous_stem_count, value_changed) = if (had_previous) {
+        let previous: &EngineSession = df::borrow(uid, ExtensionKey());
+        (
+            previous.data.blob_id(),
+            previous.stems.length(),
+            *previous != session,
+        )
+    } else {
+        (0, 0, true)
+    };
+    let (session_blob_id, stem_count, stem_digests, stem_blob_ids) = event_snapshot(&session);
+    if (had_previous) {
         *df::borrow_mut(uid, ExtensionKey()) = session;
     } else {
         df::add(uid, ExtensionKey(), session);
     };
-    emit(EngineSessionSetEvent { recording_id, session });
+    emit(EngineSessionSetEvent<RecordingShare, CompositionShare> {
+        recording_id,
+        composition_id,
+        admin_cap_id,
+        had_previous,
+        value_changed,
+        previous_session_blob_id,
+        previous_stem_count,
+        session_blob_id,
+        stem_count,
+        stem_digests,
+        stem_blob_ids,
+    });
 }
 
 /// Removes the recording's Miso Engine session, if present. Idempotent.
@@ -164,11 +209,25 @@ public fun unset_engine_session<RecordingShare, CompositionShare>(
     self: &mut Recording<RecordingShare, CompositionShare>,
     cap: &RecordingAdminCap<RecordingShare>,
 ) {
-    let recording_id = object::id(self);
+    let recording_id = object::id(self).to_address();
+    let composition_id = recording::composition_id(self).to_address();
+    let admin_cap_id = object::id(cap).to_address();
     let uid = self.uid_mut(cap);
     if (df::exists(uid, ExtensionKey())) {
+        let (removed_session_blob_id, removed_stem_count, removed_stem_digests, removed_stem_blob_ids) = {
+            let previous = df::borrow(uid, ExtensionKey());
+            event_snapshot(previous)
+        };
         let _: EngineSession = df::remove(uid, ExtensionKey());
-        emit(EngineSessionUnsetEvent { recording_id });
+        emit(EngineSessionUnsetEvent<RecordingShare, CompositionShare> {
+            recording_id,
+            composition_id,
+            admin_cap_id,
+            removed_session_blob_id,
+            removed_stem_count,
+            removed_stem_digests,
+            removed_stem_blob_ids,
+        });
     }
 }
 
@@ -201,14 +260,64 @@ fun digest_lt(a: &vector<u8>, b: &vector<u8>): bool {
     false
 }
 
+/// Returns the complete ordered primitive snapshot used by both mutation
+/// events. Digests and stem blob IDs remain aligned with the stored stem order.
+fun event_snapshot(
+    session: &EngineSession,
+): (u256, u64, vector<vector<u8>>, vector<u256>) {
+    let session_blob_id = session.data.blob_id();
+    let stem_count = session.stems.length();
+    let mut stem_digests = vector[];
+    let mut stem_blob_ids = vector[];
+    let mut i = 0;
+    while (i < stem_count) {
+        stem_digests.push_back(session.stems[i].digest);
+        stem_blob_ids.push_back(session.stems[i].data.blob_id());
+        i = i + 1;
+    };
+    (session_blob_id, stem_count, stem_digests, stem_blob_ids)
+}
+
 // === Test Functions ===
 
 #[test_only]
-public fun set_event_fields(e: &EngineSessionSetEvent): (ID, EngineSession) {
-    (e.recording_id, e.session)
+public fun set_event_fields<R, C>(e: &EngineSessionSetEvent<R, C>):
+    (address, address, address, bool, bool, u256, u64, u256, u64, vector<vector<u8>>, vector<u256>) {
+    (
+        e.recording_id,
+        e.composition_id,
+        e.admin_cap_id,
+        e.had_previous,
+        e.value_changed,
+        e.previous_session_blob_id,
+        e.previous_stem_count,
+        e.session_blob_id,
+        e.stem_count,
+        e.stem_digests,
+        e.stem_blob_ids,
+    )
 }
 
 #[test_only]
-public fun unset_event_recording_id(e: &EngineSessionUnsetEvent): ID {
-    e.recording_id
+public fun unset_event_fields<R, C>(e: &EngineSessionUnsetEvent<R, C>):
+    (address, address, address, u256, u64, vector<vector<u8>>, vector<u256>) {
+    (
+        e.recording_id,
+        e.composition_id,
+        e.admin_cap_id,
+        e.removed_session_blob_id,
+        e.removed_stem_count,
+        e.removed_stem_digests,
+        e.removed_stem_blob_ids,
+    )
+}
+
+#[test_only]
+public fun set_event_bcs<R, C>(e: &EngineSessionSetEvent<R, C>): vector<u8> {
+    bcs::to_bytes(e)
+}
+
+#[test_only]
+public fun unset_event_bcs<R, C>(e: &EngineSessionUnsetEvent<R, C>): vector<u8> {
+    bcs::to_bytes(e)
 }

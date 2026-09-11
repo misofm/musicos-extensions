@@ -1,11 +1,12 @@
 # Security review — `recording_engine_session`
 
-Reviewed 2026-09-07 (stems generation). Verdict: no exploitable findings in the reviewed source.
+Reviewed 2026-09-11 for rich primitive session mutation events. Verdict: no
+exploitable findings in the reviewed source.
 
 ## Dependency provenance
 
 `Move.toml` pins `musicos` at
-`4fed48b2b5632122fb677d742881259c65b1bc78` and `ori` at
+`4cb3c926b1f9bb5103f3f7194e4e1e34b6c87840` and `ori` at
 `367ed5fe92a8b62da02c1116537cf08d111e0789`. The Testnet and Mainnet lock
 graphs resolve one copy of each dependency and pin every Git source to an exact
 40-character commit.
@@ -20,10 +21,10 @@ values, each pairing a 32-byte canonical PCM digest with its own unencrypted
 32 bytes, and stem vectors that are not in strictly increasing digest order
 (which also rejects duplicates), so a stored value has one canonical form.
 Session and stems are one value and replace atomically. The module stores one
-session per Recording, leaves unrelated dynamic fields untouched, and emits the
-Recording ID plus the complete `EngineSession` value on every set or
-replacement. An absent unset is an idempotent no-op and emits no misleading
-event.
+session per Recording, leaves unrelated dynamic fields untouched, and emits
+the recording, composition, and admin-cap addresses plus bounded primitive
+snapshots of the previous/current or removed value. An absent unset is an
+idempotent no-op and emits no misleading event.
 
 The extension records the Recording administrator's assertion. It cannot prove
 that any blob is stored or retrievable, that the session blob is a valid Session
@@ -35,11 +36,9 @@ wrong audio.
 
 ## Evidence
 
-With `sui 1.78.1-722ac4fcf484`, strict lint and warnings-as-errors builds pass
-for Testnet and Mainnet. All 16 tests pass, covering set, replacement, idempotent
-unset, absent reads, stem construction and access, digest-order storage, atomic
-session-plus-stems replacement, encrypted session and stem rejection, short and
-long digest rejection, unsorted and duplicate stem rejection including
-late-byte ordering, full `u256` preservation, per-Recording isolation, exact
-event payloads including stems, permissionless reads, and the published
-shared-Recording lifecycle. Production-module coverage is 100.00%.
+With Sui `1.79.0`, strict warnings-as-errors builds and tests pass for Testnet
+and Mainnet: 27/27 tests. Coverage includes complete primitive snapshots for
+insert, equal replacement, session/stem digest/blob changes, latest-value
+unset, zero and maximum `u256`, repeated stem blob IDs, independent phantom
+event streams, type-only cap behavior, constructor/guard precedence, and the
+0/1/127/128 stem BCS boundaries. Production-module coverage is 100.00%.
