@@ -15,8 +15,8 @@
 /// playback. Those checks belong in the publication workflow before attachment.
 module recording_streaming_transcode::recording_streaming_transcode;
 
-use musicos::recording::{Recording, RecordingAdminCap};
-use ori::data::WalrusQuilt;
+use musicos::recording::{Self, Recording, RecordingAdminCap};
+use ori::data::{Self, WalrusQuilt};
 use sui::dynamic_field as df;
 use sui::event::emit;
 
@@ -43,14 +43,23 @@ public struct StreamingTranscode has copy, drop, store {
 // === Events ===
 
 /// Emitted when a streaming transcode Quilt is set or replaced.
-public struct StreamingTranscodeSetEvent has copy, drop {
-    recording_id: ID,
-    transcode: StreamingTranscode,
+public struct RecordingStreamingTranscodeSetEvent<phantom RecordingShare, phantom CompositionShare>
+    has copy, drop {
+    recording_id: address,
+    composition_id: address,
+    admin_cap_id: address,
+    had_transcode: bool,
+    previous_quilt_id: u256,
+    quilt_id: u256,
 }
 
 /// Emitted when a streaming transcode Quilt is removed.
-public struct StreamingTranscodeUnsetEvent has copy, drop {
-    recording_id: ID,
+public struct RecordingStreamingTranscodeClearedEvent<phantom RecordingShare, phantom CompositionShare>
+    has copy, drop {
+    recording_id: address,
+    composition_id: address,
+    admin_cap_id: address,
+    quilt_id: u256,
 }
 
 // === Public Functions ===
@@ -71,14 +80,28 @@ public fun set_streaming_transcode<RecordingShare, CompositionShare>(
     cap: &RecordingAdminCap<RecordingShare>,
     transcode: StreamingTranscode,
 ) {
-    let recording_id = object::id(self);
+    let recording_id = object::id(self).to_address();
+    let composition_id = recording::composition_id(self).to_address();
+    let admin_cap_id = object::id(cap).to_address();
+    let quilt_id = quilt(&transcode).quilt_id();
     let uid = self.uid_mut(cap);
-    if (df::exists(uid, ExtensionKey())) {
+    let had_transcode = df::exists(uid, ExtensionKey());
+    let mut previous_quilt_id = 0;
+    if (had_transcode) {
+        let previous: &StreamingTranscode = df::borrow(uid, ExtensionKey());
+        previous_quilt_id = quilt(previous).quilt_id();
         *df::borrow_mut(uid, ExtensionKey()) = transcode;
     } else {
         df::add(uid, ExtensionKey(), transcode);
     };
-    emit(StreamingTranscodeSetEvent { recording_id, transcode });
+    emit(RecordingStreamingTranscodeSetEvent<RecordingShare, CompositionShare> {
+        recording_id,
+        composition_id,
+        admin_cap_id,
+        had_transcode,
+        previous_quilt_id,
+        quilt_id,
+    });
 }
 
 /// Removes the recording's streaming transcode reference, if present. Idempotent.
@@ -86,11 +109,19 @@ public fun unset_streaming_transcode<RecordingShare, CompositionShare>(
     self: &mut Recording<RecordingShare, CompositionShare>,
     cap: &RecordingAdminCap<RecordingShare>,
 ) {
-    let recording_id = object::id(self);
+    let recording_id = object::id(self).to_address();
+    let composition_id = recording::composition_id(self).to_address();
+    let admin_cap_id = object::id(cap).to_address();
     let uid = self.uid_mut(cap);
     if (df::exists(uid, ExtensionKey())) {
-        let _: StreamingTranscode = df::remove(uid, ExtensionKey());
-        emit(StreamingTranscodeUnsetEvent { recording_id });
+        let removed: StreamingTranscode = df::remove(uid, ExtensionKey());
+        let quilt_id = quilt(&removed).quilt_id();
+        emit(RecordingStreamingTranscodeClearedEvent<RecordingShare, CompositionShare> {
+            recording_id,
+            composition_id,
+            admin_cap_id,
+            quilt_id,
+        });
     }
 }
 
@@ -114,13 +145,50 @@ public fun streaming_transcode<RecordingShare, CompositionShare>(
 // === Test Functions ===
 
 #[test_only]
-public fun set_event_fields(
-    e: &StreamingTranscodeSetEvent,
+public fun set_event_fields<RecordingShare, CompositionShare>(
+    e: &RecordingStreamingTranscodeSetEvent<RecordingShare, CompositionShare>,
 ): (ID, StreamingTranscode) {
-    (e.recording_id, e.transcode)
+    (object::id_from_address(e.recording_id), new(data::new_quilt(e.quilt_id)))
 }
 
 #[test_only]
-public fun unset_event_recording_id(e: &StreamingTranscodeUnsetEvent): ID {
-    e.recording_id
+public fun set_event_payload<RecordingShare, CompositionShare>(
+    e: &RecordingStreamingTranscodeSetEvent<RecordingShare, CompositionShare>,
+): (address, address, address, bool, u256, u256) {
+    (
+        e.recording_id,
+        e.composition_id,
+        e.admin_cap_id,
+        e.had_transcode,
+        e.previous_quilt_id,
+        e.quilt_id,
+    )
+}
+
+#[test_only]
+public fun clear_event_payload<RecordingShare, CompositionShare>(
+    e: &RecordingStreamingTranscodeClearedEvent<RecordingShare, CompositionShare>,
+): (address, address, address, u256) {
+    (e.recording_id, e.composition_id, e.admin_cap_id, e.quilt_id)
+}
+
+#[test_only]
+public fun unset_event_recording_id<RecordingShare, CompositionShare>(
+    e: &RecordingStreamingTranscodeClearedEvent<RecordingShare, CompositionShare>,
+): ID {
+    object::id_from_address(e.recording_id)
+}
+
+#[test_only]
+public fun set_event_bcs<RecordingShare, CompositionShare>(
+    e: &RecordingStreamingTranscodeSetEvent<RecordingShare, CompositionShare>,
+): vector<u8> {
+    sui::bcs::to_bytes(e)
+}
+
+#[test_only]
+public fun clear_event_bcs<RecordingShare, CompositionShare>(
+    e: &RecordingStreamingTranscodeClearedEvent<RecordingShare, CompositionShare>,
+): vector<u8> {
+    sui::bcs::to_bytes(e)
 }

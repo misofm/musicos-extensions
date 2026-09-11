@@ -44,15 +44,28 @@ fun lifecycle_works_on_a_published_shared_recording() {
 
     scenario.next_tx(ADMIN);
     let mut recording = scenario.take_shared<Recording<REC, COMP>>();
-    let recording_id = object::id(&recording);
+    let recording_id = object::id(&recording).to_address();
+    let composition_id = recording::composition_id(&recording).to_address();
+    let admin_cap_id = object::id(&cap).to_address();
     transcode::set_streaming_transcode(&mut recording, &cap, new_transcode(111));
     assert_eq!(quilt_id(transcode::streaming_transcode(&recording)), 111);
 
-    let set_events = event::events_by_type<transcode::StreamingTranscodeSetEvent>();
+    let set_events = event::events_by_type<transcode::RecordingStreamingTranscodeSetEvent<REC, COMP>>();
     assert_eq!(set_events.length(), 1);
-    let (event_recording_id, value) = transcode::set_event_fields(&set_events[0]);
+    let (
+        event_recording_id,
+        event_composition_id,
+        event_admin_cap_id,
+        had_transcode,
+        previous_quilt_id,
+        quilt_id,
+    ) = transcode::set_event_payload(&set_events[0]);
     assert_eq!(event_recording_id, recording_id);
-    assert_eq!(value, new_transcode(111));
+    assert_eq!(event_composition_id, composition_id);
+    assert_eq!(event_admin_cap_id, admin_cap_id);
+    assert!(!had_transcode);
+    assert_eq!(previous_quilt_id, 0);
+    assert_eq!(quilt_id, 111);
     test_scenario::return_shared(recording);
 
     // Views are permissionless; only writes require the recording's cap.
@@ -69,9 +82,18 @@ fun lifecycle_works_on_a_published_shared_recording() {
     transcode::unset_streaming_transcode(&mut recording, &cap);
     assert!(!transcode::has_streaming_transcode(&recording));
 
-    let unset_events = event::events_by_type<transcode::StreamingTranscodeUnsetEvent>();
+    let unset_events = event::events_by_type<transcode::RecordingStreamingTranscodeClearedEvent<REC, COMP>>();
     assert_eq!(unset_events.length(), 1);
-    assert_eq!(transcode::unset_event_recording_id(&unset_events[0]), recording_id);
+    let (
+        event_recording_id,
+        event_composition_id,
+        event_admin_cap_id,
+        quilt_id,
+    ) = transcode::clear_event_payload(&unset_events[0]);
+    assert_eq!(event_recording_id, recording_id);
+    assert_eq!(event_composition_id, composition_id);
+    assert_eq!(event_admin_cap_id, admin_cap_id);
+    assert_eq!(quilt_id, 222);
     test_scenario::return_shared(recording);
 
     destroy(cap);
