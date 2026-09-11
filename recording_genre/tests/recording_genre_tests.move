@@ -202,7 +202,14 @@ fun assert_projected(
     recording: &recording::Recording<REC, COMP>,
     projected: &ReplayState,
 ) {
-    assert_eq!(genre_addresses(recording), projected.genres);
+    let added_before = event::events_by_type<rg::RecordingGenreAddedEvent<REC, COMP>>().length();
+    let removed_before = event::events_by_type<rg::RecordingGenreRemovedEvent<REC, COMP>>().length();
+    let cleared_before = event::events_by_type<rg::RecordingGenresClearedEvent<REC, COMP>>().length();
+    let actual_genres = genre_addresses(recording);
+    assert_eq!(actual_genres, projected.genres);
+    assert_eq!(event::events_by_type<rg::RecordingGenreAddedEvent<REC, COMP>>().length(), added_before);
+    assert_eq!(event::events_by_type<rg::RecordingGenreRemovedEvent<REC, COMP>>().length(), removed_before);
+    assert_eq!(event::events_by_type<rg::RecordingGenresClearedEvent<REC, COMP>>().length(), cleared_before);
     assert_eq!(projected.has_primary, !projected.genres.is_empty());
     if (projected.has_primary) {
         assert_eq!(projected.primary_genre_id, projected.genres[0]);
