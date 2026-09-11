@@ -15,11 +15,12 @@
 /// `Recording`. Credits are NOT read by the economics — they are attribution.
 module recording_credits::recording_credits;
 
-use musicos::recording::{Recording, RecordingAdminCap};
+use musicos::recording::{Self, Recording, RecordingAdminCap};
 use credit::credit::Credit;
 use partyos::party::Party;
-use recording_credits::recording_party_role::RecordingPartyRole;
+use recording_credits::recording_party_role::{Self, RecordingPartyRole};
 use sui::dynamic_field as df;
+use sui::bcs;
 use sui::event::emit;
 use sui::vec_map::{Self, VecMap};
 use sui::vec_set::{Self, VecSet};
@@ -79,46 +80,101 @@ public struct RecordingCredits has store {
 
 // === Events ===
 
-/// Emitted when a credit is added to a recording. Carries the full credit
-/// record so an indexer can upsert its row without re-reading the object.
-public struct CreditAddedEvent has copy, drop {
-    recording_id: ID,
-    party_id: ID,
-    credit: Credit<RecordingPartyRole>,
+/// Emitted when a credit is added to a recording. The primitive snapshot is
+/// sufficient for an indexer to upsert the row without re-reading storage.
+public struct CreditAddedEvent<phantom RecordingShare, phantom CompositionShare> has copy, drop {
+    recording_id: address,
+    composition_id: address,
+    admin_cap_id: address,
+    party_id: address,
+    display_name: vector<u8>,
+    role_kinds: vector<u8>,
+    role_names: vector<vector<u8>>,
+    role_instruments: vector<vector<u8>>,
+    role_levels: vector<u8>,
+    credit_index: u64,
+    credit_count_before: u64,
+    credit_count_after: u64,
+    credits_initialized: bool,
 }
 
-/// Emitted when a credit is removed from a recording. Carries the removed
-/// credit record, which is otherwise unrecoverable once the write lands.
-public struct CreditRemovedEvent has copy, drop {
-    recording_id: ID,
-    party_id: ID,
-    credit: Credit<RecordingPartyRole>,
+/// Emitted when a credit is removed from a recording. The snapshot remains
+/// available after the map entry is gone and records designation cascades.
+public struct CreditRemovedEvent<phantom RecordingShare, phantom CompositionShare> has copy, drop {
+    recording_id: address,
+    composition_id: address,
+    admin_cap_id: address,
+    party_id: address,
+    display_name: vector<u8>,
+    role_kinds: vector<u8>,
+    role_names: vector<vector<u8>>,
+    role_instruments: vector<vector<u8>>,
+    role_levels: vector<u8>,
+    credit_index: u64,
+    credit_count_before: u64,
+    credit_count_after: u64,
+    was_primary_artist: bool,
+    was_featured_artist: bool,
 }
 
 /// Emitted when a party is designated a primary artist.
-public struct PrimaryArtistAddedEvent has copy, drop {
-    recording_id: ID,
-    party_id: ID,
+public struct PrimaryArtistAddedEvent<phantom RecordingShare, phantom CompositionShare>
+    has copy, drop {
+    recording_id: address,
+    composition_id: address,
+    admin_cap_id: address,
+    party_id: address,
+    display_name: vector<u8>,
+    primary_artist_index: u64,
+    primary_artist_count_before: u64,
+    primary_artist_count_after: u64,
+    credit_count_after: u64,
 }
 
 /// Emitted when a party leaves the primary-artist set — either by an explicit
 /// removal or as a cascade of removing their credit.
-public struct PrimaryArtistRemovedEvent has copy, drop {
-    recording_id: ID,
-    party_id: ID,
+public struct PrimaryArtistRemovedEvent<phantom RecordingShare, phantom CompositionShare>
+    has copy, drop {
+    recording_id: address,
+    composition_id: address,
+    admin_cap_id: address,
+    party_id: address,
+    display_name: vector<u8>,
+    primary_artist_index: u64,
+    primary_artist_count_before: u64,
+    primary_artist_count_after: u64,
+    credit_count_after: u64,
+    caused_by_credit_removal: bool,
 }
 
 /// Emitted when a party is designated a featured artist.
-public struct FeaturedArtistAddedEvent has copy, drop {
-    recording_id: ID,
-    party_id: ID,
+public struct FeaturedArtistAddedEvent<phantom RecordingShare, phantom CompositionShare>
+    has copy, drop {
+    recording_id: address,
+    composition_id: address,
+    admin_cap_id: address,
+    party_id: address,
+    display_name: vector<u8>,
+    featured_artist_index: u64,
+    featured_artist_count_before: u64,
+    featured_artist_count_after: u64,
+    credit_count_after: u64,
 }
 
 /// Emitted when a party leaves the featured-artist set — either by an explicit
 /// removal or as a cascade of removing their credit.
-public struct FeaturedArtistRemovedEvent has copy, drop {
-    recording_id: ID,
-    party_id: ID,
+public struct FeaturedArtistRemovedEvent<phantom RecordingShare, phantom CompositionShare>
+    has copy, drop {
+    recording_id: address,
+    composition_id: address,
+    admin_cap_id: address,
+    party_id: address,
+    display_name: vector<u8>,
+    featured_artist_index: u64,
+    featured_artist_count_before: u64,
+    featured_artist_count_after: u64,
+    credit_count_after: u64,
+    caused_by_credit_removal: bool,
 }
 
 // === Public Functions ===
@@ -137,14 +193,43 @@ public fun add_credit<RecordingShare, CompositionShare>(
     // guarantees at least one role for every value that can exist.
     assert!(credit.roles().length() <= MAX_ROLES_PER_CREDIT, EExceedsMaxRoles);
 
-    let recording_id = object::id(self);
-    let party_id = object::id(party);
-    let rc = borrow_mut_or_init(self.uid_mut(cap));
-    assert!(rc.credits.length() < MAX_CREDITS, EMaxCreditsExceeded);
-    assert!(!rc.credits.contains(&party_id), EPartyAlreadyCredited);
-    rc.credits.insert(party_id, credit);
+    let recording_id = object::id(self).to_address();
+    let composition_id = recording::composition_id(self).to_address();
+    let admin_cap_id = object::id(cap).to_address();
+    let party_id = object::id(party).to_address();
+    let party_key = object::id(party);
+    let uid = self.uid_mut(cap);
+    let credits_existed_before = df::exists(uid, ExtensionKey());
+    let (display_name, role_kinds, role_names, role_instruments, role_levels) =
+        snapshot_credit(&credit);
+    let mut credit_count_before = 0;
+    let mut credit_count_after = 0;
+    let mut credit_index = 0;
+    {
+        let rc = borrow_mut_or_init(uid);
+        credit_count_before = rc.credits.length();
+        assert!(credit_count_before < MAX_CREDITS, EMaxCreditsExceeded);
+        assert!(!rc.credits.contains(&party_key), EPartyAlreadyCredited);
+        rc.credits.insert(party_key, credit);
+        credit_count_after = rc.credits.length();
+        credit_index = rc.credits.get_idx(&party_key);
+    };
 
-    emit(CreditAddedEvent { recording_id, party_id, credit });
+    emit(CreditAddedEvent<RecordingShare, CompositionShare> {
+        recording_id,
+        composition_id,
+        admin_cap_id,
+        party_id,
+        display_name,
+        role_kinds,
+        role_names,
+        role_instruments,
+        role_levels,
+        credit_index,
+        credit_count_before,
+        credit_count_after,
+        credits_initialized: !credits_existed_before,
+    });
 }
 
 /// Removes a party's credit. Also drops them from the primary/featured sets,
@@ -155,22 +240,121 @@ public fun remove_credit<RecordingShare, CompositionShare>(
     cap: &RecordingAdminCap<RecordingShare>,
     party_id: ID,
 ) {
-    let recording_id = object::id(self);
-    let rc = borrow_mut(self.uid_mut(cap));
-    assert!(rc.credits.contains(&party_id), EPartyNotCredited);
-    let (_, credit) = rc.credits.remove(&party_id);
+    let recording_id = object::id(self).to_address();
+    let composition_id = recording::composition_id(self).to_address();
+    let admin_cap_id = object::id(cap).to_address();
+    let party_address = party_id.to_address();
+    let uid = self.uid_mut(cap);
+    let (
+        credit_count_before,
+        credit_count_after,
+        credit_index,
+        credit,
+        was_primary_artist,
+        was_featured_artist,
+    ) = {
+        let rc = borrow_mut(uid);
+        assert!(rc.credits.contains(&party_id), EPartyNotCredited);
+        let credit_count_before = rc.credits.length();
+        let credit_index = rc.credits.get_idx(&party_id);
+        let was_primary_artist = rc.primary_artist_ids.contains(&party_id);
+        let was_featured_artist = rc.featured_artist_ids.contains(&party_id);
+        let (_, credit) = rc.credits.remove(&party_id);
+        let credit_count_after = rc.credits.length();
+        (
+            credit_count_before,
+            credit_count_after,
+            credit_index,
+            credit,
+            was_primary_artist,
+            was_featured_artist,
+        )
+    };
+    let (display_name, role_kinds, role_names, role_instruments, role_levels) =
+        snapshot_credit(&credit);
 
-    emit(CreditRemovedEvent { recording_id, party_id, credit });
+    emit(CreditRemovedEvent<RecordingShare, CompositionShare> {
+        recording_id,
+        composition_id,
+        admin_cap_id,
+        party_id: party_address,
+        display_name,
+        role_kinds,
+        role_names,
+        role_instruments,
+        role_levels,
+        credit_index,
+        credit_count_before,
+        credit_count_after,
+        was_primary_artist,
+        was_featured_artist,
+    });
 
     // Cascading out of the primary/featured sets is its own logical change
-    // per set, so each gets its own event.
-    if (rc.primary_artist_ids.contains(&party_id)) {
-        rc.primary_artist_ids.remove(&party_id);
-        emit(PrimaryArtistRemovedEvent { recording_id, party_id });
+    // per set, so each gets its own event after that set's mutation.
+    if (was_primary_artist) {
+        let (
+            primary_artist_index,
+            primary_artist_count_before,
+            primary_artist_count_after,
+            credit_count_after,
+        ) = {
+            let rc = borrow_mut(uid);
+            let primary_artist_count_before = rc.primary_artist_ids.length();
+            let primary_artist_index = set_index(&rc.primary_artist_ids, &party_id);
+            rc.primary_artist_ids.remove(&party_id);
+            let primary_artist_count_after = rc.primary_artist_ids.length();
+            (
+                primary_artist_index,
+                primary_artist_count_before,
+                primary_artist_count_after,
+                rc.credits.length(),
+            )
+        };
+        emit(PrimaryArtistRemovedEvent<RecordingShare, CompositionShare> {
+            recording_id,
+            composition_id,
+            admin_cap_id,
+            party_id: party_address,
+            display_name,
+            primary_artist_index,
+            primary_artist_count_before,
+            primary_artist_count_after,
+            credit_count_after,
+            caused_by_credit_removal: true,
+        });
     };
-    if (rc.featured_artist_ids.contains(&party_id)) {
-        rc.featured_artist_ids.remove(&party_id);
-        emit(FeaturedArtistRemovedEvent { recording_id, party_id });
+    if (was_featured_artist) {
+        let (
+            featured_artist_index,
+            featured_artist_count_before,
+            featured_artist_count_after,
+            credit_count_after,
+        ) = {
+            let rc = borrow_mut(uid);
+            let featured_artist_count_before = rc.featured_artist_ids.length();
+            let featured_artist_index = set_index(&rc.featured_artist_ids, &party_id);
+            rc.featured_artist_ids.remove(&party_id);
+            let featured_artist_count_after = rc.featured_artist_ids.length();
+            (
+                featured_artist_index,
+                featured_artist_count_before,
+                featured_artist_count_after,
+                rc.credits.length(),
+            )
+        };
+        emit(FeaturedArtistRemovedEvent<RecordingShare, CompositionShare> {
+            recording_id,
+            composition_id,
+            admin_cap_id,
+            party_id: party_address,
+            display_name,
+            featured_artist_index,
+            featured_artist_count_before,
+            featured_artist_count_after,
+            credit_count_after,
+            caused_by_credit_removal: true,
+        });
     };
 }
 
@@ -181,16 +365,51 @@ public fun add_primary_artist<RecordingShare, CompositionShare>(
     cap: &RecordingAdminCap<RecordingShare>,
     party: &Party,
 ) {
-    let recording_id = object::id(self);
+    let recording_id = object::id(self).to_address();
+    let composition_id = recording::composition_id(self).to_address();
+    let admin_cap_id = object::id(cap).to_address();
+    let party_address = object::id(party).to_address();
     let party_id = object::id(party);
-    let rc = borrow_mut(self.uid_mut(cap));
-    assert!(rc.primary_artist_ids.length() < MAX_PRIMARY_ARTISTS, EMaxPrimaryArtistsExceeded);
-    assert!(rc.credits.contains(&party_id), EPartyNotCredited);
-    assert!(!rc.featured_artist_ids.contains(&party_id), EAlreadyFeaturedArtist);
-    assert!(!rc.primary_artist_ids.contains(&party_id), EAlreadyPrimaryArtist);
-    rc.primary_artist_ids.insert(party_id);
+    let uid = self.uid_mut(cap);
+    let (
+        display_name,
+        primary_artist_index,
+        primary_artist_count_before,
+        primary_artist_count_after,
+        credit_count_after,
+    ) = {
+        let rc = borrow_mut(uid);
+        let primary_artist_count_before = rc.primary_artist_ids.length();
+        assert!(primary_artist_count_before < MAX_PRIMARY_ARTISTS, EMaxPrimaryArtistsExceeded);
+        assert!(rc.credits.contains(&party_id), EPartyNotCredited);
+        assert!(!rc.featured_artist_ids.contains(&party_id), EAlreadyFeaturedArtist);
+        assert!(!rc.primary_artist_ids.contains(&party_id), EAlreadyPrimaryArtist);
+        let (display_name, _, _, _, _) =
+            snapshot_credit(rc.credits.get(&party_id));
+        rc.primary_artist_ids.insert(party_id);
+        let primary_artist_index = set_index(&rc.primary_artist_ids, &party_id);
+        let primary_artist_count_after = rc.primary_artist_ids.length();
+        let credit_count_after = rc.credits.length();
+        (
+            display_name,
+            primary_artist_index,
+            primary_artist_count_before,
+            primary_artist_count_after,
+            credit_count_after,
+        )
+    };
 
-    emit(PrimaryArtistAddedEvent { recording_id, party_id });
+    emit(PrimaryArtistAddedEvent<RecordingShare, CompositionShare> {
+        recording_id,
+        composition_id,
+        admin_cap_id,
+        party_id: party_address,
+        display_name,
+        primary_artist_index,
+        primary_artist_count_before,
+        primary_artist_count_after,
+        credit_count_after,
+    });
 }
 
 /// Removes a party from the primary-artist set (leaves the credit intact).
@@ -199,12 +418,48 @@ public fun remove_primary_artist<RecordingShare, CompositionShare>(
     cap: &RecordingAdminCap<RecordingShare>,
     party_id: ID,
 ) {
-    let recording_id = object::id(self);
-    let rc = borrow_mut(self.uid_mut(cap));
-    assert!(rc.primary_artist_ids.contains(&party_id), EPartyNotCredited);
-    rc.primary_artist_ids.remove(&party_id);
+    let recording_id = object::id(self).to_address();
+    let composition_id = recording::composition_id(self).to_address();
+    let admin_cap_id = object::id(cap).to_address();
+    let party_address = party_id.to_address();
+    let uid = self.uid_mut(cap);
+    let (
+        display_name,
+        primary_artist_index,
+        primary_artist_count_before,
+        primary_artist_count_after,
+        credit_count_after,
+    ) = {
+        let rc = borrow_mut(uid);
+        assert!(rc.primary_artist_ids.contains(&party_id), EPartyNotCredited);
+        let primary_artist_count_before = rc.primary_artist_ids.length();
+        let primary_artist_index = set_index(&rc.primary_artist_ids, &party_id);
+        let (display_name, _, _, _, _) =
+            snapshot_credit(rc.credits.get(&party_id));
+        rc.primary_artist_ids.remove(&party_id);
+        let primary_artist_count_after = rc.primary_artist_ids.length();
+        let credit_count_after = rc.credits.length();
+        (
+            display_name,
+            primary_artist_index,
+            primary_artist_count_before,
+            primary_artist_count_after,
+            credit_count_after,
+        )
+    };
 
-    emit(PrimaryArtistRemovedEvent { recording_id, party_id });
+    emit(PrimaryArtistRemovedEvent<RecordingShare, CompositionShare> {
+        recording_id,
+        composition_id,
+        admin_cap_id,
+        party_id: party_address,
+        display_name,
+        primary_artist_index,
+        primary_artist_count_before,
+        primary_artist_count_after,
+        credit_count_after,
+        caused_by_credit_removal: false,
+    });
 }
 
 /// Designates an already-credited party as a featured artist. The party must be
@@ -214,16 +469,51 @@ public fun add_featured_artist<RecordingShare, CompositionShare>(
     cap: &RecordingAdminCap<RecordingShare>,
     party: &Party,
 ) {
-    let recording_id = object::id(self);
+    let recording_id = object::id(self).to_address();
+    let composition_id = recording::composition_id(self).to_address();
+    let admin_cap_id = object::id(cap).to_address();
+    let party_address = object::id(party).to_address();
     let party_id = object::id(party);
-    let rc = borrow_mut(self.uid_mut(cap));
-    assert!(rc.featured_artist_ids.length() < MAX_FEATURED_ARTISTS, EMaxFeaturedArtistsExceeded);
-    assert!(rc.credits.contains(&party_id), EPartyNotCredited);
-    assert!(!rc.primary_artist_ids.contains(&party_id), EAlreadyPrimaryArtist);
-    assert!(!rc.featured_artist_ids.contains(&party_id), EAlreadyFeaturedArtist);
-    rc.featured_artist_ids.insert(party_id);
+    let uid = self.uid_mut(cap);
+    let (
+        display_name,
+        featured_artist_index,
+        featured_artist_count_before,
+        featured_artist_count_after,
+        credit_count_after,
+    ) = {
+        let rc = borrow_mut(uid);
+        let featured_artist_count_before = rc.featured_artist_ids.length();
+        assert!(featured_artist_count_before < MAX_FEATURED_ARTISTS, EMaxFeaturedArtistsExceeded);
+        assert!(rc.credits.contains(&party_id), EPartyNotCredited);
+        assert!(!rc.primary_artist_ids.contains(&party_id), EAlreadyPrimaryArtist);
+        assert!(!rc.featured_artist_ids.contains(&party_id), EAlreadyFeaturedArtist);
+        let (display_name, _, _, _, _) =
+            snapshot_credit(rc.credits.get(&party_id));
+        rc.featured_artist_ids.insert(party_id);
+        let featured_artist_index = set_index(&rc.featured_artist_ids, &party_id);
+        let featured_artist_count_after = rc.featured_artist_ids.length();
+        let credit_count_after = rc.credits.length();
+        (
+            display_name,
+            featured_artist_index,
+            featured_artist_count_before,
+            featured_artist_count_after,
+            credit_count_after,
+        )
+    };
 
-    emit(FeaturedArtistAddedEvent { recording_id, party_id });
+    emit(FeaturedArtistAddedEvent<RecordingShare, CompositionShare> {
+        recording_id,
+        composition_id,
+        admin_cap_id,
+        party_id: party_address,
+        display_name,
+        featured_artist_index,
+        featured_artist_count_before,
+        featured_artist_count_after,
+        credit_count_after,
+    });
 }
 
 /// Removes a party from the featured-artist set (leaves the credit intact).
@@ -232,12 +522,48 @@ public fun remove_featured_artist<RecordingShare, CompositionShare>(
     cap: &RecordingAdminCap<RecordingShare>,
     party_id: ID,
 ) {
-    let recording_id = object::id(self);
-    let rc = borrow_mut(self.uid_mut(cap));
-    assert!(rc.featured_artist_ids.contains(&party_id), EPartyNotCredited);
-    rc.featured_artist_ids.remove(&party_id);
+    let recording_id = object::id(self).to_address();
+    let composition_id = recording::composition_id(self).to_address();
+    let admin_cap_id = object::id(cap).to_address();
+    let party_address = party_id.to_address();
+    let uid = self.uid_mut(cap);
+    let (
+        display_name,
+        featured_artist_index,
+        featured_artist_count_before,
+        featured_artist_count_after,
+        credit_count_after,
+    ) = {
+        let rc = borrow_mut(uid);
+        assert!(rc.featured_artist_ids.contains(&party_id), EPartyNotCredited);
+        let featured_artist_count_before = rc.featured_artist_ids.length();
+        let featured_artist_index = set_index(&rc.featured_artist_ids, &party_id);
+        let (display_name, _, _, _, _) =
+            snapshot_credit(rc.credits.get(&party_id));
+        rc.featured_artist_ids.remove(&party_id);
+        let featured_artist_count_after = rc.featured_artist_ids.length();
+        let credit_count_after = rc.credits.length();
+        (
+            display_name,
+            featured_artist_index,
+            featured_artist_count_before,
+            featured_artist_count_after,
+            credit_count_after,
+        )
+    };
 
-    emit(FeaturedArtistRemovedEvent { recording_id, party_id });
+    emit(FeaturedArtistRemovedEvent<RecordingShare, CompositionShare> {
+        recording_id,
+        composition_id,
+        admin_cap_id,
+        party_id: party_address,
+        display_name,
+        featured_artist_index,
+        featured_artist_count_before,
+        featured_artist_count_after,
+        credit_count_after,
+        caused_by_credit_removal: false,
+    });
 }
 
 // === View Functions ===
@@ -313,34 +639,60 @@ fun borrow_mut_or_init(uid: &mut UID): &mut RecordingCredits {
     df::borrow_mut(uid, ExtensionKey())
 }
 
-// === Test Functions ===
+fun snapshot_credit(
+    credit: &Credit<RecordingPartyRole>,
+): (vector<u8>, vector<u8>, vector<vector<u8>>, vector<vector<u8>>, vector<u8>) {
+    let display_name = *credit.display_name().as_bytes();
+    let mut role_kinds = vector[];
+    let mut role_names = vector[];
+    let mut role_instruments = vector[];
+    let mut role_levels = vector[];
+    let roles = credit.roles();
+    let mut index = 0;
+    while (index < roles.length()) {
+        let (kind, name, instrument, level) = recording_party_role::event_fields(&roles[index]);
+        role_kinds.push_back(kind);
+        role_names.push_back(name);
+        role_instruments.push_back(instrument);
+        role_levels.push_back(level);
+        index = index + 1;
+    };
+    (display_name, role_kinds, role_names, role_instruments, role_levels)
+}
 
-#[test_only]
-public fun credit_added_event_fields(e: &CreditAddedEvent): (ID, ID, Credit<RecordingPartyRole>) {
-    (e.recording_id, e.party_id, e.credit)
+fun set_index(set: &VecSet<ID>, key: &ID): u64 {
+    let (_, index) = set.keys().index_of(key);
+    index
 }
 
 #[test_only]
-public fun credit_removed_event_fields(e: &CreditRemovedEvent): (ID, ID, Credit<RecordingPartyRole>) {
-    (e.recording_id, e.party_id, e.credit)
+/// Exhaustive test-only accessors return the lossless BCS payload, preserving
+/// every event field without adding production read APIs.
+public fun credit_added_event_fields<R, C>(e: &CreditAddedEvent<R, C>): vector<u8> {
+    bcs::to_bytes(e)
 }
 
 #[test_only]
-public fun primary_artist_added_event_fields(e: &PrimaryArtistAddedEvent): (ID, ID) {
-    (e.recording_id, e.party_id)
+public fun credit_removed_event_fields<R, C>(e: &CreditRemovedEvent<R, C>): vector<u8> {
+    bcs::to_bytes(e)
 }
 
 #[test_only]
-public fun primary_artist_removed_event_fields(e: &PrimaryArtistRemovedEvent): (ID, ID) {
-    (e.recording_id, e.party_id)
+public fun primary_artist_added_event_fields<R, C>(e: &PrimaryArtistAddedEvent<R, C>): vector<u8> {
+    bcs::to_bytes(e)
 }
 
 #[test_only]
-public fun featured_artist_added_event_fields(e: &FeaturedArtistAddedEvent): (ID, ID) {
-    (e.recording_id, e.party_id)
+public fun primary_artist_removed_event_fields<R, C>(e: &PrimaryArtistRemovedEvent<R, C>): vector<u8> {
+    bcs::to_bytes(e)
 }
 
 #[test_only]
-public fun featured_artist_removed_event_fields(e: &FeaturedArtistRemovedEvent): (ID, ID) {
-    (e.recording_id, e.party_id)
+public fun featured_artist_added_event_fields<R, C>(e: &FeaturedArtistAddedEvent<R, C>): vector<u8> {
+    bcs::to_bytes(e)
+}
+
+#[test_only]
+public fun featured_artist_removed_event_fields<R, C>(e: &FeaturedArtistRemovedEvent<R, C>): vector<u8> {
+    bcs::to_bytes(e)
 }

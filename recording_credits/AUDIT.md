@@ -1,15 +1,17 @@
 # Security review — `recording_credits`
 
-Reviewed 2026-09-02 for immutable publication. Verdict: no exploitable
+Reviewed 2026-09-11 for immutable publication. Verdict: no exploitable
 findings in the reviewed source.
 
 ## Dependency provenance
 
 `Move.toml` pins `musicos` at
-`4fed48b2b5632122fb677d742881259c65b1bc78`, `partyos` at
-`819fde6f34c0bc7eeb57ec7340cdf13dc56b3fca`, and `credit` at
-`b96fae3faf8836e5ad718b1a7700fbd11e07708b`. Both network lock graphs resolve
-`bps` at `4ca1972a67d35c972ca567de7b08315e3778e52b` without duplicate aliases.
+`4cb3c926b1f9bb5103f3f7194e4e1e34b6c87840`, `partyos` at
+`841a875a4989082a0ebeb1beb464b71f9ea2bd73`, and `credit` at
+`0780d1d694a4d35315af20e1ea7d707558846024`. The direct `credit` dependency
+provides `Credit<RecordingPartyRole>`; `partyos` provides only the credited
+`Party` identity. Both network lock graphs resolve `bps` without duplicate
+aliases.
 
 ## Threat model and findings
 
@@ -19,12 +21,15 @@ dynamic-field schema. The implementation enforces unique credited Parties,
 bounded credits and roles, primary/featured membership within the credited
 set, and disjoint primary and featured sets; credit removal cascades through
 both designations. Credits are administrator-authored attribution and never
-drive royalty accounting in this package. No Vault, Action, Plugin, or funds
-movement exists here.
+drive royalty accounting in this package. The six generic rich events carry
+only bounded primitive snapshots and identifiers; credit removal emits its
+event immediately after map removal, followed by designation cascade events in
+set-mutation order. Views and constructors are silent. No Vault, Action,
+Plugin, or funds movement exists here.
 
 ## Evidence
 
-With `sui 1.78.1-722ac4fcf484`, strict Testnet and Mainnet lint,
-warnings-as-errors builds, and tests pass: 39/39 on each network. Both
-production modules report 100.00% coverage, including cross-release behavior,
-all collection limits, designation invariants, cascades, roles, and events.
+With Sui 1.79.0, strict Testnet and Mainnet lint, warnings-as-errors builds,
+and tests pass: 44/44 on each network. Production coverage is checked for both
+modules, including collection limits, designation invariants, cascades, roles,
+and rich event payload serialization.

@@ -84,6 +84,96 @@ fun custom_role_reports_role_name_and_level() {
 }
 
 #[test]
+fun event_fields_cover_every_primitive_role_code() {
+    let level = option::some(rpr::new_primary_role_level());
+    let roles = vector[
+        rpr::new_actor_role(level),
+        rpr::new_arranger_role(level),
+        rpr::new_artists_and_repertoire_role(),
+        rpr::new_band_leader_role(level),
+        rpr::new_choir_role(level),
+        rpr::new_choir_master_role(level),
+        rpr::new_concert_master_role(level),
+        rpr::new_conductor_role(level),
+        rpr::new_contractor_role(level),
+        rpr::new_copyist_role(),
+        rpr::new_dj_role(level),
+        rpr::new_editor_role(level),
+        rpr::new_engineer_role(level),
+        rpr::new_ensemble_role(level),
+        rpr::new_instrumentalist_role(b"Piano".to_string(), level),
+        rpr::new_mastering_engineer_role(level),
+        rpr::new_mixing_engineer_role(level),
+        rpr::new_music_director_role(level),
+        rpr::new_music_supervisor_role(level),
+        rpr::new_narrator_role(level),
+        rpr::new_orchestra_role(level),
+        rpr::new_orchestrator_role(level),
+        rpr::new_performer_role(level),
+        rpr::new_producer_role(level),
+        rpr::new_programmer_role(level),
+        rpr::new_recording_engineer_role(level),
+        rpr::new_remixing_engineer_role(level),
+        rpr::new_soloist_role(level),
+        rpr::new_sound_designer_role(level),
+        rpr::new_speaker_role(level),
+        rpr::new_vocalist_role(level),
+        rpr::new_custom_role(b"Producer".to_string(), level),
+    ];
+    let names = vector[
+        b"Actor", b"Arranger", b"ArtistsAndRepertoire", b"BandLeader", b"Choir",
+        b"ChoirMaster", b"ConcertMaster", b"Conductor", b"Contractor", b"Copyist",
+        b"DJ", b"Editor", b"Engineer", b"Ensemble", b"Instrumentalist",
+        b"MasteringEngineer", b"MixingEngineer", b"MusicDirector", b"MusicSupervisor",
+        b"Narrator", b"Orchestra", b"Orchestrator", b"Performer", b"Producer",
+        b"Programmer", b"RecordingEngineer", b"RemixingEngineer", b"Soloist",
+        b"SoundDesigner", b"Speaker", b"Vocalist", b"Producer",
+    ];
+    let kinds = vector[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+        16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31];
+    roles.length().do!(|i| {
+        let (kind, name, instrument, code) = rpr::event_fields(&roles[i]);
+        assert_eq!(kind, kinds[i]);
+        assert_eq!(name, names[i]);
+        if (i == 2 || i == 9) {
+            assert_eq!(code, 0);
+        } else {
+            assert_eq!(code, 8);
+        };
+        if (i == 14) {
+            assert_eq!(instrument, b"Piano");
+        } else if (i == 31) {
+            assert_eq!(instrument, b"");
+        } else {
+            assert_eq!(instrument, b"");
+        };
+    });
+}
+
+#[test]
+fun event_fields_cover_every_level_code() {
+    let roles = vector[
+        rpr::new_producer_role(option::some(rpr::new_additional_role_level())),
+        rpr::new_producer_role(option::some(rpr::new_assistant_role_level())),
+        rpr::new_producer_role(option::some(rpr::new_associate_role_level())),
+        rpr::new_producer_role(option::some(rpr::new_backing_role_level())),
+        rpr::new_producer_role(option::some(rpr::new_executive_role_level())),
+        rpr::new_producer_role(option::some(rpr::new_featured_role_level())),
+        rpr::new_producer_role(option::some(rpr::new_lead_role_level())),
+        rpr::new_producer_role(option::some(rpr::new_primary_role_level())),
+        rpr::new_producer_role(option::some(rpr::new_principal_role_level())),
+    ];
+    let codes = vector[1, 2, 3, 4, 5, 6, 7, 8, 9];
+    roles.length().do!(|i| {
+        let (_, _, _, code) = rpr::event_fields(&roles[i]);
+        assert_eq!(code, codes[i]);
+    });
+    let none_role = rpr::new_producer_role(option::none());
+    let (_, _, _, none_code) = rpr::event_fields(&none_role);
+    assert_eq!(none_code, 0);
+}
+
+#[test]
 fun role_levels_round_trip() {
     assert_eq!(
         rpr::new_producer_role(option::some(rpr::new_additional_role_level())).level(),

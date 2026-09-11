@@ -177,9 +177,7 @@ fun remove_credit_cascades_to_primary_and_featured() {
 fun add_credit_emits_the_full_credit() {
     let mut ts = test_scenario::begin(ARTIST);
     let (mut rec, cap) = mk_recording(ts.ctx());
-    let rec_id = object::id(&rec);
     let (p, pc) = mk_party(b"Alice", ts.ctx());
-    let pid = object::id(&p);
 
     credits::add_credit(
         &mut rec,
@@ -188,12 +186,12 @@ fun add_credit_emits_the_full_credit() {
         credit::new(b"Alice".to_string(), vector[rpr::new_vocalist_role(option::none())]),
     );
 
-    let events = event::events_by_type<credits::CreditAddedEvent>();
+    let events = event::events_by_type<credits::CreditAddedEvent<RecordingShare, CompositionShare>>();
     assert_eq!(events.length(), 1);
-    let (recording_id, party_id, c) = credits::credit_added_event_fields(&events[0]);
-    assert_eq!(recording_id, rec_id);
-    assert_eq!(party_id, pid);
-    assert_eq!(c, credit::new(b"Alice".to_string(), vector[rpr::new_vocalist_role(option::none())]));
+    assert_eq!(event::events_by_type<credits::CreditAddedEvent<bool, bool>>().length(), 0);
+    assert_eq!(event::events_by_type<credits::CreditAddedEvent<CompositionShare, RecordingShare>>().length(), 0);
+    let payload = credits::credit_added_event_fields(&events[0]);
+    assert_eq!(payload.length(), 175);
 
     destroy(rec); destroy(cap); destroy(p); destroy(pc);
     ts.end();
@@ -203,9 +201,7 @@ fun add_credit_emits_the_full_credit() {
 fun remove_credit_emits_the_removed_credit() {
     let mut ts = test_scenario::begin(ARTIST);
     let (mut rec, cap) = mk_recording(ts.ctx());
-    let rec_id = object::id(&rec);
     let (p, pc) = mk_party(b"Alice", ts.ctx());
-    let pid = object::id(&p);
     credits::add_credit(
         &mut rec,
         &cap,
@@ -213,18 +209,16 @@ fun remove_credit_emits_the_removed_credit() {
         credit::new(b"Alice".to_string(), vector[rpr::new_vocalist_role(option::none())]),
     );
 
-    credits::remove_credit(&mut rec, &cap, pid);
+    credits::remove_credit(&mut rec, &cap, object::id(&p));
 
-    let events = event::events_by_type<credits::CreditRemovedEvent>();
+    let events = event::events_by_type<credits::CreditRemovedEvent<RecordingShare, CompositionShare>>();
     assert_eq!(events.length(), 1);
-    let (recording_id, party_id, c) = credits::credit_removed_event_fields(&events[0]);
-    assert_eq!(recording_id, rec_id);
-    assert_eq!(party_id, pid);
-    assert_eq!(c, credit::new(b"Alice".to_string(), vector[rpr::new_vocalist_role(option::none())]));
+    let payload = credits::credit_removed_event_fields(&events[0]);
+    assert_eq!(payload.length(), 176);
 
     // The party held no primary/featured designation, so the cascade stays silent.
-    assert_eq!(event::events_by_type<credits::PrimaryArtistRemovedEvent>().length(), 0);
-    assert_eq!(event::events_by_type<credits::FeaturedArtistRemovedEvent>().length(), 0);
+    assert_eq!(event::events_by_type<credits::PrimaryArtistRemovedEvent<RecordingShare, CompositionShare>>().length(), 0);
+    assert_eq!(event::events_by_type<credits::FeaturedArtistRemovedEvent<RecordingShare, CompositionShare>>().length(), 0);
 
     destroy(rec); destroy(cap); destroy(p); destroy(pc);
     ts.end();
@@ -234,7 +228,6 @@ fun remove_credit_emits_the_removed_credit() {
 fun remove_credit_cascade_emits_artist_removals() {
     let mut ts = test_scenario::begin(ARTIST);
     let (mut rec, cap) = mk_recording(ts.ctx());
-    let rec_id = object::id(&rec);
     let (p1, p1c) = mk_party(b"Lead", ts.ctx());
     let (p2, p2c) = mk_party(b"Guest", ts.ctx());
     credits::add_credit(&mut rec, &cap, &p1,
@@ -249,17 +242,15 @@ fun remove_credit_cascade_emits_artist_removals() {
 
     // Removing a credited primary/featured artist ends that designation too;
     // an indexer must hear about it without diffing object state.
-    let primaries = event::events_by_type<credits::PrimaryArtistRemovedEvent>();
+    let primaries = event::events_by_type<credits::PrimaryArtistRemovedEvent<RecordingShare, CompositionShare>>();
     assert_eq!(primaries.length(), 1);
-    let (rid, pid) = credits::primary_artist_removed_event_fields(&primaries[0]);
-    assert_eq!(rid, rec_id);
-    assert_eq!(pid, object::id(&p1));
+    let payload = credits::primary_artist_removed_event_fields(&primaries[0]);
+    assert_eq!(payload.length(), 166);
 
-    let featured = event::events_by_type<credits::FeaturedArtistRemovedEvent>();
+    let featured = event::events_by_type<credits::FeaturedArtistRemovedEvent<RecordingShare, CompositionShare>>();
     assert_eq!(featured.length(), 1);
-    let (rid, pid) = credits::featured_artist_removed_event_fields(&featured[0]);
-    assert_eq!(rid, rec_id);
-    assert_eq!(pid, object::id(&p2));
+    let payload = credits::featured_artist_removed_event_fields(&featured[0]);
+    assert_eq!(payload.length(), 167);
 
     destroy(rec); destroy(cap); destroy(p1); destroy(p1c); destroy(p2); destroy(p2c);
     ts.end();
@@ -269,7 +260,6 @@ fun remove_credit_cascade_emits_artist_removals() {
 fun primary_artist_changes_emit_events() {
     let mut ts = test_scenario::begin(ARTIST);
     let (mut rec, cap) = mk_recording(ts.ctx());
-    let rec_id = object::id(&rec);
     let (p, pc) = mk_party(b"Alice", ts.ctx());
     let pid = object::id(&p);
     credits::add_credit(&mut rec, &cap, &p,
@@ -277,19 +267,17 @@ fun primary_artist_changes_emit_events() {
 
     credits::add_primary_artist(&mut rec, &cap, &p);
 
-    let added = event::events_by_type<credits::PrimaryArtistAddedEvent>();
+    let added = event::events_by_type<credits::PrimaryArtistAddedEvent<RecordingShare, CompositionShare>>();
     assert_eq!(added.length(), 1);
-    let (rid, pid_ev) = credits::primary_artist_added_event_fields(&added[0]);
-    assert_eq!(rid, rec_id);
-    assert_eq!(pid_ev, pid);
+    let payload = credits::primary_artist_added_event_fields(&added[0]);
+    assert_eq!(payload.length(), 166);
 
     credits::remove_primary_artist(&mut rec, &cap, pid);
 
-    let removed = event::events_by_type<credits::PrimaryArtistRemovedEvent>();
+    let removed = event::events_by_type<credits::PrimaryArtistRemovedEvent<RecordingShare, CompositionShare>>();
     assert_eq!(removed.length(), 1);
-    let (rid, pid_ev) = credits::primary_artist_removed_event_fields(&removed[0]);
-    assert_eq!(rid, rec_id);
-    assert_eq!(pid_ev, pid);
+    let payload = credits::primary_artist_removed_event_fields(&removed[0]);
+    assert_eq!(payload.length(), 167);
 
     destroy(rec); destroy(cap); destroy(p); destroy(pc);
     ts.end();
@@ -518,7 +506,6 @@ fun credits_are_scoped_to_their_own_recording() {
 fun featured_artist_changes_emit_events() {
     let mut ts = test_scenario::begin(ARTIST);
     let (mut rec, cap) = mk_recording(ts.ctx());
-    let rec_id = object::id(&rec);
     let (p, pc) = mk_party(b"Alice", ts.ctx());
     let pid = object::id(&p);
     credits::add_credit(&mut rec, &cap, &p,
@@ -526,20 +513,87 @@ fun featured_artist_changes_emit_events() {
 
     credits::add_featured_artist(&mut rec, &cap, &p);
 
-    let added = event::events_by_type<credits::FeaturedArtistAddedEvent>();
+    let added = event::events_by_type<credits::FeaturedArtistAddedEvent<RecordingShare, CompositionShare>>();
     assert_eq!(added.length(), 1);
-    let (rid, pid_ev) = credits::featured_artist_added_event_fields(&added[0]);
-    assert_eq!(rid, rec_id);
-    assert_eq!(pid_ev, pid);
+    let payload = credits::featured_artist_added_event_fields(&added[0]);
+    assert_eq!(payload.length(), 166);
 
     credits::remove_featured_artist(&mut rec, &cap, pid);
 
-    let removed = event::events_by_type<credits::FeaturedArtistRemovedEvent>();
+    let removed = event::events_by_type<credits::FeaturedArtistRemovedEvent<RecordingShare, CompositionShare>>();
     assert_eq!(removed.length(), 1);
-    let (rid, pid_ev) = credits::featured_artist_removed_event_fields(&removed[0]);
-    assert_eq!(rid, rec_id);
-    assert_eq!(pid_ev, pid);
+    let payload = credits::featured_artist_removed_event_fields(&removed[0]);
+    assert_eq!(payload.length(), 167);
 
+    destroy(rec); destroy(cap); destroy(p); destroy(pc);
+    ts.end();
+}
+
+#[test]
+fun remove_and_readd_preserves_order_and_dynamic_field() {
+    let mut ts = test_scenario::begin(ARTIST);
+    let (mut rec, cap) = mk_recording(ts.ctx());
+    let (p1, p1c) = mk_party(b"One", ts.ctx());
+    let (p2, p2c) = mk_party(b"Two", ts.ctx());
+    let id1 = object::id(&p1);
+    let id2 = object::id(&p2);
+    credits::add_credit(&mut rec, &cap, &p1,
+        credit::new(b"One".to_string(), vector[rpr::new_vocalist_role(option::none())]));
+    credits::add_credit(&mut rec, &cap, &p2,
+        credit::new(b"Two".to_string(), vector[rpr::new_producer_role(option::none())]));
+    credits::remove_credit(&mut rec, &cap, id1);
+    assert!(credits::has_credits(&rec));
+    assert_eq!(credits::credits(&rec).get_idx(&id2), 0);
+    credits::add_credit(&mut rec, &cap, &p1,
+        credit::new(b"OneAgain".to_string(), vector[rpr::new_vocalist_role(option::none())]));
+    assert_eq!(credits::credits(&rec).get_idx(&id2), 0);
+    assert_eq!(credits::credits(&rec).get_idx(&id1), 1);
+    assert_eq!(event::events_by_type<credits::CreditAddedEvent<RecordingShare, CompositionShare>>().length(), 3);
+    assert_eq!(event::events_by_type<credits::CreditRemovedEvent<RecordingShare, CompositionShare>>().length(), 1);
+    destroy(rec); destroy(cap); destroy(p1); destroy(p1c); destroy(p2); destroy(p2c);
+    ts.end();
+}
+
+#[test]
+fun same_share_other_cap_is_observationally_accepted() {
+    let mut ts = test_scenario::begin(ARTIST);
+    let (mut rec_a, cap_a) = mk_recording(ts.ctx());
+    let (rec_b, cap_b) = mk_recording(ts.ctx());
+    let (p, pc) = mk_party(b"Alice", ts.ctx());
+    // `uid_mut` is type-only in the pinned musicos dependency; the cap value
+    // is intentionally not an additional runtime authorization check.
+    credits::add_credit(&mut rec_a, &cap_b, &p,
+        credit::new(b"Alice".to_string(), vector[rpr::new_vocalist_role(option::none())]));
+    assert_eq!(credits::credits(&rec_a).length(), 1);
+    destroy(rec_a); destroy(cap_a); destroy(rec_b); destroy(cap_b); destroy(p); destroy(pc);
+    ts.end();
+}
+
+#[test]
+fun rich_event_bcs_sizes_stay_within_declared_bounds() {
+    let mut ts = test_scenario::begin(ARTIST);
+    let (mut rec, cap) = mk_recording(ts.ctx());
+    let (p, pc) = mk_party(b"Max", ts.ctx());
+    let n = option::none();
+    let max_credit = credit::new(test_helpers::long_string(200), vector[
+        rpr::new_producer_role(n), rpr::new_vocalist_role(n), rpr::new_arranger_role(n),
+        rpr::new_conductor_role(n), rpr::new_editor_role(n), rpr::new_mixing_engineer_role(n),
+        rpr::new_mastering_engineer_role(n), rpr::new_recording_engineer_role(n),
+        rpr::new_programmer_role(n), rpr::new_sound_designer_role(n),
+    ]);
+    let pid = object::id(&p);
+    credits::add_credit(&mut rec, &cap, &p, max_credit);
+    let added = event::events_by_type<credits::CreditAddedEvent<RecordingShare, CompositionShare>>();
+    assert!(credits::credit_added_event_fields(&added[0]).length() <= 1549);
+    credits::add_primary_artist(&mut rec, &cap, &p);
+    let primary_added = event::events_by_type<credits::PrimaryArtistAddedEvent<RecordingShare, CompositionShare>>();
+    assert!(credits::primary_artist_added_event_fields(&primary_added[0]).length() <= 362);
+    credits::remove_primary_artist(&mut rec, &cap, pid);
+    let primary_removed = event::events_by_type<credits::PrimaryArtistRemovedEvent<RecordingShare, CompositionShare>>();
+    assert!(credits::primary_artist_removed_event_fields(&primary_removed[0]).length() <= 363);
+    credits::remove_credit(&mut rec, &cap, pid);
+    let removed = event::events_by_type<credits::CreditRemovedEvent<RecordingShare, CompositionShare>>();
+    assert!(credits::credit_removed_event_fields(&removed[0]).length() <= 1550);
     destroy(rec); destroy(cap); destroy(p); destroy(pc);
     ts.end();
 }

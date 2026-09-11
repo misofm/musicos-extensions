@@ -447,3 +447,104 @@ public fun name(self: &RecordingPartyRole): String {
         RecordingPartyRole::Custom(role_name, _) => *role_name,
     }
 }
+
+/// Returns the stable primitive representation used by recording-credit
+/// mutation events: kind, role-name bytes, instrument bytes, and level code.
+/// Canonical role names are retained in `name`; a Custom role retains its raw
+/// supplied name even when it spells a canonical role. Instrument bytes are
+/// populated only for Instrumentalist, and clerical roles use level code 0.
+public(package) fun event_fields(
+    self: &RecordingPartyRole,
+): (u8, vector<u8>, vector<u8>, u8) {
+    let kind = match (self) {
+        RecordingPartyRole::Actor(_) => 0,
+        RecordingPartyRole::Arranger(_) => 1,
+        RecordingPartyRole::ArtistsAndRepertoire => 2,
+        RecordingPartyRole::BandLeader(_) => 3,
+        RecordingPartyRole::Choir(_) => 4,
+        RecordingPartyRole::ChoirMaster(_) => 5,
+        RecordingPartyRole::ConcertMaster(_) => 6,
+        RecordingPartyRole::Conductor(_) => 7,
+        RecordingPartyRole::Contractor(_) => 8,
+        RecordingPartyRole::Copyist => 9,
+        RecordingPartyRole::DJ(_) => 10,
+        RecordingPartyRole::Editor(_) => 11,
+        RecordingPartyRole::Engineer(_) => 12,
+        RecordingPartyRole::Ensemble(_) => 13,
+        RecordingPartyRole::Instrumentalist(..) => 14,
+        RecordingPartyRole::MasteringEngineer(_) => 15,
+        RecordingPartyRole::MixingEngineer(_) => 16,
+        RecordingPartyRole::MusicDirector(_) => 17,
+        RecordingPartyRole::MusicSupervisor(_) => 18,
+        RecordingPartyRole::Narrator(_) => 19,
+        RecordingPartyRole::Orchestra(_) => 20,
+        RecordingPartyRole::Orchestrator(_) => 21,
+        RecordingPartyRole::Performer(_) => 22,
+        RecordingPartyRole::Producer(_) => 23,
+        RecordingPartyRole::Programmer(_) => 24,
+        RecordingPartyRole::RecordingEngineer(_) => 25,
+        RecordingPartyRole::RemixingEngineer(_) => 26,
+        RecordingPartyRole::Soloist(_) => 27,
+        RecordingPartyRole::SoundDesigner(_) => 28,
+        RecordingPartyRole::Speaker(_) => 29,
+        RecordingPartyRole::Vocalist(_) => 30,
+        RecordingPartyRole::Custom(..) => 31,
+    };
+    let name = self.name().into_bytes();
+    let instrument = match (self) {
+        RecordingPartyRole::Instrumentalist(instrument, _) => *instrument.as_bytes(),
+        _ => vector[],
+    };
+    let level = match (self) {
+        RecordingPartyRole::ArtistsAndRepertoire | RecordingPartyRole::Copyist => 0,
+        RecordingPartyRole::Actor(level)
+        | RecordingPartyRole::Arranger(level)
+        | RecordingPartyRole::BandLeader(level)
+        | RecordingPartyRole::Choir(level)
+        | RecordingPartyRole::ChoirMaster(level)
+        | RecordingPartyRole::ConcertMaster(level)
+        | RecordingPartyRole::Conductor(level)
+        | RecordingPartyRole::Contractor(level)
+        | RecordingPartyRole::DJ(level)
+        | RecordingPartyRole::Editor(level)
+        | RecordingPartyRole::Engineer(level)
+        | RecordingPartyRole::Ensemble(level)
+        | RecordingPartyRole::Instrumentalist(_, level)
+        | RecordingPartyRole::MasteringEngineer(level)
+        | RecordingPartyRole::MixingEngineer(level)
+        | RecordingPartyRole::MusicDirector(level)
+        | RecordingPartyRole::MusicSupervisor(level)
+        | RecordingPartyRole::Narrator(level)
+        | RecordingPartyRole::Orchestra(level)
+        | RecordingPartyRole::Orchestrator(level)
+        | RecordingPartyRole::Performer(level)
+        | RecordingPartyRole::Producer(level)
+        | RecordingPartyRole::Programmer(level)
+        | RecordingPartyRole::RecordingEngineer(level)
+        | RecordingPartyRole::RemixingEngineer(level)
+        | RecordingPartyRole::Soloist(level)
+        | RecordingPartyRole::SoundDesigner(level)
+        | RecordingPartyRole::Speaker(level)
+        | RecordingPartyRole::Vocalist(level)
+        | RecordingPartyRole::Custom(_, level) => role_level_code(level),
+    };
+    (kind, name, instrument, level)
+}
+
+fun role_level_code(level: &Option<RecordingPartyRoleLevel>): u8 {
+    if (level.is_none()) {
+        0
+    } else {
+        match (level.borrow()) {
+            RecordingPartyRoleLevel::Additional => 1,
+            RecordingPartyRoleLevel::Assistant => 2,
+            RecordingPartyRoleLevel::Associate => 3,
+            RecordingPartyRoleLevel::Backing => 4,
+            RecordingPartyRoleLevel::Executive => 5,
+            RecordingPartyRoleLevel::Featured => 6,
+            RecordingPartyRoleLevel::Lead => 7,
+            RecordingPartyRoleLevel::Primary => 8,
+            RecordingPartyRoleLevel::Principal => 9,
+        }
+    }
+}

@@ -32,14 +32,30 @@ All `recording_credits` write functions are cap-gated by `RecordingAdminCap`.
 - **`recording_party_role::name`** — the role's canonical PascalCase identifier (the user string for `Custom`, `"Instrumentalist"` for instrumentalists).
 - **`recording_party_role::level`** — the role's optional `RecordingPartyRoleLevel`.
 
+## Events
+
+Every mutation emits only its corresponding rich event(s); all views and
+constructors are silent. Credit events carry recording, composition, admin-cap,
+and party addresses, display-name bytes, stable role kind/name/instrument/level
+vectors, map index/counts, and initialization or cascade flags. Designation
+events carry the display-name bytes, set index/counts, credit count, and the
+cascade flag on removals. Event types retain both phantom recording and
+composition share parameters without constraints. Role kinds use the stable
+`Actor = 0` through `Custom = 31` codes; levels use `None = 0` through
+`Principal = 9`, with clerical roles forced to level `0`.
+
 ## Dependencies
 
 - **`musicos`** — provides `Recording`, `RecordingAdminCap`, and the cap-gated `uid_mut`/`uid` access this extension attaches to.
-- **`partyos`** — provides `Party` (credited identity) and `Credit<RecordingPartyRole>` (display name + roles).
+- **`partyos`** — provides `Party` (the credited identity).
+- **`credit`** — provides `Credit<RecordingPartyRole>` (display name + roles).
 
 ## Build & test
 
 ```sh
-sui move build
-sui move test
+sui move build --lint --warnings-are-errors
+sui move build --lint --warnings-are-errors --build-env mainnet
+sui move test --coverage --lint --warnings-are-errors
+sui move coverage summary
+sui move test --build-env mainnet
 ```
