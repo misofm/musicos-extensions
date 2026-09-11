@@ -16,16 +16,20 @@ Only the matching `RecordingAdminCap` type can set, replace, or unset the
 module-keyed streaming transcode reference. The stored `StreamingTranscode`
 wraps exactly one `ori::data::WalrusQuilt`; standalone blobs and individual
 Quilt patches cannot reach the API. The module stores one reference per
-Recording, leaves unrelated dynamic fields untouched, and emits the Recording
-ID plus complete `StreamingTranscode` value on every set or replacement. An
-absent unset is an idempotent no-op and emits no misleading event.
+Recording, leaves unrelated dynamic fields untouched, and emits primitive
+Recording/composition/cap addresses, presence, and previous/current Quilt IDs
+on every set or replacement. An absent unset is an idempotent no-op and emits
+no misleading event.
 
-The extension records the Recording administrator's assertion. It cannot prove
-that the Quilt is stored or retrievable, that its patches satisfy the streaming
-package contract, or that a client can decode them. Publication tooling must
-perform those checks before attaching the reference. Both phantom parameters
-are part of event type identity, so set and clear queries for independent
-Recording/Composition pairs do not collide.
+The extension records the Recording administrator's assertion. Its set event
+contains the primitive payload `(recording_id, composition_id, admin_cap_id,
+had_transcode, previous_quilt_id, quilt_id)`: three addresses, presence, and
+the previous/current `u256` Quilt IDs. It cannot prove that the Quilt is stored
+or retrievable, that its patches satisfy the streaming package contract, or
+that a client can decode them. Publication tooling must perform those checks
+before attaching the reference. Both phantom parameters are part of event type
+identity, so set and clear queries for independent Recording/Composition pairs
+do not collide.
 
 ## Evidence
 

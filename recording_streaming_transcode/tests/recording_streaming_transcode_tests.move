@@ -257,6 +257,9 @@ fun set_read_replace_unset_lifecycle() {
 fun complete_u256_quilt_id_domain_is_preserved() {
     let ctx = &mut tx_context::dummy();
     let (mut recording, cap) = new_recording(ctx);
+    let recording_id = object::id(&recording).to_address();
+    let composition_id = recording::composition_id(&recording).to_address();
+    let admin_cap_id = object::id(&cap).to_address();
 
     let values = vector[
         0u256,
@@ -269,6 +272,79 @@ fun complete_u256_quilt_id_domain_is_preserved() {
         assert_eq!(quilt_id(transcode::streaming_transcode(&recording)), value);
     });
 
+    let set_events = event::events_by_type<transcode::RecordingStreamingTranscodeSetEvent<REC, COMP>>();
+    assert_eq!(set_events.length(), 4);
+    // A present field with Quilt ID zero is distinct from an absent field.
+    assert_set_payload(&set_events[0], recording_id, composition_id, admin_cap_id, false, 0, 0);
+    assert_set_bcs(&set_events[0], recording_id, composition_id, admin_cap_id, false, 0, 0);
+    assert_set_payload(
+        &set_events[1],
+        recording_id,
+        composition_id,
+        admin_cap_id,
+        true,
+        0,
+        9007199254740993,
+    );
+    assert_set_bcs(
+        &set_events[1],
+        recording_id,
+        composition_id,
+        admin_cap_id,
+        true,
+        0,
+        9007199254740993,
+    );
+    assert_set_payload(
+        &set_events[2],
+        recording_id,
+        composition_id,
+        admin_cap_id,
+        true,
+        9007199254740993,
+        9223372036854775809,
+    );
+    assert_set_bcs(
+        &set_events[2],
+        recording_id,
+        composition_id,
+        admin_cap_id,
+        true,
+        9007199254740993,
+        9223372036854775809,
+    );
+    assert_set_payload(
+        &set_events[3],
+        recording_id,
+        composition_id,
+        admin_cap_id,
+        true,
+        9223372036854775809,
+        MAX_U256,
+    );
+    assert_set_bcs(
+        &set_events[3],
+        recording_id,
+        composition_id,
+        admin_cap_id,
+        true,
+        9223372036854775809,
+        MAX_U256,
+    );
+
+    transcode::unset_streaming_transcode(&mut recording, &cap);
+    let clear_events = event::events_by_type<transcode::RecordingStreamingTranscodeClearedEvent<REC, COMP>>();
+    assert_eq!(clear_events.length(), 1);
+    assert_clear_payload(&clear_events[0], recording_id, composition_id, admin_cap_id, MAX_U256);
+    assert_clear_bcs(&clear_events[0], recording_id, composition_id, admin_cap_id, MAX_U256);
+
+    transcode::set_streaming_transcode(&mut recording, &cap, new_transcode(0));
+    transcode::unset_streaming_transcode(&mut recording, &cap);
+    let clear_events = event::events_by_type<transcode::RecordingStreamingTranscodeClearedEvent<REC, COMP>>();
+    assert_eq!(clear_events.length(), 2);
+    assert_clear_payload(&clear_events[1], recording_id, composition_id, admin_cap_id, 0);
+    assert_clear_bcs(&clear_events[1], recording_id, composition_id, admin_cap_id, 0);
+
     destroy(recording);
     destroy(cap);
 }
@@ -277,7 +353,11 @@ fun complete_u256_quilt_id_domain_is_preserved() {
 fun transcodes_are_isolated_per_recording() {
     let ctx = &mut tx_context::dummy();
     let (mut a, a_cap) = new_recording(ctx);
-    let (b, b_cap) = recording::new_for_testing<OTHER_REC, COMP>(
+    let (mut b, b_cap) = recording::new_for_testing<OTHER_REC, COMP>(
+        test_helpers::fake_id(ctx),
+        ctx,
+    );
+    let (mut c, c_cap) = recording::new_for_testing<REC, OTHER_COMP>(
         test_helpers::fake_id(ctx),
         ctx,
     );
@@ -285,26 +365,45 @@ fun transcodes_are_isolated_per_recording() {
     // Constructors and permissionless views are silent.
     assert_eq!(event::events_by_type<transcode::RecordingStreamingTranscodeSetEvent<REC, COMP>>().length(), 0);
     assert_eq!(event::events_by_type<transcode::RecordingStreamingTranscodeClearedEvent<REC, COMP>>().length(), 0);
+    assert_eq!(event::events_by_type<transcode::RecordingStreamingTranscodeSetEvent<OTHER_REC, COMP>>().length(), 0);
+    assert_eq!(event::events_by_type<transcode::RecordingStreamingTranscodeClearedEvent<OTHER_REC, COMP>>().length(), 0);
+    assert_eq!(event::events_by_type<transcode::RecordingStreamingTranscodeSetEvent<REC, OTHER_COMP>>().length(), 0);
+    assert_eq!(event::events_by_type<transcode::RecordingStreamingTranscodeClearedEvent<REC, OTHER_COMP>>().length(), 0);
+    assert_eq!(event::events_by_type<transcode::RecordingStreamingTranscodeSetEvent<OTHER_REC, OTHER_COMP>>().length(), 0);
+    assert_eq!(event::events_by_type<transcode::RecordingStreamingTranscodeClearedEvent<OTHER_REC, OTHER_COMP>>().length(), 0);
+
     transcode::set_streaming_transcode(&mut a, &a_cap, new_transcode(9));
+    transcode::set_streaming_transcode(&mut b, &b_cap, new_transcode(10));
+    transcode::set_streaming_transcode(&mut c, &c_cap, new_transcode(11));
 
     assert!(transcode::has_streaming_transcode(&a));
-    assert!(!transcode::has_streaming_transcode(&b));
+    assert!(transcode::has_streaming_transcode(&b));
+    assert!(transcode::has_streaming_transcode(&c));
+    assert_eq!(quilt_id(transcode::streaming_transcode(&a)), 9);
+    assert_eq!(quilt_id(transcode::streaming_transcode(&b)), 10);
+    assert_eq!(quilt_id(transcode::streaming_transcode(&c)), 11);
     assert_eq!(event::events_by_type<transcode::RecordingStreamingTranscodeSetEvent<REC, COMP>>().length(), 1);
-    assert_eq!(event::events_by_type<transcode::RecordingStreamingTranscodeSetEvent<OTHER_REC, COMP>>().length(), 0);
-    assert_eq!(event::events_by_type<transcode::RecordingStreamingTranscodeSetEvent<REC, OTHER_COMP>>().length(), 0);
+    assert_eq!(event::events_by_type<transcode::RecordingStreamingTranscodeSetEvent<OTHER_REC, COMP>>().length(), 1);
+    assert_eq!(event::events_by_type<transcode::RecordingStreamingTranscodeSetEvent<REC, OTHER_COMP>>().length(), 1);
     assert_eq!(event::events_by_type<transcode::RecordingStreamingTranscodeSetEvent<OTHER_REC, OTHER_COMP>>().length(), 0);
 
     transcode::unset_streaming_transcode(&mut a, &a_cap);
+    transcode::unset_streaming_transcode(&mut b, &b_cap);
+    transcode::unset_streaming_transcode(&mut c, &c_cap);
     assert!(!transcode::has_streaming_transcode(&a));
+    assert!(!transcode::has_streaming_transcode(&b));
+    assert!(!transcode::has_streaming_transcode(&c));
     assert_eq!(event::events_by_type<transcode::RecordingStreamingTranscodeClearedEvent<REC, COMP>>().length(), 1);
-    assert_eq!(event::events_by_type<transcode::RecordingStreamingTranscodeClearedEvent<OTHER_REC, COMP>>().length(), 0);
-    assert_eq!(event::events_by_type<transcode::RecordingStreamingTranscodeClearedEvent<REC, OTHER_COMP>>().length(), 0);
+    assert_eq!(event::events_by_type<transcode::RecordingStreamingTranscodeClearedEvent<OTHER_REC, COMP>>().length(), 1);
+    assert_eq!(event::events_by_type<transcode::RecordingStreamingTranscodeClearedEvent<REC, OTHER_COMP>>().length(), 1);
     assert_eq!(event::events_by_type<transcode::RecordingStreamingTranscodeClearedEvent<OTHER_REC, OTHER_COMP>>().length(), 0);
 
     destroy(a);
     destroy(a_cap);
     destroy(b);
     destroy(b_cap);
+    destroy(c);
+    destroy(c_cap);
 }
 
 #[test]

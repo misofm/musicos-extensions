@@ -10,8 +10,11 @@ Quilt contents; it records the administrator's reference.
 
 `new(WalrusQuilt)` constructs the wrapper, and `quilt(&StreamingTranscode)`
 returns its Quilt. `set_streaming_transcode(recording, cap, transcode)` uses the
-recording's cap-gated `uid_mut` and either assigns the existing dynamic field or
-adds it when absent. Replacing an equal Quilt ID still assigns and emits a set
+recording's `uid_mut` constrained to the matching
+`RecordingAdminCap<RecordingShare>` type, then either assigns the existing
+dynamic field or adds it when absent. This is compile-time type authorization;
+the extension performs no runtime authentication of the cap object's value or
+ID. Replacing an equal Quilt ID still assigns and emits a set
 event. `unset_streaming_transcode(recording, cap)` authorizes first, removes
 the attached wrapper, and emits a clear event containing the removed Quilt ID;
 an absent field is an authorized silent no-op. Removing the extension's field
