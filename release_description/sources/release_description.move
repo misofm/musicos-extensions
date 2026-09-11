@@ -72,16 +72,23 @@ public struct ExtensionKey() has copy, drop, store;
 
 // === Events ===
 
-/// Emitted when a release's description is set or replaced. Carries the prose
-/// itself so an indexer can write the row without re-reading the object.
-public struct DescriptionSetEvent has copy, drop {
-    release_id: ID,
-    description: String,
+/// Emitted when a release's description is added or replaced. The event is a
+/// complete state transition: the cap is provenance, while the before/after
+/// bytes let an indexer apply the write without re-reading the release.
+public struct ReleaseDescriptionSetEvent has copy, drop {
+    release_id: address,
+    release_admin_cap_id: address,
+    description_existed_before: bool,
+    description_before: vector<u8>,
+    description_after: vector<u8>,
 }
 
-/// Emitted when a release's description is removed.
-public struct DescriptionClearedEvent has copy, drop {
-    release_id: ID,
+/// Emitted when an attached release description is removed. Clearing an
+/// absent field is an authorized, silent no-op and therefore emits nothing.
+public struct ReleaseDescriptionClearedEvent has copy, drop {
+    release_id: address,
+    release_admin_cap_id: address,
+    description_before: vector<u8>,
 }
 
 // === Public Functions ===
@@ -96,26 +103,47 @@ public fun set_description(self: &mut Release, cap: &ReleaseAdminCap, descriptio
     assert!(!bytes.is_empty(), EEmptyDescription);
     assert!(bytes.length() <= MAX_DESCRIPTION_LENGTH, EMaxDescriptionLengthExceeded);
 
-    let release_id = object::id(self);
+    let release_id = object::id(self).to_address();
+    let release_admin_cap_id = object::id(cap).to_address();
+    let description_after = *description.as_bytes();
     let uid = self.uid_mut(cap);
-    if (df::exists(uid, ExtensionKey())) {
-        *df::borrow_mut(uid, ExtensionKey()) = description;
+    let description_existed_before = df::exists(uid, ExtensionKey());
+    let description_before = if (description_existed_before) {
+        // Keep the old value snapshot and replacement in this one mutable
+        // borrow, so the dynamic-field mutation remains the only write.
+        let stored: &mut String = df::borrow_mut(uid, ExtensionKey());
+        let previous = *stored.as_bytes();
+        *stored = description;
+        previous
     } else {
         df::add(uid, ExtensionKey(), description);
+        vector[]
     };
-    emit(DescriptionSetEvent { release_id, description });
+    emit(ReleaseDescriptionSetEvent {
+        release_id,
+        release_admin_cap_id,
+        description_existed_before,
+        description_before,
+        description_after,
+    });
 }
 
 /// Removes the description, if any. Idempotent. Leaves the release having said
 /// nothing about itself, which is where every release starts.
 public fun clear_description(self: &mut Release, cap: &ReleaseAdminCap) {
-    let release_id = object::id(self);
+    let release_id = object::id(self).to_address();
+    let release_admin_cap_id = object::id(cap).to_address();
     // Cap-gate before the existence check, so a wrong cap aborts even when there
     // is nothing attached to remove.
     let uid = self.uid_mut(cap);
     if (df::exists(uid, ExtensionKey())) {
-        let _: String = df::remove(uid, ExtensionKey());
-        emit(DescriptionClearedEvent { release_id });
+        let removed: String = df::remove(uid, ExtensionKey());
+        let description_before = *removed.as_bytes();
+        emit(ReleaseDescriptionClearedEvent {
+            release_id,
+            release_admin_cap_id,
+            description_before,
+        });
     }
 }
 
@@ -136,7 +164,33 @@ public fun description(self: &Release): &String {
 // === Test Functions ===
 
 #[test_only]
-public fun set_event_fields(e: &DescriptionSetEvent): (ID, String) { (e.release_id, e.description) }
+public fun set_event_fields(
+    e: &ReleaseDescriptionSetEvent,
+): (address, address, bool, vector<u8>, vector<u8>) {
+    (
+        e.release_id,
+        e.release_admin_cap_id,
+        e.description_existed_before,
+        e.description_before,
+        e.description_after,
+    )
+}
 
 #[test_only]
-public fun cleared_event_release_id(e: &DescriptionClearedEvent): ID { e.release_id }
+public fun clear_event_fields(
+    e: &ReleaseDescriptionClearedEvent,
+): (address, address, vector<u8>) {
+    (e.release_id, e.release_admin_cap_id, e.description_before)
+}
+
+#[test_only]
+public fun cleared_event_fields(
+    e: &ReleaseDescriptionClearedEvent,
+): (address, address, vector<u8>) {
+    clear_event_fields(e)
+}
+
+#[test_only]
+public fun cleared_event_release_id(e: &ReleaseDescriptionClearedEvent): address {
+    e.release_id
+}

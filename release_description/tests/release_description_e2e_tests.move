@@ -80,11 +80,15 @@ fun description_lifecycle_on_a_published_and_shared_release() {
     assert_eq!(*rd::description(&rel), b"Recorded live in one room.".to_string());
     test_scenario::return_shared(rel);
 
-    let set_events = event::events_by_type<rd::DescriptionSetEvent>();
+    let set_events = event::events_by_type<rd::ReleaseDescriptionSetEvent>();
     assert_eq!(set_events.length(), 1);
-    let (event_id, event_description) = rd::set_event_fields(&set_events[0]);
-    assert_eq!(event_id, rel_id);
-    assert_eq!(event_description, b"Recorded live in one room.".to_string());
+    let (event_id, event_cap_id, existed, before, event_description) =
+        rd::set_event_fields(&set_events[0]);
+    assert_eq!(event_id, rel_id.to_address());
+    assert_eq!(event_cap_id, object::id(&cap).to_address());
+    assert!(!existed);
+    assert_eq!(before, vector[]);
+    assert_eq!(event_description, b"Recorded live in one room.");
 
     // --- Tx 4 (STRANGER): reads back the same prose a transaction later ---
     ts.next_tx(STRANGER);
@@ -101,9 +105,22 @@ fun description_lifecycle_on_a_published_and_shared_release() {
     assert!(!rd::has_description(&rel));
     test_scenario::return_shared(rel);
 
-    let cleared_events = event::events_by_type<rd::DescriptionClearedEvent>();
+    let set_events = event::events_by_type<rd::ReleaseDescriptionSetEvent>();
+    assert_eq!(set_events.length(), 1);
+    let (event_id, event_cap_id, existed, before, after) = rd::set_event_fields(&set_events[0]);
+    assert_eq!(event_id, rel_id.to_address());
+    assert_eq!(event_cap_id, object::id(&cap).to_address());
+    assert!(existed);
+    assert_eq!(before, b"Recorded live in one room.");
+    assert_eq!(after, b"Recorded live in one room, in two days.");
+
+    let cleared_events = event::events_by_type<rd::ReleaseDescriptionClearedEvent>();
     assert_eq!(cleared_events.length(), 1);
-    assert_eq!(rd::cleared_event_release_id(&cleared_events[0]), rel_id);
+    let (cleared_id, cleared_cap_id, cleared_before) =
+        rd::clear_event_fields(&cleared_events[0]);
+    assert_eq!(cleared_id, rel_id.to_address());
+    assert_eq!(cleared_cap_id, object::id(&cap).to_address());
+    assert_eq!(cleared_before, b"Recorded live in one room, in two days.");
 
     // --- Tx 6 (STRANGER): the clear is visible too ---
     ts.next_tx(STRANGER);
