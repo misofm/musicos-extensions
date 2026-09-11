@@ -10,8 +10,8 @@
 /// recording is public, while the write functions are gated purely by
 /// possession of the cap object (there is no `tx_context::sender` check to
 /// defeat with a different signer — see the module-level note in
-/// `recording_master_reference_tests` on why a "wrong cap" test is not
-/// expressible for this package).
+/// `recording_master_reference_tests` on why an incompatible cap type fails
+/// compilation while a different same-type cap value is accepted).
 #[test_only]
 module recording_master_reference::recording_master_reference_e2e_tests;
 

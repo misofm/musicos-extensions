@@ -25,10 +25,12 @@ sealed_dek_length: u64
 sealed_dek_digest: vector<u8>
 ```
 
-An absent previous side uses `0`, `false`, `0`, and `[]`. Plaintext metadata
-uses the same canonical values. Encrypted metadata contains the sealed-DEK
-length and its BLAKE2b-256 digest; the sealed-DEK bytes are never emitted.
-Equal replacements still emit one event.
+Only an absent previous side uses the canonical zero blob ID together with
+`false`, `0`, and `[]`. A present plaintext side keeps its actual blob ID; only
+its `is_encrypted`, sealed-DEK length, and digest metadata are canonical
+`false`, `0`, and `[]`. Encrypted metadata contains the sealed-DEK length and
+its BLAKE2b-256 digest; the sealed-DEK bytes are never emitted. Equal
+replacements still emit one event.
 
 `unset_master_reference` emits one
 `RecordingMasterReferenceClearedEvent<RecordingShare, CompositionShare>` only
@@ -58,4 +60,5 @@ BLAKE2b-256 digest while retaining its one-byte vector length prefix.
 
 Hashing occurs on-chain for every encrypted mutation, so gas grows with the
 sealed-DEK input length. Only its length and digest are stored in the event;
-the raw sealed-DEK bytes remain private to the input value.
+the stored `WalrusBlob` remains publicly readable through its existing view, so
+event omission is payload minimization rather than a privacy boundary.

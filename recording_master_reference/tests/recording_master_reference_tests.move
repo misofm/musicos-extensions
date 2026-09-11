@@ -21,8 +21,9 @@ use sui::event;
 
 // A recording's `RecordingShare` type uniquely identifies it, so
 // `RecordingAdminCap<RecordingShare>` is bound to its recording by type and
-// `recording::uid_mut` performs no runtime check. A wrong-cap test is therefore
-// not expressible here — the call would fail to compile rather than abort.
+// `recording::uid_mut` performs no runtime check. An incompatible cap type
+// fails compilation; a different value with the same `RecordingShare` type is
+// accepted because the cap value is ignored.
 public struct REC {}
 public struct COMP {}
 public struct OTHER_REC {}
@@ -30,6 +31,7 @@ public struct OTHER_COMP {}
 
 const MAX_U256: u256 =
     0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
+const LARGE_DEK_LENGTH: u64 = 256_001;
 
 fun new_rec(ctx: &mut TxContext): (
     recording::Recording<REC, COMP>,
@@ -40,6 +42,10 @@ fun new_rec(ctx: &mut TxContext): (
 
 fun sealed_dek_digest(): vector<u8> {
     x"2e2948bc873e96c254dd7ae8446b802908957fb713129cb726b700fa07434b80"
+}
+
+fun large_dek_digest(): vector<u8> {
+    x"9e10d156c8054fdb1b37250e3c192aedcaa4182d4ecba5f9d72d0b2aea02cc6e"
 }
 
 fun assert_view_matches_projection(
@@ -111,9 +117,7 @@ fun project_set_event(
         assert!(previous_sealed_dek_digest.is_empty());
     };
     if (is_encrypted) {
-        assert_eq!(sealed_dek_length, 10);
         assert_eq!(sealed_dek_digest.length(), 32);
-        assert_eq!(sealed_dek_digest, sealed_dek_digest());
     } else {
         assert_eq!(sealed_dek_length, 0);
         assert!(sealed_dek_digest.is_empty());
@@ -264,11 +268,13 @@ fun set_read_replace_unset_lifecycle() {
         &projected_sealed_dek_digest,
     );
 
-    // Equal encrypted replacement still emits and replays identically.
+    // A different encrypted DEK on the same blob ID still exposes both
+    // snapshots: the previous digest is the first DEK and the current digest
+    // is the replacement DEK.
     mref::set_master_reference(
         &mut rec,
         &cap,
-        data::new_blob(333, confidentiality::new_encrypted(b"sealed-dek")),
+        data::new_blob(333, confidentiality::new_encrypted(b"other-dek")),
     );
     let set_events = event::events_by_type<mref::RecordingMasterReferenceSetEvent<REC, COMP>>();
     assert_eq!(set_events.length(), 4);
@@ -283,6 +289,57 @@ fun set_read_replace_unset_lifecycle() {
         recording_id,
         composition_id,
     );
+    let (_, _, _, previous_blob_id, previous_is_encrypted, previous_sealed_dek_length,
+        previous_sealed_dek_digest, blob_id, is_encrypted, sealed_dek_length,
+        sealed_dek_digest) = mref::set_event_fields(&set_events[3]);
+    assert_eq!(previous_blob_id, 333);
+    assert!(previous_is_encrypted);
+    assert_eq!(previous_sealed_dek_length, 10);
+    assert_eq!(previous_sealed_dek_digest, sealed_dek_digest());
+    assert_eq!(blob_id, 333);
+    assert!(is_encrypted);
+    assert_eq!(sealed_dek_length, 9);
+    assert_eq!(sealed_dek_digest, sui::hash::blake2b256(&b"other-dek"));
+    assert_view_matches_projection(
+        &rec,
+        projected_exists,
+        projected_blob_id,
+        projected_is_encrypted,
+        projected_sealed_dek_length,
+        &projected_sealed_dek_digest,
+    );
+
+    // Encrypted-to-plaintext replay retains the prior encrypted snapshot and
+    // restores canonical plaintext metadata for the current side.
+    mref::set_master_reference(
+        &mut rec,
+        &cap,
+        data::new_blob(334, confidentiality::new_unencrypted()),
+    );
+    let set_events = event::events_by_type<mref::RecordingMasterReferenceSetEvent<REC, COMP>>();
+    assert_eq!(set_events.length(), 5);
+    assert_eq!(sui::bcs::to_bytes(&set_events[4]).length(), 181);
+    project_set_event(
+        &mut projected_exists,
+        &mut projected_blob_id,
+        &mut projected_is_encrypted,
+        &mut projected_sealed_dek_length,
+        &mut projected_sealed_dek_digest,
+        &set_events[4],
+        recording_id,
+        composition_id,
+    );
+    let (_, _, _, previous_blob_id, previous_is_encrypted, previous_sealed_dek_length,
+        previous_sealed_dek_digest, blob_id, is_encrypted, sealed_dek_length,
+        sealed_dek_digest) = mref::set_event_fields(&set_events[4]);
+    assert_eq!(previous_blob_id, 333);
+    assert!(previous_is_encrypted);
+    assert_eq!(previous_sealed_dek_length, 9);
+    assert_eq!(previous_sealed_dek_digest, sui::hash::blake2b256(&b"other-dek"));
+    assert_eq!(blob_id, 334);
+    assert!(!is_encrypted);
+    assert_eq!(sealed_dek_length, 0);
+    assert!(sealed_dek_digest.is_empty());
     assert_view_matches_projection(
         &rec,
         projected_exists,
@@ -296,7 +353,7 @@ fun set_read_replace_unset_lifecycle() {
     let cleared_events =
         event::events_by_type<mref::RecordingMasterReferenceClearedEvent<REC, COMP>>();
     assert_eq!(cleared_events.length(), 1);
-    assert_eq!(sui::bcs::to_bytes(&cleared_events[0]).length(), 138);
+    assert_eq!(sui::bcs::to_bytes(&cleared_events[0]).length(), 106);
     project_cleared_event(
         &mut projected_exists,
         &mut projected_blob_id,
@@ -338,14 +395,14 @@ fun set_read_replace_unset_lifecycle() {
         data::new_blob(444, confidentiality::new_unencrypted()),
     );
     let set_events = event::events_by_type<mref::RecordingMasterReferenceSetEvent<REC, COMP>>();
-    assert_eq!(set_events.length(), 5);
+    assert_eq!(set_events.length(), 6);
     project_set_event(
         &mut projected_exists,
         &mut projected_blob_id,
         &mut projected_is_encrypted,
         &mut projected_sealed_dek_length,
         &mut projected_sealed_dek_digest,
-        &set_events[4],
+        &set_events[5],
         recording_id,
         composition_id,
     );
@@ -362,8 +419,8 @@ fun set_read_replace_unset_lifecycle() {
     destroy(cap);
 }
 
-/// A sealed master is the expected shape once access control lands, and the
-/// reference must carry it unchanged.
+/// The stored encrypted reference retains the original sealed DEK bytes, while
+/// the event exposes only its length and digest.
 #[test]
 fun encrypted_blob_is_accepted_and_keeps_its_dek() {
     let ctx = &mut tx_context::dummy();
@@ -520,8 +577,8 @@ fun set_emits_the_reference_and_recording() {
     destroy(cap);
 }
 
-/// An encrypted reference's sealed DEK is part of the record an indexer
-/// stores, so the event must carry it through unchanged.
+/// An encrypted reference retains its sealed DEK in storage, while the event
+/// carries only the length and digest needed for its primitive projection.
 #[test]
 fun set_emits_an_encrypted_reference_with_its_dek() {
     let ctx = &mut tx_context::dummy();
@@ -559,34 +616,264 @@ fun set_emits_an_encrypted_reference_with_its_dek() {
 fun zero_and_maximum_blob_ids_are_event_exact() {
     let ctx = &mut tx_context::dummy();
     let (mut rec, cap) = new_rec(ctx);
+    let recording_id = object::id(&rec).to_address();
+    let composition_id = recording::composition_id(&rec).to_address();
+    let mut projected_exists = false;
+    let mut projected_blob_id = 0u256;
+    let mut projected_is_encrypted = false;
+    let mut projected_sealed_dek_length = 0u64;
+    let mut projected_sealed_dek_digest = vector[];
 
     mref::set_master_reference(
         &mut rec,
         &cap,
         data::new_blob(0, confidentiality::new_unencrypted()),
     );
+    let events =
+        event::events_by_type<mref::RecordingMasterReferenceSetEvent<REC, COMP>>();
+    assert_eq!(events.length(), 1);
+    assert_eq!(sui::bcs::to_bytes(&events[0]).length(), 149);
+    project_set_event(
+        &mut projected_exists,
+        &mut projected_blob_id,
+        &mut projected_is_encrypted,
+        &mut projected_sealed_dek_length,
+        &mut projected_sealed_dek_digest,
+        &events[0],
+        recording_id,
+        composition_id,
+    );
+    let (_, _, had_master_reference, previous_blob_id, _, _, _, blob_id, _, _, _) =
+        mref::set_event_fields(&events[0]);
+    assert!(!had_master_reference);
+    assert_eq!(previous_blob_id, 0);
+    assert_eq!(blob_id, 0);
+    assert_view_matches_projection(
+        &rec,
+        projected_exists,
+        projected_blob_id,
+        projected_is_encrypted,
+        projected_sealed_dek_length,
+        &projected_sealed_dek_digest,
+    );
+
+    mref::unset_master_reference(&mut rec, &cap);
+    let cleared =
+        event::events_by_type<mref::RecordingMasterReferenceClearedEvent<REC, COMP>>();
+    assert_eq!(cleared.length(), 1);
+    assert_eq!(sui::bcs::to_bytes(&cleared[0]).length(), 106);
+    project_cleared_event(
+        &mut projected_exists,
+        &mut projected_blob_id,
+        &mut projected_is_encrypted,
+        &mut projected_sealed_dek_length,
+        &mut projected_sealed_dek_digest,
+        &cleared[0],
+        recording_id,
+        composition_id,
+    );
+    let (_, _, removed_blob_id, _, _, _) = mref::cleared_event_fields(&cleared[0]);
+    assert_eq!(removed_blob_id, 0);
+    assert_view_matches_projection(
+        &rec,
+        projected_exists,
+        projected_blob_id,
+        projected_is_encrypted,
+        projected_sealed_dek_length,
+        &projected_sealed_dek_digest,
+    );
+
     mref::set_master_reference(
         &mut rec,
         &cap,
         data::new_blob(MAX_U256, confidentiality::new_unencrypted()),
     );
-
     let events =
         event::events_by_type<mref::RecordingMasterReferenceSetEvent<REC, COMP>>();
     assert_eq!(events.length(), 2);
+    assert_eq!(sui::bcs::to_bytes(&events[1]).length(), 149);
+    project_set_event(
+        &mut projected_exists,
+        &mut projected_blob_id,
+        &mut projected_is_encrypted,
+        &mut projected_sealed_dek_length,
+        &mut projected_sealed_dek_digest,
+        &events[1],
+        recording_id,
+        composition_id,
+    );
     let (_, _, had_master_reference, previous_blob_id, _, _, _, blob_id, _, _, _) =
         mref::set_event_fields(&events[1]);
-    assert!(had_master_reference);
+    assert!(!had_master_reference);
     assert_eq!(previous_blob_id, 0);
     assert_eq!(blob_id, MAX_U256);
-    assert_eq!(sui::bcs::to_bytes(&events[1]).length(), 149);
+    assert_view_matches_projection(
+        &rec,
+        projected_exists,
+        projected_blob_id,
+        projected_is_encrypted,
+        projected_sealed_dek_length,
+        &projected_sealed_dek_digest,
+    );
 
     mref::unset_master_reference(&mut rec, &cap);
     let cleared =
         event::events_by_type<mref::RecordingMasterReferenceClearedEvent<REC, COMP>>();
-    let (_, _, removed_blob_id, _, _, _) = mref::cleared_event_fields(&cleared[0]);
+    assert_eq!(cleared.length(), 2);
+    assert_eq!(sui::bcs::to_bytes(&cleared[1]).length(), 106);
+    project_cleared_event(
+        &mut projected_exists,
+        &mut projected_blob_id,
+        &mut projected_is_encrypted,
+        &mut projected_sealed_dek_length,
+        &mut projected_sealed_dek_digest,
+        &cleared[1],
+        recording_id,
+        composition_id,
+    );
+    let (_, _, removed_blob_id, _, _, _) = mref::cleared_event_fields(&cleared[1]);
     assert_eq!(removed_blob_id, MAX_U256);
-    assert_eq!(sui::bcs::to_bytes(&cleared[0]).length(), 106);
+    assert_view_matches_projection(
+        &rec,
+        projected_exists,
+        projected_blob_id,
+        projected_is_encrypted,
+        projected_sealed_dek_length,
+        &projected_sealed_dek_digest,
+    );
+
+    destroy(rec);
+    destroy(cap);
+}
+
+#[test]
+fun encrypted_dek_minimum_length_is_event_exact() {
+    let ctx = &mut tx_context::dummy();
+    let (mut rec, cap) = new_rec(ctx);
+    let recording_id = object::id(&rec).to_address();
+    let composition_id = recording::composition_id(&rec).to_address();
+    // ori rejects an empty sealed DEK, so one byte is the valid minimum.
+    let sealed_dek = b"x";
+    let mut projected_exists = false;
+    let mut projected_blob_id = 0u256;
+    let mut projected_is_encrypted = false;
+    let mut projected_sealed_dek_length = 0u64;
+    let mut projected_sealed_dek_digest = vector[];
+
+    mref::set_master_reference(
+        &mut rec,
+        &cap,
+        data::new_blob(600, confidentiality::new_encrypted(sealed_dek)),
+    );
+    let events =
+        event::events_by_type<mref::RecordingMasterReferenceSetEvent<REC, COMP>>();
+    assert_eq!(events.length(), 1);
+    assert_eq!(sui::bcs::to_bytes(&events[0]).length(), 181);
+    project_set_event(
+        &mut projected_exists,
+        &mut projected_blob_id,
+        &mut projected_is_encrypted,
+        &mut projected_sealed_dek_length,
+        &mut projected_sealed_dek_digest,
+        &events[0],
+        recording_id,
+        composition_id,
+    );
+    let (_, _, _, _, _, _, _, blob_id, is_encrypted, sealed_dek_length,
+        sealed_dek_digest) = mref::set_event_fields(&events[0]);
+    assert_eq!(blob_id, 600);
+    assert!(is_encrypted);
+    assert_eq!(sealed_dek_length, 1);
+    assert_eq!(sealed_dek_digest, sui::hash::blake2b256(&sealed_dek));
+    assert!(mref::master_reference(&rec).blob_confidentiality().is_encrypted());
+    assert_eq!(
+        *mref::master_reference(&rec).blob_confidentiality().sealed_dek(),
+        sealed_dek,
+    );
+
+    mref::unset_master_reference(&mut rec, &cap);
+    let cleared =
+        event::events_by_type<mref::RecordingMasterReferenceClearedEvent<REC, COMP>>();
+    assert_eq!(cleared.length(), 1);
+    assert_eq!(sui::bcs::to_bytes(&cleared[0]).length(), 138);
+    project_cleared_event(
+        &mut projected_exists,
+        &mut projected_blob_id,
+        &mut projected_is_encrypted,
+        &mut projected_sealed_dek_length,
+        &mut projected_sealed_dek_digest,
+        &cleared[0],
+        recording_id,
+        composition_id,
+    );
+    assert!(!mref::has_master_reference(&rec));
+
+    destroy(rec);
+    destroy(cap);
+}
+
+#[test]
+fun large_encrypted_dek_is_stored_but_event_is_bounded() {
+    let ctx = &mut tx_context::dummy();
+    let (mut rec, cap) = new_rec(ctx);
+    let recording_id = object::id(&rec).to_address();
+    let composition_id = recording::composition_id(&rec).to_address();
+    let sealed_dek = vector::tabulate!(LARGE_DEK_LENGTH, |_| 0u8);
+    let mut projected_exists = false;
+    let mut projected_blob_id = 0u256;
+    let mut projected_is_encrypted = false;
+    let mut projected_sealed_dek_length = 0u64;
+    let mut projected_sealed_dek_digest = vector[];
+
+    mref::set_master_reference(
+        &mut rec,
+        &cap,
+        data::new_blob(256001, confidentiality::new_encrypted(sealed_dek)),
+    );
+    let stored = mref::master_reference(&rec);
+    assert_eq!(stored.blob_confidentiality().sealed_dek().length(), LARGE_DEK_LENGTH);
+    assert_eq!(*stored.blob_confidentiality().sealed_dek(), sealed_dek);
+
+    let events =
+        event::events_by_type<mref::RecordingMasterReferenceSetEvent<REC, COMP>>();
+    assert_eq!(events.length(), 1);
+    // The 256001-byte input never appears in the 181-byte event payload.
+    assert_eq!(sui::bcs::to_bytes(&events[0]).length(), 181);
+    project_set_event(
+        &mut projected_exists,
+        &mut projected_blob_id,
+        &mut projected_is_encrypted,
+        &mut projected_sealed_dek_length,
+        &mut projected_sealed_dek_digest,
+        &events[0],
+        recording_id,
+        composition_id,
+    );
+    let (_, _, _, _, _, _, _, blob_id, is_encrypted, sealed_dek_length,
+        sealed_dek_digest) = mref::set_event_fields(&events[0]);
+    assert_eq!(blob_id, 256001);
+    assert!(is_encrypted);
+    assert_eq!(sealed_dek_length, LARGE_DEK_LENGTH);
+    assert_eq!(sealed_dek_digest, large_dek_digest());
+    assert_eq!(projected_sealed_dek_length, LARGE_DEK_LENGTH);
+    assert_eq!(projected_sealed_dek_digest, large_dek_digest());
+
+    mref::unset_master_reference(&mut rec, &cap);
+    let cleared =
+        event::events_by_type<mref::RecordingMasterReferenceClearedEvent<REC, COMP>>();
+    assert_eq!(cleared.length(), 1);
+    assert_eq!(sui::bcs::to_bytes(&cleared[0]).length(), 138);
+    project_cleared_event(
+        &mut projected_exists,
+        &mut projected_blob_id,
+        &mut projected_is_encrypted,
+        &mut projected_sealed_dek_length,
+        &mut projected_sealed_dek_digest,
+        &cleared[0],
+        recording_id,
+        composition_id,
+    );
+    assert!(!mref::has_master_reference(&rec));
 
     destroy(rec);
     destroy(cap);
