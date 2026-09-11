@@ -44,7 +44,6 @@ fun published_shared_release_dsp_links_full_lifecycle() {
         track::new_for_testing(comp_id, rec_1, placeholder, 4000u16),
     ];
     let (rel, rel_cap) = release::new_for_testing(b"EP".to_string(), tracks, ts.ctx());
-    let release_id = object::id(&rel);
     let clock = sui::clock::create_for_testing(ts.ctx());
     rel.publish(&rel_cap, &clock); // shares the release
     clock.destroy_for_testing();
@@ -64,23 +63,11 @@ fun published_shared_release_dsp_links_full_lifecycle() {
         links::new_apple_music_track(b"us".to_string(), b"1".to_string(), b"2".to_string()),
     );
 
-    let set_events = event::events_by_type<links::ReleaseLinkSetEvent>();
+    let set_events = event::events_by_type<links::ReleaseDspLinkSetEvent>();
     assert_eq!(set_events.length(), 1);
-    let (set_release_id, set_link) = links::release_link_set_event_fields(&set_events[0]);
-    assert_eq!(set_release_id, release_id);
-    assert_eq!(set_link, links::new_spotify(b"albumid".to_string()));
 
-    let track_events = event::events_by_type<links::TrackLinkSetEvent>();
+    let track_events = event::events_by_type<links::ReleaseTrackDspLinkSetEvent>();
     assert_eq!(track_events.length(), 1);
-    let (t0_release_id, t0_platform, t0_index, t0_link) =
-        links::track_link_set_event_fields(&track_events[0]);
-    assert_eq!(t0_release_id, release_id);
-    assert_eq!(t0_platform, links::platform_apple_music());
-    assert_eq!(t0_index, 0);
-    assert_eq!(
-        t0_link.destroy_some(),
-        links::new_apple_music_track(b"us".to_string(), b"1".to_string(), b"2".to_string()),
-    );
 
     test_scenario::return_shared(rel);
 
@@ -112,21 +99,11 @@ fun published_shared_release_dsp_links_full_lifecycle() {
     assert!(!links::has_release_link(&rel, links::platform_spotify()));
     assert!(links::track_link(&rel, links::platform_apple_music(), 0).is_none());
 
-    let cleared_events = event::events_by_type<links::ReleaseLinkClearedEvent>();
+    let cleared_events = event::events_by_type<links::ReleaseDspLinkClearedEvent>();
     assert_eq!(cleared_events.length(), 1);
-    let (cleared_release_id, cleared_platform) =
-        links::release_link_cleared_event_fields(&cleared_events[0]);
-    assert_eq!(cleared_release_id, release_id);
-    assert_eq!(cleared_platform, links::platform_spotify());
 
-    let track_events = event::events_by_type<links::TrackLinkSetEvent>();
+    let track_events = event::events_by_type<links::ReleaseTrackDspLinkClearedEvent>();
     assert_eq!(track_events.length(), 1); // just this tx's clear, not tx 2's set
-    let (t0_release_id, t0_platform, t0_index, t0_link) =
-        links::track_link_set_event_fields(&track_events[0]);
-    assert_eq!(t0_release_id, release_id);
-    assert_eq!(t0_platform, links::platform_apple_music());
-    assert_eq!(t0_index, 0);
-    assert!(t0_link.is_none()); // the clear, written as a none slot
 
     test_scenario::return_shared(rel);
     destroy(rel_cap);

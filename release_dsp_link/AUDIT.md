@@ -6,8 +6,8 @@ findings in the reviewed source.
 ## Dependency provenance
 
 `Move.toml` pins `musicos` at
-`4fed48b2b5632122fb677d742881259c65b1bc78` and `per_track` at
-`8d6dfdd3955b2f0e3d0e9651802ec49d30197da1`. Both network lock graphs resolve
+`4cb3c926b1f9bb5103f3f7194e4e1e34b6c87840` and `per_track` at
+`cba820dec3e058a1c543d5e8595ba8aed32e9dc6`. Both network lock graphs resolve
 `bps` at `4ca1972a67d35c972ca567de7b08315e3778e52b` without duplicate aliases.
 
 ## Threat model and findings
@@ -26,7 +26,7 @@ an explicit client/data migration; existing enum variants are never reordered.
 ## Evidence
 
 With `sui 1.78.1-722ac4fcf484`, strict Testnet and Mainnet lint,
-warnings-as-errors builds, and tests pass: 54/54 on each network. The production
+warnings-as-errors builds, and tests pass: 52/52 on each network. The production
 module reports 100.00% coverage across every constructor, both storage levels,
 authorization, bounds, replacement/clear paths, absence, events, and a shared
 Release end-to-end lifecycle.

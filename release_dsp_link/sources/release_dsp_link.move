@@ -26,7 +26,10 @@
 module release_dsp_link::release_dsp_link;
 
 use musicos::release::{Release, ReleaseAdminCap};
+use musicos::track;
 use per_track::per_track::{Self, PerTrack};
+use std::option;
+use std::string;
 use std::string::String;
 use sui::dynamic_field as df;
 use sui::event::emit;
@@ -344,40 +347,82 @@ public struct TrackLinksKey(u8) has copy, drop, store;
 
 // === Events ===
 
-/// Emitted when a DSP's album-level link is set or replaced. Carries the full
-/// new link (platform code included, via `link.platform()`), so an indexer
-/// upserts its row straight from the event.
-public struct ReleaseLinkSetEvent has copy, drop {
-    release_id: ID,
-    link: DspLinkData,
+public struct ReleaseDspLinkSetEvent has copy, drop {
+    release_id: address,
+    admin_cap_id: address,
+    platform: u8,
+    track_count: u64,
+    field_existed_before: bool,
+    field_exists_after: bool,
+    previous_present: bool,
+    previous_fields: vector<vector<u8>>,
+    current_present: bool,
+    current_fields: vector<vector<u8>>,
 }
 
-/// Emitted when a DSP's album-level link is cleared. The removed record is the
-/// one the last `ReleaseLinkSetEvent` for this platform carried, so the
-/// release id + platform is all an indexer needs to drop the row.
-public struct ReleaseLinkClearedEvent has copy, drop {
-    release_id: ID,
+public struct ReleaseDspLinkClearedEvent has copy, drop {
+    release_id: address,
+    admin_cap_id: address,
     platform: u8,
+    track_count: u64,
+    field_existed_before: bool,
+    field_exists_after: bool,
+    previous_present: bool,
+    previous_fields: vector<vector<u8>>,
+    current_present: bool,
+    current_fields: vector<vector<u8>>,
 }
 
-/// Emitted when a DSP's link for one track is set, replaced, or cleared. The
-/// payload is the value written to the slot: `some(link)` on a set or replace,
-/// `none` on a clear (the track falls back to the album-level link, and the
-/// indexer drops the per-track row).
-public struct TrackLinkSetEvent has copy, drop {
-    release_id: ID,
+public struct ReleaseTrackDspLinkSetEvent has copy, drop {
+    release_id: address,
+    admin_cap_id: address,
     platform: u8,
+    track_count: u64,
+    field_existed_before: bool,
+    field_exists_after: bool,
     track_index: u64,
-    link: Option<DspLinkData>,
+    recording_id: address,
+    composition_id: address,
+    previous_present: bool,
+    previous_fields: vector<vector<u8>>,
+    current_present: bool,
+    current_fields: vector<vector<u8>>,
+    album_present: bool,
+    album_fields: vector<vector<u8>>,
 }
 
-/// Emitted when a DSP's entire per-track link array is removed. The removed
-/// slots are the ones the stream's `TrackLinkSetEvent`s carried, so the
-/// release id + platform is all an indexer needs to drop every per-track row
-/// for the pair.
-public struct TrackLinksClearedEvent has copy, drop {
-    release_id: ID,
+public struct ReleaseTrackDspLinkClearedEvent has copy, drop {
+    release_id: address,
+    admin_cap_id: address,
     platform: u8,
+    track_count: u64,
+    field_existed_before: bool,
+    field_exists_after: bool,
+    track_index: u64,
+    recording_id: address,
+    composition_id: address,
+    previous_present: bool,
+    previous_fields: vector<vector<u8>>,
+    current_present: bool,
+    current_fields: vector<vector<u8>>,
+    album_present: bool,
+    album_fields: vector<vector<u8>>,
+}
+
+public struct ReleaseTrackDspLinksClearedEvent has copy, drop {
+    release_id: address,
+    admin_cap_id: address,
+    platform: u8,
+    track_count: u64,
+    field_existed_before: bool,
+    field_exists_after: bool,
+    removed_link_count: u64,
+    removed_track_indices: vector<u64>,
+    removed_recording_ids: vector<address>,
+    removed_composition_ids: vector<address>,
+    removed_link_fields: vector<vector<vector<u8>>>,
+    album_present: bool,
+    album_fields: vector<vector<u8>>,
 }
 
 // === Album-level Write API ===
@@ -385,24 +430,61 @@ public struct TrackLinksClearedEvent has copy, drop {
 /// Sets (or replaces) a DSP's album-level link. The platform is derived from
 /// `link` itself. Per-track links are untouched.
 public fun set_release_link(self: &mut Release, cap: &ReleaseAdminCap, link: DspLinkData) {
-    let release_id = object::id(self);
+    let release_id = object::id(self).to_address();
+    let admin_cap_id = object::id(cap).to_address();
     let platform = link.platform();
-    let uid = self.uid_mut(cap);
-    if (df::exists(uid, ReleaseLinkKey(platform))) {
-        *df::borrow_mut(uid, ReleaseLinkKey(platform)) = link;
-    } else {
-        df::add(uid, ReleaseLinkKey(platform), link);
+    let track_count = self.tracks().length();
+    let (field_existed_before, previous_present, previous_fields) = {
+        let uid = self.uid_mut(cap);
+        let field_existed_before = df::exists(uid, ReleaseLinkKey(platform));
+        let (previous_present, previous_fields) = if (field_existed_before) {
+            project_link(df::borrow(uid, ReleaseLinkKey(platform)))
+        } else {
+            (false, vector[])
+        };
+        if (field_existed_before) {
+            *df::borrow_mut(uid, ReleaseLinkKey(platform)) = link;
+        } else {
+            df::add(uid, ReleaseLinkKey(platform), link);
+        };
+        (field_existed_before, previous_present, previous_fields)
     };
-    emit(ReleaseLinkSetEvent { release_id, link });
+    let (current_present, current_fields) = project_link(&link);
+    emit(ReleaseDspLinkSetEvent {
+        release_id,
+        admin_cap_id,
+        platform,
+        track_count,
+        field_existed_before,
+        field_exists_after: true,
+        previous_present,
+        previous_fields,
+        current_present,
+        current_fields,
+    });
 }
 
 /// Clears a DSP's album-level link. No-op if unset.
 public fun clear_release_link(self: &mut Release, cap: &ReleaseAdminCap, platform: u8) {
     self.authorize(cap);
     if (df::exists(self.uid(), ReleaseLinkKey(platform))) {
-        let release_id = object::id(self);
-        let _: DspLinkData = df::remove(self.uid_mut(cap), ReleaseLinkKey(platform));
-        emit(ReleaseLinkClearedEvent { release_id, platform });
+        let release_id = object::id(self).to_address();
+        let admin_cap_id = object::id(cap).to_address();
+        let track_count = self.tracks().length();
+        let previous = df::remove(self.uid_mut(cap), ReleaseLinkKey(platform));
+        let (previous_present, previous_fields) = project_link(&previous);
+        emit(ReleaseDspLinkClearedEvent {
+            release_id,
+            admin_cap_id,
+            platform,
+            track_count,
+            field_existed_before: true,
+            field_exists_after: false,
+            previous_present,
+            previous_fields,
+            current_present: false,
+            current_fields: vector[],
+        });
     }
 }
 
@@ -418,10 +500,38 @@ public fun set_track_link(
     link: DspLinkData,
 ) {
     assert!(track_index < self.tracks().length(), ETrackIndexOutOfBounds);
-    let release_id = object::id(self);
+    let release_id = object::id(self).to_address();
+    let admin_cap_id = object::id(cap).to_address();
     let platform = link.platform();
-    *track_links_mut_or_init(self, cap, platform).borrow_mut(track_index) = option::some(link);
-    emit(TrackLinkSetEvent { release_id, platform, track_index, link: option::some(link) });
+    let track_count = self.tracks().length();
+    let field_existed_before = df::exists(self.uid(), TrackLinksKey(platform));
+    let (album_present, album_fields) = album_snapshot(self.uid(), platform);
+    let (previous_present, previous_fields) = {
+        let track_links = track_links_mut_or_init(self, cap, platform);
+        let previous = *track_links.borrow(track_index);
+        let (previous_present, previous_fields) = project_optional_link(&previous);
+        *track_links.borrow_mut(track_index) = option::some(link);
+        (previous_present, previous_fields)
+    };
+    let (current_present, current_fields) = project_link(&link);
+    let track = &self.tracks()[track_index];
+    emit(ReleaseTrackDspLinkSetEvent {
+        release_id,
+        admin_cap_id,
+        platform,
+        track_count,
+        field_existed_before,
+        field_exists_after: true,
+        track_index,
+        recording_id: track::recording_id(track).to_address(),
+        composition_id: track::composition_id(track).to_address(),
+        previous_present,
+        previous_fields,
+        current_present,
+        current_fields,
+        album_present,
+        album_fields,
+    });
 }
 
 /// Clears a DSP's link for one track (the track falls back to the album-level
@@ -436,10 +546,35 @@ public fun clear_track_link(
     self.authorize(cap);
     if (df::exists(self.uid(), TrackLinksKey(platform))) {
         assert!(track_index < self.tracks().length(), ETrackIndexOutOfBounds);
-        let release_id = object::id(self);
-        *borrow_track_links_mut(self.uid_mut(cap), platform).borrow_mut(track_index) =
-            option::none();
-        emit(TrackLinkSetEvent { release_id, platform, track_index, link: option::none() });
+        let release_id = object::id(self).to_address();
+        let admin_cap_id = object::id(cap).to_address();
+        let track_count = self.tracks().length();
+        let (album_present, album_fields) = album_snapshot(self.uid(), platform);
+        let (previous_present, previous_fields) = {
+            let track_links = borrow_track_links_mut(self.uid_mut(cap), platform);
+            let previous = *track_links.borrow(track_index);
+            let (previous_present, previous_fields) = project_optional_link(&previous);
+            *track_links.borrow_mut(track_index) = option::none();
+            (previous_present, previous_fields)
+        };
+        let track = &self.tracks()[track_index];
+        emit(ReleaseTrackDspLinkClearedEvent {
+            release_id,
+            admin_cap_id,
+            platform,
+            track_count,
+            field_existed_before: true,
+            field_exists_after: true,
+            track_index,
+            recording_id: track::recording_id(track).to_address(),
+            composition_id: track::composition_id(track).to_address(),
+            previous_present,
+            previous_fields,
+            current_present: false,
+            current_fields: vector[],
+            album_present,
+            album_fields,
+        });
     }
 }
 
@@ -447,12 +582,50 @@ public fun clear_track_link(
 public fun clear_track_links(self: &mut Release, cap: &ReleaseAdminCap, platform: u8) {
     self.authorize(cap);
     if (df::exists(self.uid(), TrackLinksKey(platform))) {
-        let release_id = object::id(self);
-        let _: PerTrack<Option<DspLinkData>> = df::remove(
+        let release_id = object::id(self).to_address();
+        let admin_cap_id = object::id(cap).to_address();
+        let track_count = self.tracks().length();
+        let (album_present, album_fields) = album_snapshot(self.uid(), platform);
+        let removed: PerTrack<Option<DspLinkData>> = df::remove(
             self.uid_mut(cap),
             TrackLinksKey(platform),
         );
-        emit(TrackLinksClearedEvent { release_id, platform });
+        let mut removed_track_indices = vector[];
+        let mut removed_recording_ids = vector[];
+        let mut removed_composition_ids = vector[];
+        let mut removed_link_fields: vector<vector<vector<u8>>> = vector[];
+        let tracks = self.tracks();
+        let removed_track_count = per_track::length(&removed);
+        let mut track_index = 0;
+        while (track_index < removed_track_count) {
+            let slot = per_track::borrow(&removed, track_index);
+            if (slot.is_some()) {
+                let link = slot.borrow();
+                let (_, fields) = project_link(link);
+                let track = &tracks[track_index];
+                removed_track_indices.push_back(track_index);
+                removed_recording_ids.push_back(track::recording_id(track).to_address());
+                removed_composition_ids.push_back(track::composition_id(track).to_address());
+                removed_link_fields.push_back(fields);
+            };
+            track_index = track_index + 1;
+        };
+        let removed_link_count = removed_track_indices.length();
+        emit(ReleaseTrackDspLinksClearedEvent {
+            release_id,
+            admin_cap_id,
+            platform,
+            track_count,
+            field_existed_before: true,
+            field_exists_after: false,
+            removed_link_count,
+            removed_track_indices,
+            removed_recording_ids,
+            removed_composition_ids,
+            removed_link_fields,
+            album_present,
+            album_fields,
+        });
     }
 }
 
@@ -507,26 +680,212 @@ fun track_links_mut_or_init(
     borrow_track_links_mut(self.uid_mut(cap), platform)
 }
 
+/// Projects a stored native link into the lossless flat field vectors used by
+/// events. This is intentionally a pure match: constructors own validation,
+/// while event payloads preserve exactly what was stored.
+fun project_link(link: &DspLinkData): (bool, vector<vector<u8>>) {
+    match (link) {
+        DspLinkData::Spotify { id } =>
+            (true, vector[*string::as_bytes(id)]),
+        DspLinkData::AppleMusic { storefront, album_id, track_id } => {
+            let mut fields = vector[
+                *string::as_bytes(storefront),
+                *string::as_bytes(album_id),
+            ];
+            if (option::is_some(track_id)) {
+                fields.push_back(*string::as_bytes(option::borrow(track_id)));
+            };
+            (true, fields)
+        },
+        DspLinkData::AmazonMusic { album_id, track_id } => {
+            let mut fields = vector[*string::as_bytes(album_id)];
+            if (option::is_some(track_id)) {
+                fields.push_back(*string::as_bytes(option::borrow(track_id)));
+            };
+            (true, fields)
+        },
+        DspLinkData::Bandcamp { subdomain, slug } =>
+            (true, vector[
+                *string::as_bytes(subdomain),
+                *string::as_bytes(slug),
+            ]),
+        DspLinkData::Deezer { id } =>
+            (true, vector[*string::as_bytes(id)]),
+        DspLinkData::SoundCloud { user, slug } =>
+            (true, vector[
+                *string::as_bytes(user),
+                *string::as_bytes(slug),
+            ]),
+        DspLinkData::Tidal { id } =>
+            (true, vector[*string::as_bytes(id)]),
+        DspLinkData::YouTubeMusic { id } =>
+            (true, vector[*string::as_bytes(id)]),
+    }
+}
+
+fun project_optional_link(link: &Option<DspLinkData>): (bool, vector<vector<u8>>) {
+    if (option::is_some(link)) {
+        project_link(option::borrow(link))
+    } else {
+        (false, vector[])
+    }
+}
+
+fun album_snapshot(uid: &UID, platform: u8): (bool, vector<vector<u8>>) {
+    if (df::exists(uid, ReleaseLinkKey(platform))) {
+        project_link(df::borrow(uid, ReleaseLinkKey(platform)))
+    } else {
+        (false, vector[])
+    }
+}
+
 // === Test Functions ===
 
 #[test_only]
-public fun release_link_set_event_fields(event: &ReleaseLinkSetEvent): (ID, DspLinkData) {
-    (event.release_id, event.link)
+public fun release_link_set_event_fields(
+    event: &ReleaseDspLinkSetEvent,
+): (address, address, u8, u64, bool, bool, bool, vector<vector<u8>>, bool, vector<vector<u8>>) {
+    (
+        event.release_id,
+        event.admin_cap_id,
+        event.platform,
+        event.track_count,
+        event.field_existed_before,
+        event.field_exists_after,
+        event.previous_present,
+        event.previous_fields,
+        event.current_present,
+        event.current_fields,
+    )
 }
 
 #[test_only]
-public fun release_link_cleared_event_fields(event: &ReleaseLinkClearedEvent): (ID, u8) {
-    (event.release_id, event.platform)
+public fun release_link_cleared_event_fields(
+    event: &ReleaseDspLinkClearedEvent,
+): (address, address, u8, u64, bool, bool, bool, vector<vector<u8>>, bool, vector<vector<u8>>) {
+    (
+        event.release_id,
+        event.admin_cap_id,
+        event.platform,
+        event.track_count,
+        event.field_existed_before,
+        event.field_exists_after,
+        event.previous_present,
+        event.previous_fields,
+        event.current_present,
+        event.current_fields,
+    )
 }
 
 #[test_only]
 public fun track_link_set_event_fields(
-    event: &TrackLinkSetEvent,
-): (ID, u8, u64, Option<DspLinkData>) {
-    (event.release_id, event.platform, event.track_index, event.link)
+    event: &ReleaseTrackDspLinkSetEvent,
+): (
+    address,
+    address,
+    u8,
+    u64,
+    bool,
+    bool,
+    u64,
+    address,
+    address,
+    bool,
+    vector<vector<u8>>,
+    bool,
+    vector<vector<u8>>,
+    bool,
+    vector<vector<u8>>,
+) {
+    (
+        event.release_id,
+        event.admin_cap_id,
+        event.platform,
+        event.track_count,
+        event.field_existed_before,
+        event.field_exists_after,
+        event.track_index,
+        event.recording_id,
+        event.composition_id,
+        event.previous_present,
+        event.previous_fields,
+        event.current_present,
+        event.current_fields,
+        event.album_present,
+        event.album_fields,
+    )
 }
 
 #[test_only]
-public fun track_links_cleared_event_fields(event: &TrackLinksClearedEvent): (ID, u8) {
-    (event.release_id, event.platform)
+public fun track_link_cleared_event_fields(
+    event: &ReleaseTrackDspLinkClearedEvent,
+): (
+    address,
+    address,
+    u8,
+    u64,
+    bool,
+    bool,
+    u64,
+    address,
+    address,
+    bool,
+    vector<vector<u8>>,
+    bool,
+    vector<vector<u8>>,
+    bool,
+    vector<vector<u8>>,
+) {
+    (
+        event.release_id,
+        event.admin_cap_id,
+        event.platform,
+        event.track_count,
+        event.field_existed_before,
+        event.field_exists_after,
+        event.track_index,
+        event.recording_id,
+        event.composition_id,
+        event.previous_present,
+        event.previous_fields,
+        event.current_present,
+        event.current_fields,
+        event.album_present,
+        event.album_fields,
+    )
+}
+
+#[test_only]
+public fun track_links_cleared_event_fields(
+    event: &ReleaseTrackDspLinksClearedEvent,
+): (
+    address,
+    address,
+    u8,
+    u64,
+    bool,
+    bool,
+    u64,
+    vector<u64>,
+    vector<address>,
+    vector<address>,
+    vector<vector<vector<u8>>>,
+    bool,
+    vector<vector<u8>>,
+) {
+    (
+        event.release_id,
+        event.admin_cap_id,
+        event.platform,
+        event.track_count,
+        event.field_existed_before,
+        event.field_exists_after,
+        event.removed_link_count,
+        event.removed_track_indices,
+        event.removed_recording_ids,
+        event.removed_composition_ids,
+        event.removed_link_fields,
+        event.album_present,
+        event.album_fields,
+    )
 }

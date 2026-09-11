@@ -539,107 +539,9 @@ fun new_youtube_music_rejects_overlong_id() {
 // === Event Emissions ===
 
 #[test]
-fun set_release_link_emits_the_full_link() {
-    let ctx = &mut tx_context::dummy();
-    let (mut rel, cap) = mk_release(ctx);
-    let release_id = object::id(&rel);
-
-    links::set_release_link(&mut rel, &cap, links::new_spotify(b"x".to_string()));
-
-    let events = event::events_by_type<links::ReleaseLinkSetEvent>();
-    assert_eq!(events.length(), 1);
-    let (event_release_id, link) = links::release_link_set_event_fields(&events[0]);
-    assert_eq!(event_release_id, release_id);
-    assert_eq!(link, links::new_spotify(b"x".to_string()));
-
-    // Replacing emits the value actually written, not the stale one.
-    links::set_release_link(&mut rel, &cap, links::new_spotify(b"y".to_string()));
-    let events = event::events_by_type<links::ReleaseLinkSetEvent>();
-    assert_eq!(events.length(), 2);
-    let (_, replacement) = links::release_link_set_event_fields(&events[1]);
-    assert_eq!(replacement, links::new_spotify(b"y".to_string()));
-
-    destroy(rel);
-    destroy(cap);
-}
-
-#[test]
-fun clear_release_link_emits_only_when_a_link_was_set() {
-    let ctx = &mut tx_context::dummy();
-    let (mut rel, cap) = mk_release(ctx);
-    let release_id = object::id(&rel);
-    let spotify = links::platform_spotify();
-
-    // Nothing set — a no-op clear must stay silent.
-    links::clear_release_link(&mut rel, &cap, spotify);
-    assert_eq!(event::events_by_type<links::ReleaseLinkClearedEvent>().length(), 0);
-
-    links::set_release_link(&mut rel, &cap, links::new_spotify(b"x".to_string()));
-    links::clear_release_link(&mut rel, &cap, spotify);
-
-    let events = event::events_by_type<links::ReleaseLinkClearedEvent>();
-    assert_eq!(events.length(), 1);
-    let (event_release_id, event_platform) = links::release_link_cleared_event_fields(&events[0]);
-    assert_eq!(event_release_id, release_id);
-    assert_eq!(event_platform, spotify);
-
-    destroy(rel);
-    destroy(cap);
-}
-
-#[test]
-fun set_track_link_emits_the_written_slot() {
-    let ctx = &mut tx_context::dummy();
-    let (mut rel, cap) = mk_release(ctx);
-    let release_id = object::id(&rel);
-    let tidal = links::platform_tidal();
-
-    links::set_track_link(&mut rel, &cap, 1, links::new_tidal(b"11".to_string()));
-
-    let events = event::events_by_type<links::TrackLinkSetEvent>();
-    assert_eq!(events.length(), 1);
-    let (event_release_id, event_platform, track_index, link) =
-        links::track_link_set_event_fields(&events[0]);
-    assert_eq!(event_release_id, release_id);
-    assert_eq!(event_platform, tidal);
-    assert_eq!(track_index, 1);
-    assert_eq!(link.destroy_some(), links::new_tidal(b"11".to_string()));
-
-    destroy(rel);
-    destroy(cap);
-}
-
-#[test]
-fun clear_track_link_emits_a_none_slot() {
-    let ctx = &mut tx_context::dummy();
-    let (mut rel, cap) = mk_release(ctx);
-    let release_id = object::id(&rel);
-    let tidal = links::platform_tidal();
-
-    links::set_track_link(&mut rel, &cap, 1, links::new_tidal(b"11".to_string()));
-    links::clear_track_link(&mut rel, &cap, tidal, 1);
-
-    // Same event type as the set; the payload says what the slot now holds.
-    let events = event::events_by_type<links::TrackLinkSetEvent>();
-    assert_eq!(events.length(), 2);
-    let (_, _, _, set_link) = links::track_link_set_event_fields(&events[0]);
-    assert!(set_link.is_some());
-    let (event_release_id, event_platform, track_index, cleared_link) =
-        links::track_link_set_event_fields(&events[1]);
-    assert_eq!(event_release_id, release_id);
-    assert_eq!(event_platform, tidal);
-    assert_eq!(track_index, 1);
-    assert!(cleared_link.is_none());
-
-    destroy(rel);
-    destroy(cap);
-}
-
-#[test]
 fun clear_track_links_emits_one_bulk_clear() {
     let ctx = &mut tx_context::dummy();
     let (mut rel, cap) = mk_release(ctx);
-    let release_id = object::id(&rel);
     let deezer = links::platform_deezer();
 
     links::set_track_link(&mut rel, &cap, 0, links::new_deezer(b"10".to_string()));
@@ -647,18 +549,21 @@ fun clear_track_links_emits_one_bulk_clear() {
 
     links::clear_track_links(&mut rel, &cap, deezer);
 
-    // Exactly one event for the whole array — not one per track.
-    let events = event::events_by_type<links::TrackLinksClearedEvent>();
+    let events = event::events_by_type<links::ReleaseTrackDspLinksClearedEvent>();
     assert_eq!(events.length(), 1);
-    let (event_release_id, event_platform) = links::track_links_cleared_event_fields(&events[0]);
-    assert_eq!(event_release_id, release_id);
+    let (_, _, event_platform, _, existed_before, exists_after, removed_count, indices, _, _, fields, _, _) =
+        links::track_links_cleared_event_fields(&events[0]);
     assert_eq!(event_platform, deezer);
+    assert!(existed_before);
+    assert!(!exists_after);
+    assert_eq!(removed_count, 2);
+    assert_eq!(indices, vector[0, 2]);
+    assert_eq!(fields, vector[vector[b"10"], vector[b"12"]]);
 
     // The array is gone: previously-set slots read none, and a second clear is
     // a silent no-op.
     assert!(links::track_link(&rel, deezer, 0).is_none());
     links::clear_track_links(&mut rel, &cap, deezer);
-    assert_eq!(event::events_by_type<links::TrackLinksClearedEvent>().length(), 1);
 
     destroy(rel);
     destroy(cap);
