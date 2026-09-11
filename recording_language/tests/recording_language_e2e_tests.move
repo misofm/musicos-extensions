@@ -9,14 +9,14 @@
 /// id stands in for a real `Composition` — `recording::new_for_testing` only
 /// needs a composition `ID`, not a live `Composition` object.
 ///
-/// `RecordingAdminCap<RecordingShare>` is bound to its recording by type, not
-/// by a runtime id check (`recording::uid_mut` takes the cap as `_`). One
-/// share currency is minted per recording in production, so a "wrong cap,
-/// same type" scenario would be a compile error, not a runtime abort — there
-/// is deliberately no such test here. See the ADMIN-only-write assertions
-/// below instead: the module has no notion of a non-admin actor at the type
-/// level, so what a distinct sender can prove is that reads are open to
-/// anyone while writes require holding the cap.
+/// `RecordingAdminCap<RecordingShare>` is selected by its `RecordingShare`
+/// type, not by a runtime id check (`recording::uid_mut` takes the cap as `_`).
+/// A mismatched `RecordingShare` fails to compile; a different cap value with
+/// the same `RecordingShare` type succeeds because there is no cap-value
+/// authentication. See the ADMIN-only-write assertions below instead: the
+/// module has no notion of a non-admin actor at the type level, so what a
+/// distinct sender can prove is that reads are open to anyone while writes
+/// require holding the cap.
 #[test_only]
 module recording_language::recording_language_e2e_tests;
 
@@ -58,7 +58,7 @@ fun admin_sets_languages_on_a_published_shared_recording_and_a_stranger_reads_it
 
     rl::set_languages(&mut rec, &rec_cap, vector[lang(b"en"), lang(b"fr")]);
 
-    let events = event::events_by_type<rl::LanguagesSetEvent<REC, COMP>>();
+    let events = event::events_by_type<rl::RecordingLanguagesSetEvent<REC, COMP>>();
     assert_eq!(events.length(), 1);
     let (event_id, event_comp_id, event_cap_id, had_languages, previous_languages,
         event_langs, language_count_before, language_count_after, was_instrumental,
@@ -98,7 +98,7 @@ fun admin_sets_languages_on_a_published_shared_recording_and_a_stranger_reads_it
 
     // `test_scenario::next_tx` clears the event log, so only this
     // transaction's set event is visible here — not tx 2's.
-    let instrumental_events = event::events_by_type<rl::LanguagesSetEvent<REC, COMP>>();
+    let instrumental_events = event::events_by_type<rl::RecordingLanguagesSetEvent<REC, COMP>>();
     assert_eq!(instrumental_events.length(), 1);
     let (last_event_id, last_event_comp_id, last_event_cap_id, had_languages,
         previous_languages, last_event_langs, language_count_before, language_count_after,
@@ -123,7 +123,7 @@ fun admin_sets_languages_on_a_published_shared_recording_and_a_stranger_reads_it
     // reading as instrumental once nothing is attached.
     assert!(!rl::is_instrumental(&rec));
 
-    let unset_events = event::events_by_type<rl::LanguagesUnsetEvent<REC, COMP>>();
+    let unset_events = event::events_by_type<rl::RecordingLanguagesClearedEvent<REC, COMP>>();
     assert_eq!(unset_events.length(), 1);
     let (unset_id, unset_comp_id, unset_cap_id, removed_languages,
         language_count_before, was_instrumental) = rl::unset_event_fields(&unset_events[0]);

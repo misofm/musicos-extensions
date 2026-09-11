@@ -55,7 +55,7 @@ public struct ExtensionKey() has copy, drop, store;
 
 /// Emitted when a recording's languages are set or replaced. Carries primitive
 /// ordered code snapshots so an indexer can replay the transition directly.
-public struct LanguagesSetEvent<phantom RecordingShare, phantom CompositionShare>
+public struct RecordingLanguagesSetEvent<phantom RecordingShare, phantom CompositionShare>
     has copy, drop {
     recording_id: address,
     composition_id: address,
@@ -71,7 +71,7 @@ public struct LanguagesSetEvent<phantom RecordingShare, phantom CompositionShare
 }
 
 /// Emitted when the language record is removed.
-public struct LanguagesUnsetEvent<phantom RecordingShare, phantom CompositionShare>
+public struct RecordingLanguagesClearedEvent<phantom RecordingShare, phantom CompositionShare>
     has copy, drop {
     recording_id: address,
     composition_id: address,
@@ -114,7 +114,7 @@ public fun set_languages<RecordingShare, CompositionShare>(
     let current_languages = encode_languages(current);
     let language_count_after = current.length();
     let is_instrumental = current.is_empty();
-    emit(LanguagesSetEvent<RecordingShare, CompositionShare> {
+    emit(RecordingLanguagesSetEvent<RecordingShare, CompositionShare> {
         recording_id,
         composition_id,
         admin_cap_id,
@@ -152,7 +152,7 @@ public fun unset_languages<RecordingShare, CompositionShare>(
         let removed_languages = encode_languages(&removed);
         let language_count_before = removed.length();
         let was_instrumental = removed.is_empty();
-        emit(LanguagesUnsetEvent<RecordingShare, CompositionShare> {
+        emit(RecordingLanguagesClearedEvent<RecordingShare, CompositionShare> {
             recording_id,
             composition_id,
             admin_cap_id,
@@ -210,7 +210,7 @@ fun validate(languages: &vector<LanguageCode>) {
 
 #[test_only]
 public fun set_event_fields<RecordingShare, CompositionShare>(
-    e: &LanguagesSetEvent<RecordingShare, CompositionShare>,
+    e: &RecordingLanguagesSetEvent<RecordingShare, CompositionShare>,
 ): (
     address,
     address,
@@ -241,7 +241,7 @@ public fun set_event_fields<RecordingShare, CompositionShare>(
 
 #[test_only]
 public fun unset_event_fields<RecordingShare, CompositionShare>(
-    e: &LanguagesUnsetEvent<RecordingShare, CompositionShare>,
+    e: &RecordingLanguagesClearedEvent<RecordingShare, CompositionShare>,
 ): (address, address, address, vector<vector<u8>>, u64, bool) {
     (
         e.recording_id,
@@ -255,7 +255,7 @@ public fun unset_event_fields<RecordingShare, CompositionShare>(
 
 #[test_only]
 public fun unset_event_recording_id<RecordingShare, CompositionShare>(
-    e: &LanguagesUnsetEvent<RecordingShare, CompositionShare>,
+    e: &RecordingLanguagesClearedEvent<RecordingShare, CompositionShare>,
 ): ID { e.recording_id.to_id() }
 
 // === Private Functions ===

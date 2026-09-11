@@ -9,8 +9,9 @@ absence means that no language claim has been made.
 ## Mutation events
 
 `set_languages` emits one
-`LanguagesSetEvent<RecordingShare, CompositionShare>` after the dynamic-field
-write, including equal replacements. Its fields are declared in this exact
+`RecordingLanguagesSetEvent<RecordingShare, CompositionShare>` after the
+dynamic-field write, including equal replacements. Its fields are declared in
+this exact
 order:
 
 ```text
@@ -35,8 +36,9 @@ transition fields describe the value that was present immediately before the
 write; the current vector is read back after the write.
 
 `unset_languages` emits one
-`LanguagesUnsetEvent<RecordingShare, CompositionShare>` after removing any
-present value, including a present empty instrumental value. Its fields are:
+`RecordingLanguagesClearedEvent<RecordingShare, CompositionShare>` after
+removing any present value, including a present empty instrumental value. Its
+fields are:
 
 ```text
 recording_id: address
@@ -63,4 +65,3 @@ at the maximum.
 Validation checks the count first (`ETooManyLanguages = 2`) and duplicate
 codes second (`EDuplicateLanguage = 3`). The `language_code` dependency
 rejects invalid ISO 639-1 codes during construction.
-
