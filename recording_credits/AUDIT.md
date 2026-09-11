@@ -15,16 +15,19 @@ aliases.
 
 ## Threat model and findings
 
-All six mutations require the matching `RecordingAdminCap` through
-`Recording::uid_mut`. Module-owned keys and private stored fields protect the
-dynamic-field schema. The implementation enforces unique credited Parties,
-bounded credits and roles, primary/featured membership within the credited
-set, and disjoint primary and featured sets; credit removal cascades through
-both designations. Credits are administrator-authored attribution and never
-drive royalty accounting in this package. The six generic rich events carry
-only bounded primitive snapshots and identifiers; credit removal emits its
-event immediately after map removal, followed by designation cascade events in
-set-mutation order. Views and constructors are silent. No Vault, Action,
+All six mutations require a `RecordingAdminCap<RecordingShare>` through
+`Recording::uid_mut`; “matching” means the `RecordingShare` type parameter
+only. In the pinned `musicos` dependency, `uid_mut` ignores the cap's object ID,
+sender, and recording lifecycle, so this package does not claim a per-recording
+cap-identity or caller check. Module-owned keys and private stored fields
+protect the dynamic-field schema. The implementation enforces unique credited
+Parties, bounded credits and roles, primary/featured membership within the
+credited set, and disjoint primary and featured sets; credit removal cascades
+through both designations. Credits are administrator-authored attribution and
+never drive royalty accounting in this package. The six generic rich events
+carry only bounded primitive snapshots and identifiers; credit removal emits
+its event immediately after map removal, followed by designation cascade events
+in set-mutation order. Views and constructors are silent. No Vault, Action,
 Plugin, or funds movement exists here.
 
 ## Evidence
