@@ -92,7 +92,7 @@ The platform code is the event's `platform` field.
 
 Identifiers retain the constructor's existing 64-byte limits, or 128-byte
 limits for Bandcamp and SoundCloud fields. The largest possible bulk-clear
-event is 85,014 BCS bytes: 255 occupied Bandcamp/SoundCloud slots, 255
+event is 85,268 BCS bytes: 255 occupied Bandcamp/SoundCloud slots, 255
 parallel track and address entries, and a two-field album snapshot. This is a
 schema calculation, not a network throughput benchmark.
 
