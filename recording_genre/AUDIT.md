@@ -56,12 +56,13 @@ Vault, Action, or Plugin surface.
 ## Evidence
 
 With the available Sui toolchain, strict Testnet and Mainnet lint and
-warnings-as-errors builds pass clean, and all 24 tests pass in both networks.
+warnings-as-errors builds pass clean, and all 25 tests pass in both networks.
 The production module (`recording_genre::recording_genre`) reports 100.00%
 raw coverage over its four public functions, including exact full-payload BCS
 peeling/replay, append and order-preserving removal, primary promotion,
 last-removal Removed-then-Cleared cascading, explicit/absent clear separation,
 64-byte names, six-item bounds, duplicate-before-capacity and seventh-item
-guards, type-only cap semantics, unrelated dynamic-field preservation,
+guards, same-type foreign-cap transitions with target/cap identity checks,
+type-only cap semantics, unrelated dynamic-field preservation,
 phantom event isolation, the published/shared-object lifecycle, and
 post-clear re-attachment.

@@ -12,10 +12,10 @@
 /// transaction boundaries — is covered separately in
 /// `recording_genre_e2e_tests`.
 ///
-/// A recording's `RecordingShare` type uniquely identifies it, so
-/// `RecordingAdminCap<RecordingShare>` is bound to its recording by type and
-/// `recording::uid_mut` performs no runtime check. A wrong-cap test is
-/// therefore not expressible — the call would fail to compile, not abort.
+/// A mismatched `RecordingShare` type cannot compile. A distinct
+/// `RecordingAdminCap<RecordingShare>` value is accepted because
+/// `recording::uid_mut` ignores the cap value; the foreign same-type-cap path
+/// is exercised explicitly below.
 #[test_only]
 module recording_genre::recording_genre_tests;
 
@@ -34,6 +34,16 @@ public struct COMP {}
 public struct OTHER_REC {}
 public struct OTHER_COMP {}
 public struct UnrelatedKey() has copy, drop, store;
+
+public struct ReplayState has drop {
+    recording_id: address,
+    composition_id: address,
+    admin_cap_id: address,
+    genres: vector<address>,
+    field_exists: bool,
+    has_primary: bool,
+    primary_genre_id: address,
+}
 
 /// This package never touches the composition side of a recording — it only
 /// needs a `Recording` to exist, so a bare id stands in for a real
@@ -56,6 +66,17 @@ fun create_genre(scenario: &Scenario, name: vector<u8>): ID {
 
 fun addr(id: ID): address {
     id.to_address()
+}
+
+fun genre_addresses(recording: &recording::Recording<REC, COMP>): vector<address> {
+    let ids = rg::genres(recording);
+    let mut addresses = vector[];
+    let mut index = 0;
+    while (index < ids.length()) {
+        addresses.push_back(ids[index].to_address());
+        index = index + 1;
+    };
+    addresses
 }
 
 fun assert_added_payload(
@@ -177,90 +198,172 @@ fun assert_cleared_payload(
     assert!(bytes.into_remainder_bytes().is_empty());
 }
 
+fun assert_projected(
+    recording: &recording::Recording<REC, COMP>,
+    projected: &ReplayState,
+) {
+    assert_eq!(genre_addresses(recording), projected.genres);
+    assert_eq!(projected.has_primary, !projected.genres.is_empty());
+    if (projected.has_primary) {
+        assert_eq!(projected.primary_genre_id, projected.genres[0]);
+    } else {
+        assert_eq!(projected.primary_genre_id, @0x0);
+    };
+}
+
 fun replay_added(
-    projected: &mut vector<address>,
+    projected: &mut ReplayState,
     event: &rg::RecordingGenreAddedEvent<REC, COMP>,
 ) {
     let mut bytes = bcs::new(rg::added_event_bcs(event));
-    let _recording_id = bytes.peel_address();
-    let _composition_id = bytes.peel_address();
-    let _admin_cap_id = bytes.peel_address();
-    let _genre_id = bytes.peel_address();
-    let _genre_name = bytes.peel_vec_u8();
-    let _genre_index = bytes.peel_u64();
+    let recording_id = bytes.peel_address();
+    let composition_id = bytes.peel_address();
+    let admin_cap_id = bytes.peel_address();
+    let genre_id = bytes.peel_address();
+    let genre_name = bytes.peel_vec_u8();
+    let genre_index = bytes.peel_u64();
     let genres_before = bytes.peel_vec_address();
     let genres_after = bytes.peel_vec_address();
     let genre_count_before = bytes.peel_u64();
     let genre_count_after = bytes.peel_u64();
-    let _field_existed_before = bytes.peel_bool();
-    let _field_exists_after = bytes.peel_bool();
-    let _had_primary_before = bytes.peel_bool();
-    let _has_primary_after = bytes.peel_bool();
-    let _primary_genre_id_before = bytes.peel_address();
-    let _primary_genre_id_after = bytes.peel_address();
-    let _primary_changed = bytes.peel_bool();
-    assert_eq!(genres_before, *projected);
+    let field_existed_before = bytes.peel_bool();
+    let field_exists_after = bytes.peel_bool();
+    let had_primary_before = bytes.peel_bool();
+    let has_primary_after = bytes.peel_bool();
+    let primary_genre_id_before = bytes.peel_address();
+    let primary_genre_id_after = bytes.peel_address();
+    let primary_changed = bytes.peel_bool();
+    assert_eq!(recording_id, projected.recording_id);
+    assert_eq!(composition_id, projected.composition_id);
+    assert_eq!(admin_cap_id, projected.admin_cap_id);
+    assert!(!genre_name.is_empty());
+    assert_eq!(genres_before, projected.genres);
     assert_eq!(genre_count_before, genres_before.length());
     assert_eq!(genre_count_after, genres_after.length());
+    assert_eq!(genre_index, genre_count_before);
+    assert!(genre_index < genres_after.length());
+    assert_eq!(genres_after[genre_index], genre_id);
+    assert!(!genres_before.contains(&genre_id));
+    assert_eq!(field_existed_before, projected.field_exists);
+    assert!(field_exists_after);
+    assert_eq!(had_primary_before, projected.has_primary);
+    assert!(has_primary_after);
+    assert_eq!(primary_genre_id_before, projected.primary_genre_id);
+    assert_eq!(primary_genre_id_after, genres_after[0]);
+    assert_eq!(primary_changed,
+        had_primary_before != has_primary_after
+            || primary_genre_id_before != primary_genre_id_after);
     assert!(bytes.into_remainder_bytes().is_empty());
-    *projected = genres_after;
+    projected.genres = genres_after;
+    projected.field_exists = field_exists_after;
+    projected.has_primary = has_primary_after;
+    projected.primary_genre_id = primary_genre_id_after;
 }
 
 fun replay_removed(
-    projected: &mut vector<address>,
+    projected: &mut ReplayState,
     event: &rg::RecordingGenreRemovedEvent<REC, COMP>,
 ) {
     let mut bytes = bcs::new(rg::removed_event_bcs(event));
-    let _recording_id = bytes.peel_address();
-    let _composition_id = bytes.peel_address();
-    let _admin_cap_id = bytes.peel_address();
-    let _genre_id = bytes.peel_address();
-    let _genre_index = bytes.peel_u64();
+    let recording_id = bytes.peel_address();
+    let composition_id = bytes.peel_address();
+    let admin_cap_id = bytes.peel_address();
+    let genre_id = bytes.peel_address();
+    let genre_index = bytes.peel_u64();
     let genres_before = bytes.peel_vec_address();
     let genres_after = bytes.peel_vec_address();
     let genre_count_before = bytes.peel_u64();
     let genre_count_after = bytes.peel_u64();
-    let _field_existed_before = bytes.peel_bool();
-    let _field_exists_after = bytes.peel_bool();
-    let _had_primary_before = bytes.peel_bool();
-    let _has_primary_after = bytes.peel_bool();
-    let _primary_genre_id_before = bytes.peel_address();
-    let _primary_genre_id_after = bytes.peel_address();
-    let _primary_changed = bytes.peel_bool();
-    assert_eq!(genres_before, *projected);
+    let field_existed_before = bytes.peel_bool();
+    let field_exists_after = bytes.peel_bool();
+    let had_primary_before = bytes.peel_bool();
+    let has_primary_after = bytes.peel_bool();
+    let primary_genre_id_before = bytes.peel_address();
+    let primary_genre_id_after = bytes.peel_address();
+    let primary_changed = bytes.peel_bool();
+    assert_eq!(recording_id, projected.recording_id);
+    assert_eq!(composition_id, projected.composition_id);
+    assert_eq!(admin_cap_id, projected.admin_cap_id);
+    assert_eq!(genres_before, projected.genres);
     assert_eq!(genre_count_before, genres_before.length());
     assert_eq!(genre_count_after, genres_after.length());
+    assert!(genre_index < genres_before.length());
+    assert_eq!(genres_before[genre_index], genre_id);
+    assert!(!genres_after.contains(&genre_id));
+    assert_eq!(genres_after.length() + 1, genres_before.length());
+    assert_eq!(field_existed_before, projected.field_exists);
+    assert!(field_exists_after);
+    assert_eq!(had_primary_before, projected.has_primary);
+    assert_eq!(has_primary_after, !genres_after.is_empty());
+    assert_eq!(primary_genre_id_before, projected.primary_genre_id);
+    if (has_primary_after) {
+        assert_eq!(primary_genre_id_after, genres_after[0]);
+    } else {
+        assert_eq!(primary_genre_id_after, @0x0);
+    };
+    assert_eq!(primary_changed,
+        had_primary_before != has_primary_after
+            || primary_genre_id_before != primary_genre_id_after);
     assert!(bytes.into_remainder_bytes().is_empty());
-    *projected = genres_after;
+    projected.genres = genres_after;
+    projected.field_exists = field_exists_after;
+    projected.has_primary = has_primary_after;
+    projected.primary_genre_id = primary_genre_id_after;
 }
 
 fun replay_cleared(
-    projected: &mut vector<address>,
+    projected: &mut ReplayState,
     event: &rg::RecordingGenresClearedEvent<REC, COMP>,
+    expected_cause: u8,
+    expected_trigger: address,
 ) {
     let mut bytes = bcs::new(rg::cleared_event_bcs(event));
-    let _recording_id = bytes.peel_address();
-    let _composition_id = bytes.peel_address();
-    let _admin_cap_id = bytes.peel_address();
-    let _clear_cause = bytes.peel_u8();
-    let _trigger_genre_id = bytes.peel_address();
+    let recording_id = bytes.peel_address();
+    let composition_id = bytes.peel_address();
+    let admin_cap_id = bytes.peel_address();
+    let clear_cause = bytes.peel_u8();
+    let trigger_genre_id = bytes.peel_address();
     let genres_before = bytes.peel_vec_address();
     let genres_after = bytes.peel_vec_address();
     let genre_count_before = bytes.peel_u64();
     let genre_count_after = bytes.peel_u64();
-    let _field_existed_before = bytes.peel_bool();
-    let _field_exists_after = bytes.peel_bool();
-    let _had_primary_before = bytes.peel_bool();
-    let _has_primary_after = bytes.peel_bool();
-    let _primary_genre_id_before = bytes.peel_address();
-    let _primary_genre_id_after = bytes.peel_address();
-    let _primary_changed = bytes.peel_bool();
-    assert_eq!(genres_before, *projected);
+    let field_existed_before = bytes.peel_bool();
+    let field_exists_after = bytes.peel_bool();
+    let had_primary_before = bytes.peel_bool();
+    let has_primary_after = bytes.peel_bool();
+    let primary_genre_id_before = bytes.peel_address();
+    let primary_genre_id_after = bytes.peel_address();
+    let primary_changed = bytes.peel_bool();
+    assert_eq!(recording_id, projected.recording_id);
+    assert_eq!(composition_id, projected.composition_id);
+    assert_eq!(admin_cap_id, projected.admin_cap_id);
+    assert_eq!(clear_cause, expected_cause);
+    assert_eq!(trigger_genre_id, expected_trigger);
+    assert_eq!(genres_before, projected.genres);
     assert!(genres_after.is_empty());
     assert_eq!(genre_count_before, genres_before.length());
     assert_eq!(genre_count_after, 0);
+    assert_eq!(field_existed_before, projected.field_exists);
+    assert!(!field_exists_after);
+    assert_eq!(had_primary_before, projected.has_primary);
+    assert!(!has_primary_after);
+    assert_eq!(primary_genre_id_before, projected.primary_genre_id);
+    assert_eq!(primary_genre_id_after, @0x0);
+    assert_eq!(primary_changed,
+        had_primary_before != has_primary_after
+            || primary_genre_id_before != primary_genre_id_after);
+    if (clear_cause == 1) {
+        assert!(genres_before.is_empty());
+        assert_eq!(trigger_genre_id, expected_trigger);
+    } else {
+        assert_eq!(clear_cause, 0);
+        assert_eq!(trigger_genre_id, @0x0);
+    };
     assert!(bytes.into_remainder_bytes().is_empty());
-    *projected = genres_after;
+    projected.genres = genres_after;
+    projected.field_exists = field_exists_after;
+    projected.has_primary = has_primary_after;
+    projected.primary_genre_id = primary_genre_id_after;
 }
 
 #[test]
@@ -298,7 +401,15 @@ fun rich_events_replay_order_primary_and_cascades() {
     let recording_id = object::id(&rec).to_address();
     let composition_id = @0xC0FFEE;
     let admin_cap_id = object::id(&cap).to_address();
-    let mut projected = vector[];
+    let mut projected = ReplayState {
+        recording_id,
+        composition_id,
+        admin_cap_id,
+        genres: vector[],
+        field_exists: false,
+        has_primary: false,
+        primary_genre_id: @0x0,
+    };
 
     rg::add_genre(&mut rec, &cap, &genre_a);
     let added = event::events_by_type<rg::RecordingGenreAddedEvent<REC, COMP>>();
@@ -309,8 +420,8 @@ fun rich_events_replay_order_primary_and_cascades() {
     );
     assert_eq!(rg::added_event_bcs(&added[0]).length(), 263);
     replay_added(&mut projected, &added[0]);
-    assert_eq!(rg::genres(&rec), vector[a]);
-    assert_eq!(projected, vector[addr(a)]);
+    assert_projected(&rec, &projected);
+    assert_eq!(projected.genres, vector[addr(a)]);
 
     rg::add_genre(&mut rec, &cap, &genre_b);
     let added = event::events_by_type<rg::RecordingGenreAddedEvent<REC, COMP>>();
@@ -322,8 +433,8 @@ fun rich_events_replay_order_primary_and_cascades() {
     );
     assert_eq!(rg::added_event_bcs(&added[1]).length(), 330);
     replay_added(&mut projected, &added[1]);
-    assert_eq!(rg::genres(&rec), vector[a, b]);
-    assert_eq!(projected, vector[addr(a), addr(b)]);
+    assert_projected(&rec, &projected);
+    assert_eq!(projected.genres, vector[addr(a), addr(b)]);
 
     rg::add_genre(&mut rec, &cap, &genre_c);
     let added = event::events_by_type<rg::RecordingGenreAddedEvent<REC, COMP>>();
@@ -334,8 +445,8 @@ fun rich_events_replay_order_primary_and_cascades() {
         true, true, addr(a), addr(a), false,
     );
     replay_added(&mut projected, &added[2]);
-    assert_eq!(rg::genres(&rec), vector[a, b, c]);
-    assert_eq!(projected, vector[addr(a), addr(b), addr(c)]);
+    assert_projected(&rec, &projected);
+    assert_eq!(projected.genres, vector[addr(a), addr(b), addr(c)]);
 
     // Secondary removal preserves the primary and order of survivors.
     rg::remove_genre(&mut rec, &cap, b);
@@ -348,8 +459,8 @@ fun rich_events_replay_order_primary_and_cascades() {
     );
     assert_eq!(rg::removed_event_bcs(&removed[0]).length(), 383);
     replay_removed(&mut projected, &removed[0]);
-    assert_eq!(rg::genres(&rec), vector[a, c]);
-    assert_eq!(projected, vector[addr(a), addr(c)]);
+    assert_projected(&rec, &projected);
+    assert_eq!(projected.genres, vector[addr(a), addr(c)]);
 
     // Primary removal promotes the next entry.
     rg::remove_genre(&mut rec, &cap, a);
@@ -361,8 +472,8 @@ fun rich_events_replay_order_primary_and_cascades() {
         addr(a), addr(c), true,
     );
     replay_removed(&mut projected, &removed[1]);
-    assert_eq!(rg::genres(&rec), vector[c]);
-    assert_eq!(projected, vector[addr(c)]);
+    assert_projected(&rec, &projected);
+    assert_eq!(projected.genres, vector[addr(c)]);
 
     // Last removal emits Removed before field deletion, then a cause-1 clear.
     rg::remove_genre(&mut rec, &cap, c);
@@ -374,6 +485,8 @@ fun rich_events_replay_order_primary_and_cascades() {
     );
     assert_eq!(rg::removed_event_bcs(&removed[2]).length(), 255);
     replay_removed(&mut projected, &removed[2]);
+    assert!(!projected.has_primary);
+    assert!(projected.field_exists);
     let cleared = event::events_by_type<rg::RecordingGenresClearedEvent<REC, COMP>>();
     assert_eq!(cleared.length(), 1);
     assert_cleared_payload(
@@ -381,13 +494,23 @@ fun rich_events_replay_order_primary_and_cascades() {
         vector[], 0, 0, true, false, false, false, @0x0, @0x0, false,
     );
     assert_eq!(rg::cleared_event_bcs(&cleared[0]).length(), 216);
-    replay_cleared(&mut projected, &cleared[0]);
+    replay_cleared(&mut projected, &cleared[0], 1, addr(c));
     assert!(rg::genres(&rec).is_empty());
-    assert!(projected.is_empty());
+    assert_projected(&rec, &projected);
+    assert!(projected.genres.is_empty());
+    assert!(!projected.field_exists);
 
     // Absent clear is silent. Re-attachment starts a fresh ordered list.
+    let added_before_absent_clear =
+        event::events_by_type<rg::RecordingGenreAddedEvent<REC, COMP>>().length();
+    let removed_before_absent_clear =
+        event::events_by_type<rg::RecordingGenreRemovedEvent<REC, COMP>>().length();
+    let cleared_before_absent_clear =
+        event::events_by_type<rg::RecordingGenresClearedEvent<REC, COMP>>().length();
     rg::clear_genres(&mut rec, &cap);
-    assert_eq!(event::events_by_type<rg::RecordingGenresClearedEvent<REC, COMP>>().length(), 1);
+    assert_eq!(event::events_by_type<rg::RecordingGenreAddedEvent<REC, COMP>>().length(), added_before_absent_clear);
+    assert_eq!(event::events_by_type<rg::RecordingGenreRemovedEvent<REC, COMP>>().length(), removed_before_absent_clear);
+    assert_eq!(event::events_by_type<rg::RecordingGenresClearedEvent<REC, COMP>>().length(), cleared_before_absent_clear);
     rg::add_genre(&mut rec, &cap, &genre_c);
     rg::add_genre(&mut rec, &cap, &genre_a);
     rg::add_genre(&mut rec, &cap, &genre_b);
@@ -396,8 +519,8 @@ fun rich_events_replay_order_primary_and_cascades() {
     replay_added(&mut projected, &added[3]);
     replay_added(&mut projected, &added[4]);
     replay_added(&mut projected, &added[5]);
-    assert_eq!(rg::genres(&rec), vector[c, a, b]);
-    assert_eq!(projected, vector[addr(c), addr(a), addr(b)]);
+    assert_projected(&rec, &projected);
+    assert_eq!(projected.genres, vector[addr(c), addr(a), addr(b)]);
 
     // Explicit clear carries the complete pre-clear list and cause 0.
     rg::clear_genres(&mut rec, &cap);
@@ -409,15 +532,94 @@ fun rich_events_replay_order_primary_and_cascades() {
         addr(c), @0x0, true,
     );
     assert_eq!(rg::cleared_event_bcs(&cleared[1]).length(), 312);
-    replay_cleared(&mut projected, &cleared[1]);
+    replay_cleared(&mut projected, &cleared[1], 0, @0x0);
     assert!(rg::genres(&rec).is_empty());
-    assert!(projected.is_empty());
+    assert_projected(&rec, &projected);
+    assert!(projected.genres.is_empty());
 
     ts::return_immutable(genre_a);
     ts::return_immutable(genre_b);
     ts::return_immutable(genre_c);
     destroy(rec);
     destroy(cap);
+    scenario.end();
+}
+
+#[test]
+fun same_type_foreign_cap_drives_all_event_families() {
+    let mut scenario = ts::begin(@0xC0);
+    g::init_for_testing(scenario.ctx());
+
+    scenario.next_tx(@0xC0);
+    let a = create_genre(&scenario, b"HIP_HOP");
+    scenario.next_tx(@0xC0);
+    let b = create_genre(&scenario, b"ELECTRONIC");
+
+    scenario.next_tx(@0xC0);
+    let genre_a = scenario.take_immutable_by_id<Genre>(a);
+    let genre_b = scenario.take_immutable_by_id<Genre>(b);
+    let (mut recording, target_cap) = new_rec(scenario.ctx());
+    let target_recording_id = object::id(&recording).to_address();
+    let target_composition_id = @0xC0FFEE;
+    let (foreign_recording, foreign_cap) =
+        recording::new_for_testing<REC, COMP>(object::id_from_address(@0xF00D), scenario.ctx());
+    let foreign_cap_id = object::id(&foreign_cap).to_address();
+    destroy(foreign_recording);
+
+    // The distinct same-type cap is accepted; every primitive identity in
+    // the events must still identify the target recording and supplied cap.
+    rg::add_genre(&mut recording, &foreign_cap, &genre_a);
+    let added = event::events_by_type<rg::RecordingGenreAddedEvent<REC, COMP>>();
+    assert_eq!(added.length(), 1);
+    assert_added_payload(
+        &added[0], target_recording_id, target_composition_id, foreign_cap_id,
+        addr(a), b"HIP_HOP", 0, vector[], vector[addr(a)], 0, 1,
+        false, true, false, true, @0x0, addr(a), true,
+    );
+
+    // Last removal emits Removed with an empty-but-present intermediate
+    // state, followed by the cause-1 deletion event.
+    rg::remove_genre(&mut recording, &foreign_cap, a);
+    let removed = event::events_by_type<rg::RecordingGenreRemovedEvent<REC, COMP>>();
+    assert_eq!(removed.length(), 1);
+    assert_removed_payload(
+        &removed[0], target_recording_id, target_composition_id, foreign_cap_id,
+        addr(a), 0, vector[addr(a)], vector[], 1, 0, true, true,
+        true, false, addr(a), @0x0, true,
+    );
+    let cleared = event::events_by_type<rg::RecordingGenresClearedEvent<REC, COMP>>();
+    assert_eq!(cleared.length(), 1);
+    assert_cleared_payload(
+        &cleared[0], target_recording_id, target_composition_id, foreign_cap_id,
+        1, addr(a), vector[], vector[], 0, 0, true, false,
+        false, false, @0x0, @0x0, false,
+    );
+
+    rg::add_genre(&mut recording, &foreign_cap, &genre_b);
+    rg::clear_genres(&mut recording, &foreign_cap);
+    let cleared = event::events_by_type<rg::RecordingGenresClearedEvent<REC, COMP>>();
+    assert_eq!(cleared.length(), 2);
+    assert_cleared_payload(
+        &cleared[1], target_recording_id, target_composition_id, foreign_cap_id,
+        0, @0x0, vector[addr(b)], vector[], 1, 0, true, false,
+        true, false, addr(b), @0x0, true,
+    );
+
+    // Authorized absent clear is silent for every family, including after
+    // the cascading and explicit deletion paths above.
+    let added_before = event::events_by_type<rg::RecordingGenreAddedEvent<REC, COMP>>().length();
+    let removed_before = event::events_by_type<rg::RecordingGenreRemovedEvent<REC, COMP>>().length();
+    let cleared_before = event::events_by_type<rg::RecordingGenresClearedEvent<REC, COMP>>().length();
+    rg::clear_genres(&mut recording, &foreign_cap);
+    assert_eq!(event::events_by_type<rg::RecordingGenreAddedEvent<REC, COMP>>().length(), added_before);
+    assert_eq!(event::events_by_type<rg::RecordingGenreRemovedEvent<REC, COMP>>().length(), removed_before);
+    assert_eq!(event::events_by_type<rg::RecordingGenresClearedEvent<REC, COMP>>().length(), cleared_before);
+
+    ts::return_immutable(genre_a);
+    ts::return_immutable(genre_b);
+    destroy(recording);
+    destroy(target_cap);
+    destroy(foreign_cap);
     scenario.end();
 }
 
@@ -886,9 +1088,18 @@ fun clear_genres_when_absent_is_a_no_op() {
     scenario.next_tx(@0xC0);
     let (mut rec, cap) = new_rec(scenario.ctx());
 
+    // Empty views and an authorized absent clear are silent for every event
+    // family, not only the family named by the operation.
+    let added_before = event::events_by_type<rg::RecordingGenreAddedEvent<REC, COMP>>().length();
+    let removed_before = event::events_by_type<rg::RecordingGenreRemovedEvent<REC, COMP>>().length();
+    let cleared_before = event::events_by_type<rg::RecordingGenresClearedEvent<REC, COMP>>().length();
+    assert!(rg::genres(&rec).is_empty());
     rg::clear_genres(&mut rec, &cap);
 
     assert!(rg::genres(&rec).is_empty());
+    assert_eq!(event::events_by_type<rg::RecordingGenreAddedEvent<REC, COMP>>().length(), added_before);
+    assert_eq!(event::events_by_type<rg::RecordingGenreRemovedEvent<REC, COMP>>().length(), removed_before);
+    assert_eq!(event::events_by_type<rg::RecordingGenresClearedEvent<REC, COMP>>().length(), cleared_before);
     assert_eq!(event::events_by_type<rg::RecordingGenresClearedEvent<REC, COMP>>().length(), 0);
 
     destroy(rec);
@@ -994,6 +1205,11 @@ fun phantom_event_types_have_positive_and_negative_queries() {
     assert_eq!(event::events_by_type<rg::RecordingGenresClearedEvent<OTHER_REC, OTHER_COMP>>().length(), 0);
 
     rg::add_genre(&mut rec_a, &cap_a, &genre_a);
+    // A real <REC, COMP> event must not appear in either alternate phantom
+    // family before those recordings emit their own events.
+    assert_eq!(event::events_by_type<rg::RecordingGenreAddedEvent<REC, COMP>>().length(), 1);
+    assert_eq!(event::events_by_type<rg::RecordingGenreAddedEvent<OTHER_REC, COMP>>().length(), 0);
+    assert_eq!(event::events_by_type<rg::RecordingGenreAddedEvent<REC, OTHER_COMP>>().length(), 0);
     rg::add_genre(&mut rec_b, &cap_b, &genre_a);
     rg::add_genre(&mut rec_c, &cap_c, &genre_a);
     assert_eq!(rg::genres(&rec_a), vector[a]);
@@ -1005,6 +1221,12 @@ fun phantom_event_types_have_positive_and_negative_queries() {
     assert_eq!(event::events_by_type<rg::RecordingGenreAddedEvent<OTHER_REC, OTHER_COMP>>().length(), 0);
 
     rg::remove_genre(&mut rec_a, &cap_a, a);
+    assert_eq!(event::events_by_type<rg::RecordingGenreRemovedEvent<REC, COMP>>().length(), 1);
+    assert_eq!(event::events_by_type<rg::RecordingGenreRemovedEvent<OTHER_REC, COMP>>().length(), 0);
+    assert_eq!(event::events_by_type<rg::RecordingGenreRemovedEvent<REC, OTHER_COMP>>().length(), 0);
+    assert_eq!(event::events_by_type<rg::RecordingGenresClearedEvent<REC, COMP>>().length(), 1);
+    assert_eq!(event::events_by_type<rg::RecordingGenresClearedEvent<OTHER_REC, COMP>>().length(), 0);
+    assert_eq!(event::events_by_type<rg::RecordingGenresClearedEvent<REC, OTHER_COMP>>().length(), 0);
     rg::remove_genre(&mut rec_b, &cap_b, a);
     rg::remove_genre(&mut rec_c, &cap_c, a);
     assert_eq!(event::events_by_type<rg::RecordingGenreRemovedEvent<REC, COMP>>().length(), 1);
