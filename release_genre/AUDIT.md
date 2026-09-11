@@ -12,13 +12,11 @@ the package-owned `ExtensionKey` mapped to a bare, ordered `vector<ID>`; index
 zero is primary and removing the final entry reclaims the dynamic field.
 
 `add_genre` takes a real `&Genre`, captures its raw `Genre.name()` bytes in the
-Added event, and appends only the object id. `remove_genre` retains its original
-guard order: missing field or missing member aborts with 42 before cap
-authorization; once a member field exists, `uid_mut` enforces the upstream
-authorization check. `clear_genres` calls `uid_mut` first, so even an absent
-field is authenticated before its silent no-op. The cap check is type-only in
-the pinned `musicos` dependency; a runtime cap value or id is not an additional
-authorization claim.
+Added event, and appends only the object id. A missing field aborts with 42
+before cap authorization. When the field exists, `uid_mut` authenticates the
+supplied cap before the member lookup; a missing member then aborts with 42.
+`clear_genres` authenticates even when the field is absent. The pinned Release
+authorization checks `object::id(self) == cap.release_id` at runtime.
 
 ## Dependency provenance
 

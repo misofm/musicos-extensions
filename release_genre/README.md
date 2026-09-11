@@ -27,8 +27,9 @@ release's primary when the recording has none.
 ## API
 
 All writes require `&ReleaseAdminCap` and go through `release::uid_mut(cap)`.
-The upstream cap check is type-only and rejects a cap for another release with
-`EUnauthorized` (0) at `musicos::release`. `remove_genre` checks field
+The upstream cap check authenticates the cap's stored release ID against the
+supplied Release and rejects a cap for another release with `EUnauthorized` (0)
+at `musicos::release`. `remove_genre` checks field
 presence first, so an absent field reports `EGenreNotPresent` (42) before cap
 authorization; `clear_genres` authorizes even when the field is absent. Views
 are permissionless.
@@ -38,7 +39,7 @@ are permissionless.
 | Function | Description | Aborts |
 |---|---|---|
 | `add_genre(release, cap, &Genre)` | Appends a genre; the first ever added becomes the primary | wrong cap; `EDuplicateGenre` (40) if already assigned, `EMaxGenres` (41) at 6 genres |
-| `remove_genre(release, cap, genre_id)` | Removes a genre by id; if it was the primary, the next entry is promoted; removing the last one drops the field | `EGenreNotPresent` (42) before authorization if no field or member; wrong cap (0) once a member field exists |
+| `remove_genre(release, cap, genre_id)` | Removes a genre by id; if it was the primary, the next entry is promoted; removing the last one drops the field | 42 before authorization if the field is absent; otherwise wrong cap (0) before missing member (42) |
 | `clear_genres(release, cap)` | Removes the entire genre list; no-op when absent | wrong cap |
 
 ### Views
