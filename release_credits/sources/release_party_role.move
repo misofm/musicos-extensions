@@ -55,3 +55,14 @@ public fun name(self: &ReleasePartyRole): String {
         ReleasePartyRole::Featured => b"Featured".to_string(),
     }
 }
+
+// Encodes the closed release-role vocabulary for mutation events without
+// constructing strings.  The codes are stable: Primary is 0 and Featured is
+// 1.  This remains package-visible so the storage module can snapshot a role
+// while callers still cannot construct or match the enum variants directly.
+public(package) fun event_kind(self: &ReleasePartyRole): u8 {
+    match (self) {
+        ReleasePartyRole::Primary => 0,
+        ReleasePartyRole::Featured => 1,
+    }
+}

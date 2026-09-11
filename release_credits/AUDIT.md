@@ -1,14 +1,17 @@
 # Security review — `release_credits`
 
-Reviewed 2026-09-02 for immutable publication. Verdict: no exploitable
-findings in the reviewed source.
+Reviewed 2026-09-11 for the rich primitive mutation events. The review covers
+the existing cap-gated storage and guard order plus the bounded event
+snapshots. Verdict: no exploitable findings in the reviewed source.
 
 ## Dependency provenance
 
-`Move.toml` pins `musicos` at
-`4fed48b2b5632122fb677d742881259c65b1bc78`, `partyos` at
-`819fde6f34c0bc7eeb57ec7340cdf13dc56b3fca`, and `credit` at
-`b96fae3faf8836e5ad718b1a7700fbd11e07708b`. Both lock graphs resolve `bps` at
+`musicos` and `partyos` provide the release and credited `Party` identity,
+while the direct `credit` dependency provides `Credit<ReleasePartyRole>` and
+its display-name/role container. The checked-in manifest pins `musicos` at
+`4cb3c926b1f9bb5103f3f7194e4e1e34b6c87840`, `partyos` at
+`841a875a4989082a0ebeb1beb464b71f9ea2bd73`, and `credit` at
+`0780d1d694a4d35315af20e1ea7d707558846024`. Both lock graphs resolve `bps` at
 `4ca1972a67d35c972ca567de7b08315e3778e52b` without duplicate aliases.
 
 ## Threat model and findings
@@ -22,7 +25,7 @@ read here. The package contains no Action, Plugin, Vault, or funds logic.
 
 ## Evidence
 
-With `sui 1.78.1-722ac4fcf484`, strict Testnet and Mainnet lint,
-warnings-as-errors builds, and tests pass: 13/13 on each network. Both
-production modules report 100.00% coverage across shared Releases,
-authorization, exact role cardinality, bounds, duplicates, removal, and events.
+With Sui `1.79.0`, strict Testnet and Mainnet builds and tests pass: 20/20
+tests. Both production modules report 100.00% coverage across local release
+storage, authorization, exact role cardinality, bounds, duplicates, removal,
+and event snapshots.

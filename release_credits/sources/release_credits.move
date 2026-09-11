@@ -21,7 +21,8 @@ module release_credits::release_credits;
 use musicos::release::{Release, ReleaseAdminCap};
 use credit::credit::Credit;
 use partyos::party::Party;
-use release_credits::release_party_role::ReleasePartyRole;
+use release_credits::release_party_role::{Self, ReleasePartyRole};
+use sui::bcs;
 use sui::dynamic_field as df;
 use sui::event::emit;
 use sui::vec_map::{Self, VecMap};
@@ -65,21 +66,35 @@ public struct ReleaseCredits has store {
 
 // === Events ===
 
-/// Emitted when a credit is added for a party on the release. Carries the
-/// full credit record so an indexer can upsert its row without re-reading the
+/// Emitted when a credit is added for a party on the release. The bounded
+/// primitive snapshot lets an indexer upsert its row without re-reading the
 /// credits dynamic field.
 public struct CreditAddedEvent has copy, drop {
-    release_id: ID,
-    party_id: ID,
-    credit: Credit<ReleasePartyRole>,
+    release_id: address,
+    release_admin_cap_id: address,
+    party_id: address,
+    display_name: vector<u8>,
+    role_kind: u8,
+    credit_count_before: u64,
+    credit_count_after: u64,
+    credit_index: u64,
+    credits_record_existed_before: bool,
+    credits_record_exists_after: bool,
 }
 
-/// Emitted when a party's credit is removed from the release. Carries the
-/// removed record so an indexer can delete its row without re-reading state.
+/// Emitted when a party's credit is removed from the release. The primitive
+/// snapshot remains available after the map entry is gone.
 public struct CreditRemovedEvent has copy, drop {
-    release_id: ID,
-    party_id: ID,
-    credit: Credit<ReleasePartyRole>,
+    release_id: address,
+    release_admin_cap_id: address,
+    party_id: address,
+    display_name: vector<u8>,
+    role_kind: u8,
+    credit_count_before: u64,
+    credit_count_after: u64,
+    credit_index: u64,
+    credits_record_existed_before: bool,
+    credits_record_exists_after: bool,
 }
 
 // === Public Functions ===
@@ -96,24 +111,75 @@ public fun add_credit(
 ) {
     assert!(credit.roles().length() == CREDIT_ROLE_COUNT, EInvalidCreditRoleCount);
 
-    let release_id = object::id(self);
-    let party_id = object::id(party);
-    let rc = borrow_mut_or_init(self.uid_mut(cap));
-    assert!(rc.credits.length() < MAX_CREDITS, EMaxCreditsExceeded);
-    assert!(!rc.credits.contains(&party_id), EPartyAlreadyCredited);
-    rc.credits.insert(party_id, credit);
+    let release_id = object::id(self).to_address();
+    let release_admin_cap_id = object::id(cap).to_address();
+    let party_id = object::id(party).to_address();
+    let party_key = object::id(party);
+    let uid = self.uid_mut(cap);
+    let credits_record_existed_before = df::exists(uid, ExtensionKey());
+    let (display_name, role_kind) = snapshot_credit(&credit);
+    let mut credit_count_before = 0;
+    let mut credit_count_after = 0;
+    let mut credit_index = 0;
+    {
+        let rc = borrow_mut_or_init(uid);
+        credit_count_before = rc.credits.length();
+        // At capacity, preserve the existing precedence over duplicate-party
+        // detection.
+        assert!(credit_count_before < MAX_CREDITS, EMaxCreditsExceeded);
+        assert!(!rc.credits.contains(&party_key), EPartyAlreadyCredited);
+        rc.credits.insert(party_key, credit);
+        credit_count_after = rc.credits.length();
+        credit_index = rc.credits.get_idx(&party_key);
+    };
+    let credits_record_exists_after = df::exists(uid, ExtensionKey());
 
-    emit(CreditAddedEvent { release_id, party_id, credit });
+    emit(CreditAddedEvent {
+        release_id,
+        release_admin_cap_id,
+        party_id,
+        display_name,
+        role_kind,
+        credit_count_before,
+        credit_count_after,
+        credit_index,
+        credits_record_existed_before,
+        credits_record_exists_after,
+    });
 }
 
 /// Removes a party's credit. Requires the release's admin capability.
 public fun remove_credit(self: &mut Release, cap: &ReleaseAdminCap, party_id: ID) {
-    let release_id = object::id(self);
-    let rc = borrow_mut(self.uid_mut(cap));
-    assert!(rc.credits.contains(&party_id), EPartyNotCredited);
-    let (_, credit) = rc.credits.remove(&party_id);
+    let release_id = object::id(self).to_address();
+    let release_admin_cap_id = object::id(cap).to_address();
+    let party_address = party_id.to_address();
+    let uid = self.uid_mut(cap);
+    let (credit_count_before, credit_count_after, credit_index, credit) = {
+        let rc = borrow_mut(uid);
+        assert!(rc.credits.contains(&party_id), EPartyNotCredited);
+        let credit_count_before = rc.credits.length();
+        let credit_index = rc.credits.get_idx(&party_id);
+        let (_, removed_credit) = rc.credits.remove(&party_id);
+        let credit_count_after = rc.credits.length();
+        (credit_count_before, credit_count_after, credit_index, removed_credit)
+    };
+    let (display_name, role_kind) = snapshot_credit(&credit);
+    // Removing the final entry retains the empty dynamic-field record.
+    let credits_record_existed_before = true;
+    let credits_record_exists_after = df::exists(uid, ExtensionKey());
 
-    emit(CreditRemovedEvent { release_id, party_id, credit });
+    emit(CreditRemovedEvent {
+        release_id,
+        release_admin_cap_id,
+        party_id: party_address,
+        display_name,
+        role_kind,
+        credit_count_before,
+        credit_count_after,
+        credit_index,
+        credits_record_existed_before,
+        credits_record_exists_after,
+    });
 }
 
 // === View Functions ===
@@ -153,14 +219,58 @@ fun borrow_mut_or_init(uid: &mut UID): &mut ReleaseCredits {
     df::borrow_mut(uid, ExtensionKey())
 }
 
+/// Returns the lossless primitive snapshot used by both mutation events. The
+/// display name comes from `Credit`, not from the Party object, and the role
+/// kind is the stable release-role code.
+fun snapshot_credit(credit: &Credit<ReleasePartyRole>): (vector<u8>, u8) {
+    let display_name = *credit.display_name().as_bytes();
+    let roles = credit.roles();
+    let role_kind = release_party_role::event_kind(&roles[0]);
+    (display_name, role_kind)
+}
+
 // === Test Functions ===
 
 #[test_only]
-public fun added_event_fields(e: &CreditAddedEvent): (ID, ID, Credit<ReleasePartyRole>) {
-    (e.release_id, e.party_id, e.credit)
+public fun added_event_fields(e: &CreditAddedEvent):
+    (address, address, address, vector<u8>, u8, u64, u64, u64, bool, bool) {
+    (
+        e.release_id,
+        e.release_admin_cap_id,
+        e.party_id,
+        e.display_name,
+        e.role_kind,
+        e.credit_count_before,
+        e.credit_count_after,
+        e.credit_index,
+        e.credits_record_existed_before,
+        e.credits_record_exists_after,
+    )
 }
 
 #[test_only]
-public fun removed_event_fields(e: &CreditRemovedEvent): (ID, ID, Credit<ReleasePartyRole>) {
-    (e.release_id, e.party_id, e.credit)
+public fun removed_event_fields(e: &CreditRemovedEvent):
+    (address, address, address, vector<u8>, u8, u64, u64, u64, bool, bool) {
+    (
+        e.release_id,
+        e.release_admin_cap_id,
+        e.party_id,
+        e.display_name,
+        e.role_kind,
+        e.credit_count_before,
+        e.credit_count_after,
+        e.credit_index,
+        e.credits_record_existed_before,
+        e.credits_record_exists_after,
+    )
+}
+
+#[test_only]
+public fun added_event_bcs(e: &CreditAddedEvent): vector<u8> {
+    bcs::to_bytes(e)
+}
+
+#[test_only]
+public fun removed_event_bcs(e: &CreditRemovedEvent): vector<u8> {
+    bcs::to_bytes(e)
 }

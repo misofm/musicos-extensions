@@ -82,14 +82,32 @@ fun credits_lifecycle_against_a_published_shared_release() {
 
     let events = event::events_by_type<credits::CreditAddedEvent>();
     assert_eq!(events.length(), 2);
-    let (event_rel_id, event_party_id, event_credit) = credits::added_event_fields(&events[0]);
-    assert_eq!(event_rel_id, rel_id);
-    assert_eq!(event_party_id, artist_id);
-    assert_eq!(event_credit, credit::new(b"Alice".to_string(), vector[rpr::new_primary_role()]));
-    let (event_rel_id, event_party_id, event_credit) = credits::added_event_fields(&events[1]);
-    assert_eq!(event_rel_id, rel_id);
-    assert_eq!(event_party_id, feat_id);
-    assert_eq!(event_credit, credit::new(b"Bob".to_string(), vector[rpr::new_featured_role()]));
+    let (event_rel_id, event_cap_id, event_party_id, display_name, role_kind, count_before,
+        count_after, credit_index, record_before, record_after) =
+        credits::added_event_fields(&events[0]);
+    assert_eq!(event_rel_id, rel_id.to_address());
+    assert_eq!(event_cap_id, object::id(&rel_cap).to_address());
+    assert_eq!(event_party_id, artist_id.to_address());
+    assert_eq!(display_name, b"Alice");
+    assert_eq!(role_kind, 0);
+    assert_eq!(count_before, 0);
+    assert_eq!(count_after, 1);
+    assert_eq!(credit_index, 0);
+    assert!(!record_before);
+    assert!(record_after);
+    let (event_rel_id, event_cap_id, event_party_id, display_name, role_kind, count_before,
+        count_after, credit_index, record_before, record_after) =
+        credits::added_event_fields(&events[1]);
+    assert_eq!(event_rel_id, rel_id.to_address());
+    assert_eq!(event_cap_id, object::id(&rel_cap).to_address());
+    assert_eq!(event_party_id, feat_id.to_address());
+    assert_eq!(display_name, b"Bob");
+    assert_eq!(role_kind, 1);
+    assert_eq!(count_before, 1);
+    assert_eq!(count_after, 2);
+    assert_eq!(credit_index, 1);
+    assert!(record_before);
+    assert!(record_after);
 
     test_scenario::return_shared(artist_party);
     test_scenario::return_shared(feat_party);
@@ -106,11 +124,19 @@ fun credits_lifecycle_against_a_published_shared_release() {
 
     let removed_events = event::events_by_type<credits::CreditRemovedEvent>();
     assert_eq!(removed_events.length(), 1);
-    let (event_rel_id, event_party_id, event_credit) =
+    let (event_rel_id, event_cap_id, event_party_id, display_name, role_kind, count_before,
+        count_after, credit_index, record_before, record_after) =
         credits::removed_event_fields(&removed_events[0]);
-    assert_eq!(event_rel_id, rel_id);
-    assert_eq!(event_party_id, artist_id);
-    assert_eq!(event_credit, credit::new(b"Alice".to_string(), vector[rpr::new_primary_role()]));
+    assert_eq!(event_rel_id, rel_id.to_address());
+    assert_eq!(event_cap_id, object::id(&rel_cap).to_address());
+    assert_eq!(event_party_id, artist_id.to_address());
+    assert_eq!(display_name, b"Alice");
+    assert_eq!(role_kind, 0);
+    assert_eq!(count_before, 2);
+    assert_eq!(count_after, 1);
+    assert_eq!(credit_index, 0);
+    assert!(record_before);
+    assert!(record_after);
 
     test_scenario::return_shared(rel);
 

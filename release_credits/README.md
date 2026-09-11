@@ -29,7 +29,8 @@ The data model is a single `ReleaseCredits` record holding a `VecMap<ID, Credit<
 ## Dependencies
 
 - **`musicos`** — provides `Release` / `ReleaseAdminCap` (the core object being extended and its admin gate).
-- **`partyos`** — provides `Party` (credit subject) and `Credit<phantom T>` (the display-name + roles container parameterized over `ReleasePartyRole`).
+- **`partyos`** — provides `Party`, the credited identity.
+- **`credit`** — provides `Credit<ReleasePartyRole>`, including the display name and role container used by this extension.
 
 ## Build & test
 
