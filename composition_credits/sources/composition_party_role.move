@@ -117,3 +117,20 @@ public fun name(self: &CompositionPartyRole): String {
         CompositionPartyRole::Custom(role_name) => *role_name,
     }
 }
+
+// Encodes a role for composition credit mutation events without constructing a
+// String for canonical roles.  This stays package-visible so the storage/event
+// module can snapshot a role while keeping the enum variants closed to callers.
+// Canonical roles use an empty custom-name slot; a Custom role always carries
+// its exact supplied bytes, including when those bytes spell a canonical name.
+public(package) fun event_encoding(self: &CompositionPartyRole): (u8, vector<u8>) {
+    match (self) {
+        CompositionPartyRole::Adapter => (0, b""),
+        CompositionPartyRole::Arranger => (1, b""),
+        CompositionPartyRole::Composer => (2, b""),
+        CompositionPartyRole::Lyricist => (3, b""),
+        CompositionPartyRole::Songwriter => (4, b""),
+        CompositionPartyRole::Translator => (5, b""),
+        CompositionPartyRole::Custom(role_name) => (6, *role_name.as_bytes()),
+    }
+}

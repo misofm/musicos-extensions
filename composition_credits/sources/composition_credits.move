@@ -15,7 +15,7 @@
 /// `Composition`. Credits are NOT read by the economics — they are attribution.
 module composition_credits::composition_credits;
 
-use composition_credits::composition_party_role::CompositionPartyRole;
+use composition_credits::composition_party_role::{Self, CompositionPartyRole};
 use musicos::composition::{Composition, CompositionAdminCap};
 use credit::credit::Credit;
 use partyos::party::Party;
@@ -62,21 +62,39 @@ public struct CompositionCredits has store {
 
 // === Events ===
 
-/// Emitted when a credit is added for a party on the composition. Carries the
-/// full credit record so an indexer can upsert its row without re-reading the
-/// credits dynamic field.
-public struct CreditAddedEvent has copy, drop {
-    composition_id: ID,
-    party_id: ID,
-    credit: Credit<CompositionPartyRole>,
+/// Emitted when a credit is added for a party on the composition. The payload
+/// is a primitive, bounded snapshot so an indexer can upsert its row without
+/// re-reading the credits dynamic field. `CompositionShare` keeps event
+/// streams for distinct composition-share currencies type-separated.
+public struct CompositionCreditAddedEvent<phantom CompositionShare> has copy, drop {
+    composition_id: address,
+    composition_admin_cap_id: address,
+    party_id: address,
+    display_name: vector<u8>,
+    role_kinds: vector<u8>,
+    role_custom_names: vector<vector<u8>>,
+    credit_count_before: u64,
+    credit_count_after: u64,
+    credit_index: u64,
+    credits_record_existed_before: bool,
+    credits_record_exists_after: bool,
 }
 
-/// Emitted when a party's credit is removed from the composition. Carries the
-/// removed record so an indexer can delete its row without re-reading state.
-public struct CreditRemovedEvent has copy, drop {
-    composition_id: ID,
-    party_id: ID,
-    credit: Credit<CompositionPartyRole>,
+/// Emitted when a party's credit is removed from the composition. The payload
+/// contains the removed credit snapshot and insertion-order index so an
+/// indexer can delete its row without re-reading state.
+public struct CompositionCreditRemovedEvent<phantom CompositionShare> has copy, drop {
+    composition_id: address,
+    composition_admin_cap_id: address,
+    party_id: address,
+    display_name: vector<u8>,
+    role_kinds: vector<u8>,
+    role_custom_names: vector<vector<u8>>,
+    credit_count_before: u64,
+    credit_count_after: u64,
+    credit_index: u64,
+    credits_record_existed_before: bool,
+    credits_record_exists_after: bool,
 }
 
 // === Public Functions ===
@@ -95,14 +113,43 @@ public fun add_credit<CompositionShare>(
     // guarantees at least one role for every value that can exist.
     assert!(credit.roles().length() <= MAX_ROLES_PER_CREDIT, EExceedsMaxRoles);
 
-    let composition_id = object::id(self);
-    let party_id = object::id(party);
-    let cc = borrow_mut_or_init(self.uid_mut(cap));
-    assert!(cc.credits.length() < MAX_CREDITS, EMaxCreditsExceeded);
-    assert!(!cc.credits.contains(&party_id), EPartyAlreadyCredited);
-    cc.credits.insert(party_id, credit);
+    let composition_id = object::id(self).to_address();
+    let composition_admin_cap_id = object::id(cap).to_address();
+    let party_id = object::id(party).to_address();
+    let party_key = object::id(party);
+    let uid = self.uid_mut(cap);
+    let credits_record_existed_before = df::exists(uid, ExtensionKey());
+    let (display_name, role_kinds, role_custom_names) = encode_credit(&credit);
 
-    emit(CreditAddedEvent { composition_id, party_id, credit });
+    let mut credit_count_before = 0;
+    let mut credit_count_after = 0;
+    let mut credit_index = 0;
+    {
+        let cc = borrow_mut_or_init(uid);
+        credit_count_before = cc.credits.length();
+        // Keep the existing guard order: at capacity, even a duplicate party
+        // reports EMaxCreditsExceeded rather than EPartyAlreadyCredited.
+        assert!(credit_count_before < MAX_CREDITS, EMaxCreditsExceeded);
+        assert!(!cc.credits.contains(&party_key), EPartyAlreadyCredited);
+        credit_index = credit_count_before;
+        cc.credits.insert(party_key, credit);
+        credit_count_after = cc.credits.length();
+    };
+
+    let credits_record_exists_after = df::exists(uid, ExtensionKey());
+    emit(CompositionCreditAddedEvent<CompositionShare> {
+        composition_id,
+        composition_admin_cap_id,
+        party_id,
+        display_name,
+        role_kinds,
+        role_custom_names,
+        credit_count_before,
+        credit_count_after,
+        credit_index,
+        credits_record_existed_before,
+        credits_record_exists_after,
+    });
 }
 
 /// Removes a party's credit. Requires the composition's admin capability.
@@ -111,12 +158,39 @@ public fun remove_credit<CompositionShare>(
     cap: &CompositionAdminCap<CompositionShare>,
     party_id: ID,
 ) {
-    let composition_id = object::id(self);
-    let cc = borrow_mut(self.uid_mut(cap));
-    assert!(cc.credits.contains(&party_id), EPartyNotCredited);
-    let (_, credit) = cc.credits.remove(&party_id);
+    let composition_id = object::id(self).to_address();
+    let composition_admin_cap_id = object::id(cap).to_address();
+    let party_address = party_id.to_address();
+    let uid = self.uid_mut(cap);
+    let (credit_count_before, credit_count_after, credit_index, credit) = {
+        let cc = borrow_mut(uid);
+        // Preserve the existing no-record then party-membership guard order.
+        assert!(cc.credits.contains(&party_id), EPartyNotCredited);
+        let credit_count_before = cc.credits.length();
+        let credit_index = cc.credits.get_idx(&party_id);
+        let (_, removed_credit) = cc.credits.remove(&party_id);
+        let credit_count_after = cc.credits.length();
+        (credit_count_before, credit_count_after, credit_index, removed_credit)
+    };
 
-    emit(CreditRemovedEvent { composition_id, party_id, credit });
+    let (display_name, role_kinds, role_custom_names) = encode_credit(&credit);
+    let credits_record_existed_before = true;
+    // Removing the final entry intentionally retains the empty dynamic-field
+    // record, so this remains true for every successful removal.
+    let credits_record_exists_after = df::exists(uid, ExtensionKey());
+    emit(CompositionCreditRemovedEvent<CompositionShare> {
+        composition_id,
+        composition_admin_cap_id,
+        party_id: party_address,
+        display_name,
+        role_kinds,
+        role_custom_names,
+        credit_count_before,
+        credit_count_after,
+        credit_index,
+        credits_record_existed_before,
+        credits_record_exists_after,
+    });
 }
 
 // === View Functions ===
@@ -134,6 +208,28 @@ public fun credits<CompositionShare>(
 }
 
 // === Private Functions ===
+
+/// Returns the bounded primitive snapshot used by both mutation events. Role
+/// order is intentionally preserved because it is part of the credit's
+/// display semantics. Canonical role names occupy an empty custom-name slot;
+/// custom names retain their exact bytes, even when they spell a canonical
+/// role name.
+fun encode_credit(
+    credit: &Credit<CompositionPartyRole>,
+): (vector<u8>, vector<u8>, vector<vector<u8>>) {
+    let display_name = *credit.display_name().as_bytes();
+    let mut role_kinds = vector[];
+    let mut role_custom_names = vector[];
+    let roles = credit.roles();
+    let mut i = 0;
+    while (i < roles.length()) {
+        let (role_kind, custom_name) = composition_party_role::event_encoding(&roles[i]);
+        role_kinds.push_back(role_kind);
+        role_custom_names.push_back(custom_name);
+        i = i + 1;
+    };
+    (display_name, role_kinds, role_custom_names)
+}
 
 fun borrow(uid: &UID): &CompositionCredits {
     assert!(df::exists(uid, ExtensionKey()), ENoCredits);
@@ -161,11 +257,63 @@ fun borrow_mut_or_init(uid: &mut UID): &mut CompositionCredits {
 // === Test Functions ===
 
 #[test_only]
-public fun added_event_fields(e: &CreditAddedEvent): (ID, ID, Credit<CompositionPartyRole>) {
-    (e.composition_id, e.party_id, e.credit)
+public fun added_event_fields<CompositionShare>(
+    e: &CompositionCreditAddedEvent<CompositionShare>,
+): (
+    address,
+    address,
+    address,
+    vector<u8>,
+    vector<u8>,
+    vector<vector<u8>>,
+    u64,
+    u64,
+    u64,
+    bool,
+    bool,
+) {
+    (
+        e.composition_id,
+        e.composition_admin_cap_id,
+        e.party_id,
+        e.display_name,
+        e.role_kinds,
+        e.role_custom_names,
+        e.credit_count_before,
+        e.credit_count_after,
+        e.credit_index,
+        e.credits_record_existed_before,
+        e.credits_record_exists_after,
+    )
 }
 
 #[test_only]
-public fun removed_event_fields(e: &CreditRemovedEvent): (ID, ID, Credit<CompositionPartyRole>) {
-    (e.composition_id, e.party_id, e.credit)
+public fun removed_event_fields<CompositionShare>(
+    e: &CompositionCreditRemovedEvent<CompositionShare>,
+): (
+    address,
+    address,
+    address,
+    vector<u8>,
+    vector<u8>,
+    vector<vector<u8>>,
+    u64,
+    u64,
+    u64,
+    bool,
+    bool,
+) {
+    (
+        e.composition_id,
+        e.composition_admin_cap_id,
+        e.party_id,
+        e.display_name,
+        e.role_kinds,
+        e.role_custom_names,
+        e.credit_count_before,
+        e.credit_count_after,
+        e.credit_index,
+        e.credits_record_existed_before,
+        e.credits_record_exists_after,
+    )
 }
