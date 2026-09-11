@@ -36,9 +36,9 @@ recording has none.
 ## API
 
 All writes require the recording's `&RecordingAdminCap<RecordingShare>` and go
-through `recording::uid_mut(cap)`; the cap is bound to its recording by type,
-so there is no runtime authorization abort — a cap for another recording is a
-different type and does not compile. Views are permissionless.
+through `recording::uid_mut(cap)`. This matches the cap's `RecordingShare` type
+only; it does not authenticate a cap object's runtime value or id. Views are
+permissionless.
 
 ### Writes
 
@@ -56,11 +56,84 @@ different type and does not compile. Views are permissionless.
 
 ## Events
 
-| Event | When | Payload |
-|---|---|---|
-| `GenreAddedEvent` | A genre is appended (`add_genre`) | `recording_id`, `genre_id` |
-| `GenreRemovedEvent` | A genre is removed (`remove_genre`) | `recording_id`, `genre_id` |
-| `GenresClearedEvent` | The last genre is removed and the field is dropped, or `clear_genres` removes an attached list outright | `recording_id` |
+All events are phantom-typed as
+`<RecordingShare, CompositionShare>`, use actual primitive addresses, and are
+emitted only after the corresponding dynamic-field write succeeds. Their BCS
+fields are declared in this exact order.
+
+`RecordingGenreAddedEvent`:
+
+```text
+recording_id: address
+composition_id: address
+admin_cap_id: address
+genre_id: address
+genre_name: vector<u8>
+genre_index: u64
+genres_before: vector<address>
+genres_after: vector<address>
+genre_count_before: u64
+genre_count_after: u64
+field_existed_before: bool
+field_exists_after: bool
+had_primary_before: bool
+has_primary_after: bool
+primary_genre_id_before: address
+primary_genre_id_after: address
+primary_changed: bool
+```
+
+`RecordingGenreRemovedEvent` has the same fields except `genre_name`, in this
+order: `recording_id`, `composition_id`, `admin_cap_id`, `genre_id`,
+`genre_index`, `genres_before`, `genres_after`, `genre_count_before`,
+`genre_count_after`, `field_existed_before`, `field_exists_after`,
+`had_primary_before`, `has_primary_after`, `primary_genre_id_before`,
+`primary_genre_id_after`, `primary_changed`.
+
+`RecordingGenresClearedEvent`:
+
+```text
+recording_id: address
+composition_id: address
+admin_cap_id: address
+clear_cause: u8
+trigger_genre_id: address
+genres_before: vector<address>
+genres_after: vector<address>
+genre_count_before: u64
+genre_count_after: u64
+field_existed_before: bool
+field_exists_after: bool
+had_primary_before: bool
+has_primary_after: bool
+primary_genre_id_before: address
+primary_genre_id_after: address
+primary_changed: bool
+```
+
+`clear_cause = 0` is explicit `clear_genres` with `trigger_genre_id = @0x0`.
+`clear_cause = 1` is the cascade after removing the last genre, with the
+removed id as `trigger_genre_id`. The last removal emits `Removed` first with
+`field_existed_before = field_exists_after = true` and snapshots `[A] -> []`,
+then emits the cause-1 `Cleared` event after deleting the field. An absent
+explicit clear is silent. `primary_changed` is true exactly when primary
+presence or primary id changes.
+
+## Event bounds
+
+For `b` and `a` snapshot lengths and an `n`-byte raw genre name:
+
+- Added is `224 + n + 32(b + a)` bytes; its maximum is 640 bytes at `n = 64`,
+  `b = 5`, `a = 6`.
+- Removed is `223 + 32(b + a)` bytes; its maximum is 575 bytes for a six-item
+  list removing one entry.
+- Cleared is `216 + 32(b + a)` bytes; its maximum is 408 bytes for a six-item
+  list cleared to empty.
+
+The last-removal pair is 255 bytes for Removed (`b = 1`, `a = 0`) plus 216
+bytes for the cascading Cleared event. These are event-payload bounds; the
+full snapshots intentionally add serialization and transaction gas, so clients
+should budget for the list size and name length.
 
 ## Errors
 
@@ -73,10 +146,10 @@ different type and does not compile. Views are permissionless.
 ## Dependencies
 
 - [`musicos`](https://github.com/misofm/musicos) at
-  `4fed48b2b5632122fb677d742881259c65b1bc78` — `Recording` and
+  `4cb3c926b1f9bb5103f3f7194e4e1e34b6c87840` — `Recording` and
   `RecordingAdminCap`.
 - [`genre`](https://github.com/misofm/genre) at
-  `09f6882b57b19498f36fa15840cd7ed61094dc41` — the canonical shared genre
+  `cddf9491426723e2c468cebf40fb4231d9fb0d5a` — the canonical shared genre
   vocabulary.
 
 Both are exact Git pins; this manifest has no local-path dependencies.
@@ -93,9 +166,10 @@ Both are exact Git pins; this manifest has no local-path dependencies.
   each id resolves to a real entry. These are the same ids `release_genre`
   and `party_genre` use, so recording genres join cleanly against release and
   party metadata.
-- **Events are change signals.** Re-read `genres()` on any of the four events;
-  `genre_id` rides along as a small stable pointer, but the payload is not the
-  state.
+- **Events are replayable transitions.** The Added, Removed, and Cleared
+  payloads carry ordered primitive snapshots, counts, field lifecycle flags,
+  and primary metadata. Consumers can replay them directly or re-read
+  `genres()` after any event; Added also carries the raw canonical name.
 - **Primary is index 0, and it is protocol state here** — unlike `party_genre`,
   which has no ranking concept at all, index 0 of `genres()` is a first-class,
   cap-written fact, not a client convention over insertion order.

@@ -74,8 +74,8 @@
 /// invariant above).
 module recording_genre::recording_genre;
 
-use genre::genre::Genre;
-use musicos::recording::{Recording, RecordingAdminCap};
+use genre::genre::{Self, Genre};
+use musicos::recording::{Self, Recording, RecordingAdminCap};
 use sui::dynamic_field as df;
 use sui::event::emit;
 
@@ -104,22 +104,69 @@ public struct ExtensionKey() has copy, drop, store;
 // === Events ===
 
 /// Emitted when a genre is appended (`add_genre`).
-public struct GenreAddedEvent has copy, drop {
-    recording_id: ID,
-    genre_id: ID,
+public struct RecordingGenreAddedEvent<phantom RecordingShare, phantom CompositionShare>
+    has copy, drop {
+    recording_id: address,
+    composition_id: address,
+    admin_cap_id: address,
+    genre_id: address,
+    genre_name: vector<u8>,
+    genre_index: u64,
+    genres_before: vector<address>,
+    genres_after: vector<address>,
+    genre_count_before: u64,
+    genre_count_after: u64,
+    field_existed_before: bool,
+    field_exists_after: bool,
+    had_primary_before: bool,
+    has_primary_after: bool,
+    primary_genre_id_before: address,
+    primary_genre_id_after: address,
+    primary_changed: bool,
 }
 
 /// Emitted when a genre is removed (`remove_genre`).
-public struct GenreRemovedEvent has copy, drop {
-    recording_id: ID,
-    genre_id: ID,
+public struct RecordingGenreRemovedEvent<phantom RecordingShare, phantom CompositionShare>
+    has copy, drop {
+    recording_id: address,
+    composition_id: address,
+    admin_cap_id: address,
+    genre_id: address,
+    genre_index: u64,
+    genres_before: vector<address>,
+    genres_after: vector<address>,
+    genre_count_before: u64,
+    genre_count_after: u64,
+    field_existed_before: bool,
+    field_exists_after: bool,
+    had_primary_before: bool,
+    has_primary_after: bool,
+    primary_genre_id_before: address,
+    primary_genre_id_after: address,
+    primary_changed: bool,
 }
 
 /// Emitted when the recording's genre list is dropped entirely — either
 /// because `remove_genre` removed the last genre, or because `clear_genres`
 /// removed an attached list outright.
-public struct GenresClearedEvent has copy, drop {
-    recording_id: ID,
+public struct RecordingGenresClearedEvent<phantom RecordingShare, phantom CompositionShare>
+    has copy, drop {
+    recording_id: address,
+    composition_id: address,
+    admin_cap_id: address,
+    clear_cause: u8,
+    trigger_genre_id: address,
+    genres_before: vector<address>,
+    genres_after: vector<address>,
+    genre_count_before: u64,
+    genre_count_after: u64,
+    field_existed_before: bool,
+    field_exists_after: bool,
+    had_primary_before: bool,
+    has_primary_after: bool,
+    primary_genre_id_before: address,
+    primary_genre_id_after: address,
+    primary_changed: bool,
 }
 
 // === Public Functions ===
@@ -134,23 +181,94 @@ public fun add_genre<RecordingShare, CompositionShare>(
     genre: &Genre,
 ) {
     // Read the id before `uid_mut` so we don't need `self` again afterward.
-    let recording_id = object::id(self);
-    let genre_id = object::id(genre);
-    if (df::exists(self.uid(), ExtensionKey())) {
+    let recording_id = object::id(self).to_address();
+    let composition_id = recording::composition_id(self).to_address();
+    let admin_cap_id = object::id(cap).to_address();
+    let genre_object_id = object::id(genre);
+    let genre_id = genre_object_id.to_address();
+    let genre_name = *genre::name(genre).as_bytes();
+    let field_existed_before = df::exists(self.uid(), ExtensionKey());
+    let (
+        genre_index,
+        genres_before,
+        genres_after,
+        genre_count_before,
+        genre_count_after,
+        had_primary_before,
+        has_primary_after,
+        primary_genre_id_before,
+        primary_genre_id_after,
+        primary_changed,
+    ) = if (field_existed_before) {
         // The immutable borrow above ends here, before `uid_mut` is taken.
-        let genres: &mut vector<ID> = df::borrow_mut(self.uid_mut(cap), ExtensionKey());
-        assert!(!genres.contains(&genre_id), EDuplicateGenre);
+        let uid = self.uid_mut(cap);
+        let genres: &mut vector<ID> = df::borrow_mut(uid, ExtensionKey());
+        let before = *genres;
+        let genres_before = ids_to_addresses(&before);
+        let genre_count_before = before.length();
+        let (had_primary, primary_id_before) = primary_state(&before);
+        assert!(!genres.contains(&genre_object_id), EDuplicateGenre);
         assert!(genres.length() < MAX_GENRES, EMaxGenres);
-        genres.push_back(genre_id);
+        let genre_index = genres.length();
+        genres.push_back(genre_object_id);
+        let after = *genres;
+        let genres_after = ids_to_addresses(&after);
+        let genre_count_after = after.length();
+        let (has_primary, primary_id_after) = primary_state(&after);
+        let primary_changed = had_primary != has_primary
+            || primary_id_before != primary_id_after;
+        (
+            genre_index,
+            genres_before,
+            genres_after,
+            genre_count_before,
+            genre_count_after,
+            had_primary,
+            has_primary,
+            primary_id_before,
+            primary_id_after,
+            primary_changed,
+        )
     } else {
-        df::add(self.uid_mut(cap), ExtensionKey(), vector[genre_id]);
+        let uid = self.uid_mut(cap);
+        df::add(uid, ExtensionKey(), vector[genre_object_id]);
+        (
+            0,
+            vector[],
+            vector[genre_id],
+            0,
+            1,
+            false,
+            true,
+            @0x0,
+            genre_id,
+            true,
+        )
     };
-    emit(GenreAddedEvent { recording_id, genre_id });
+    emit(RecordingGenreAddedEvent<RecordingShare, CompositionShare> {
+        recording_id,
+        composition_id,
+        admin_cap_id,
+        genre_id,
+        genre_name,
+        genre_index,
+        genres_before,
+        genres_after,
+        genre_count_before,
+        genre_count_after,
+        field_existed_before,
+        field_exists_after: true,
+        had_primary_before,
+        has_primary_after,
+        primary_genre_id_before,
+        primary_genre_id_after,
+        primary_changed,
+    });
 }
 
 /// Removes a genre by id. If it was the primary, the next genre in the list
 /// becomes primary. Removing the last remaining genre drops the field
-/// entirely and additionally emits `GenresClearedEvent`. Aborts
+/// entirely and additionally emits `RecordingGenresClearedEvent`. Aborts
 /// `EGenreNotPresent` if the genre is not assigned — including when nothing
 /// is attached at all.
 public fun remove_genre<RecordingShare, CompositionShare>(
@@ -158,35 +276,105 @@ public fun remove_genre<RecordingShare, CompositionShare>(
     cap: &RecordingAdminCap<RecordingShare>,
     genre_id: ID,
 ) {
-    let recording_id = object::id(self);
+    let recording_id = object::id(self).to_address();
+    let composition_id = recording::composition_id(self).to_address();
+    let admin_cap_id = object::id(cap).to_address();
+    let genre_address = genre_id.to_address();
     assert!(df::exists(self.uid(), ExtensionKey()), EGenreNotPresent);
     let uid = self.uid_mut(cap);
     let genres: &mut vector<ID> = df::borrow_mut(uid, ExtensionKey());
     let (found, idx) = genres.index_of(&genre_id);
     assert!(found, EGenreNotPresent);
+    let before = *genres;
+    let genres_before = ids_to_addresses(&before);
+    let genre_count_before = before.length();
+    let (had_primary_before, primary_genre_id_before) = primary_state(&before);
     genres.remove(idx);
+    let after = *genres;
+    let genres_after = ids_to_addresses(&after);
+    let genre_count_after = after.length();
+    let (has_primary_after, primary_genre_id_after) = primary_state(&after);
     // Last read of `genres` — bind the result before it goes out of scope so
     // `uid` is free to be reused below for the field removal.
-    let now_empty = genres.is_empty();
-    emit(GenreRemovedEvent { recording_id, genre_id });
+    let now_empty = after.is_empty();
+    let primary_changed = had_primary_before != has_primary_after
+        || primary_genre_id_before != primary_genre_id_after;
+    emit(RecordingGenreRemovedEvent<RecordingShare, CompositionShare> {
+        recording_id,
+        composition_id,
+        admin_cap_id,
+        genre_id: genre_address,
+        genre_index: idx,
+        genres_before,
+        genres_after,
+        genre_count_before,
+        genre_count_after,
+        field_existed_before: true,
+        field_exists_after: true,
+        had_primary_before,
+        has_primary_after,
+        primary_genre_id_before,
+        primary_genre_id_after,
+        primary_changed,
+    });
     if (now_empty) {
         let _: vector<ID> = df::remove(uid, ExtensionKey()); // vector<ID> has drop
-        emit(GenresClearedEvent { recording_id });
+        emit(RecordingGenresClearedEvent<RecordingShare, CompositionShare> {
+            recording_id,
+            composition_id,
+            admin_cap_id,
+            clear_cause: 1,
+            trigger_genre_id: genre_address,
+            genres_before: vector[],
+            genres_after: vector[],
+            genre_count_before: 0,
+            genre_count_after: 0,
+            field_existed_before: true,
+            field_exists_after: false,
+            had_primary_before: false,
+            has_primary_after: false,
+            primary_genre_id_before: @0x0,
+            primary_genre_id_after: @0x0,
+            primary_changed: false,
+        });
     }
 }
 
 /// Removes the recording's entire genre list. A no-op when nothing is
-/// attached. Emits `GenresClearedEvent` only when a list was actually
+/// attached. Emits `RecordingGenresClearedEvent` only when a list was actually
 /// removed.
 public fun clear_genres<RecordingShare, CompositionShare>(
     self: &mut Recording<RecordingShare, CompositionShare>,
     cap: &RecordingAdminCap<RecordingShare>,
 ) {
-    let recording_id = object::id(self);
+    let recording_id = object::id(self).to_address();
+    let composition_id = recording::composition_id(self).to_address();
+    let admin_cap_id = object::id(cap).to_address();
     let uid = self.uid_mut(cap);
     if (df::exists(uid, ExtensionKey())) {
-        let _: vector<ID> = df::remove(uid, ExtensionKey());
-        emit(GenresClearedEvent { recording_id });
+        let removed: vector<ID> = df::remove(uid, ExtensionKey());
+        let genres_before = ids_to_addresses(&removed);
+        let genre_count_before = removed.length();
+        let (had_primary_before, primary_genre_id_before) = primary_state(&removed);
+        emit(RecordingGenresClearedEvent<RecordingShare, CompositionShare> {
+            recording_id,
+            composition_id,
+            admin_cap_id,
+            clear_cause: 0,
+            trigger_genre_id: @0x0,
+            genres_before,
+            genres_after: vector[],
+            genre_count_before,
+            genre_count_after: 0,
+            field_existed_before: true,
+            field_exists_after: false,
+            had_primary_before,
+            has_primary_after: false,
+            primary_genre_id_before,
+            primary_genre_id_after: @0x0,
+            primary_changed: had_primary_before
+                || primary_genre_id_before != @0x0,
+        });
     }
 }
 
@@ -207,21 +395,72 @@ public fun genres<RecordingShare, CompositionShare>(
 
 // === Test Functions ===
 
-// Event fields are module-private and carry no other public reader, so tests
-// in another module need these accessors to assert the full payload rather
-// than just "an event fired".
+// Event fields are module-private. Test-only BCS accessors let the tests peel
+// every primitive in declaration order without adding production readers.
 
 #[test_only]
-public fun genre_added_event_fields(e: &GenreAddedEvent): (ID, ID) {
-    (e.recording_id, e.genre_id)
+public fun added_event_bcs<RecordingShare, CompositionShare>(
+    e: &RecordingGenreAddedEvent<RecordingShare, CompositionShare>,
+): vector<u8> {
+    sui::bcs::to_bytes(e)
 }
 
 #[test_only]
-public fun genre_removed_event_fields(e: &GenreRemovedEvent): (ID, ID) {
-    (e.recording_id, e.genre_id)
+public fun removed_event_bcs<RecordingShare, CompositionShare>(
+    e: &RecordingGenreRemovedEvent<RecordingShare, CompositionShare>,
+): vector<u8> {
+    sui::bcs::to_bytes(e)
 }
 
 #[test_only]
-public fun genres_cleared_event_recording_id(e: &GenresClearedEvent): ID {
-    e.recording_id
+public fun cleared_event_bcs<RecordingShare, CompositionShare>(
+    e: &RecordingGenresClearedEvent<RecordingShare, CompositionShare>,
+): vector<u8> {
+    sui::bcs::to_bytes(e)
+}
+
+#[test_only]
+public fun genre_added_event_fields<RecordingShare, CompositionShare>(
+    e: &RecordingGenreAddedEvent<RecordingShare, CompositionShare>,
+): (ID, ID) {
+    (object::id_from_address(e.recording_id), object::id_from_address(e.genre_id))
+}
+
+#[test_only]
+public fun genre_removed_event_fields<RecordingShare, CompositionShare>(
+    e: &RecordingGenreRemovedEvent<RecordingShare, CompositionShare>,
+): (ID, ID) {
+    (object::id_from_address(e.recording_id), object::id_from_address(e.genre_id))
+}
+
+#[test_only]
+public fun genres_cleared_event_recording_id<RecordingShare, CompositionShare>(
+    e: &RecordingGenresClearedEvent<RecordingShare, CompositionShare>,
+): ID {
+    object::id_from_address(e.recording_id)
+}
+
+#[test_only]
+public fun add_empty_field_for_testing<RecordingShare, CompositionShare>(
+    self: &mut Recording<RecordingShare, CompositionShare>,
+    cap: &RecordingAdminCap<RecordingShare>,
+) {
+    let empty: vector<ID> = vector[];
+    df::add(self.uid_mut(cap), ExtensionKey(), empty);
+}
+
+// === Private Functions ===
+
+fun ids_to_addresses(values: &vector<ID>): vector<address> {
+    let mut result = vector[];
+    values.do_ref!(|value| result.push_back(value.to_address()));
+    result
+}
+
+fun primary_state(values: &vector<ID>): (bool, address) {
+    if (values.is_empty()) {
+        (false, @0x0)
+    } else {
+        (true, values[0].to_address())
+    }
 }

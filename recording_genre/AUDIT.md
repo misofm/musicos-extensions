@@ -1,6 +1,6 @@
 # Security review — `recording_genre`
 
-Reviewed 2026-09-08 for immutable publication. Verdict: no exploitable
+Reviewed 2026-09-11 for immutable publication. Verdict: no exploitable
 findings in the reviewed source.
 
 ## Reviewed surface
@@ -16,20 +16,18 @@ use `df::exists` directly against the recording's `UID`.
 
 ## Dependency provenance
 
-`Move.toml` pins `genre` at `09f6882b57b19498f36fa15840cd7ed61094dc41` and
-`musicos` at `4fed48b2b5632122fb677d742881259c65b1bc78`. The generated Testnet and
-Mainnet lock graphs agree on every transitive dependency (`bps` at
-`4ca1972a67d35c972ca567de7b08315e3778e52b`, `share` at
-`4999b7d639131fbd5b416b14ca798c28c0a6107d`) with no duplicate package aliases.
+`Move.toml` pins `genre` at `cddf9491426723e2c468cebf40fb4231d9fb0d5a` and
+`musicos` at `4cb3c926b1f9bb5103f3f7194e4e1e34b6c87840`. The checked-in lock
+graph is retained byte-for-byte from the publication baseline; no manifest,
+lock, or publication metadata was changed for this event-only revision.
 
 ## Threat model and findings
 
 The relevant threat is an unauthorized change to a recording's genre list.
 `add_genre`, `remove_genre`, and `clear_genres` all require the matching
-`RecordingAdminCap<RecordingShare>` through `Recording::uid_mut`, and the cap
-is bound to its recording by type — one share currency is minted per
-recording, so a cap for a different recording is a different type and cannot
-be substituted at compile time.
+`RecordingAdminCap<RecordingShare>` through `Recording::uid_mut`. This is
+type-only authorization: the cap type must match, while the cap object's
+runtime value or id is not authenticated by `uid_mut`.
 
 Vocabulary integrity: every write that adds a genre to the list takes the
 corresponding `&Genre` object by reference, so only ids that resolve to a real
@@ -57,13 +55,13 @@ Vault, Action, or Plugin surface.
 
 ## Evidence
 
-With `sui 1.78.1-722ac4fcf484`, strict Testnet and Mainnet lint,
-warnings-as-errors builds pass clean, and tests pass 18/18. The production
-module (`recording_genre::recording_genre`) reports 100.00% coverage over its
-four public functions, including the published/shared-object lifecycle,
-first-add, append-order, capacity and duplicate aborts, absent-genre removal
-aborts (with and without an attached field), primary-promotion-on-removal,
-field reclamation on last-removal, the clear-when-absent no-op, reorder via
-clear-and-re-add, post-clear re-attachment, and per-recording isolation —
-each case now asserted directly against `genres()` rather than through
-either of the two removed views.
+With the available Sui toolchain, strict Testnet and Mainnet lint and
+warnings-as-errors builds pass clean, and all 24 tests pass in both networks.
+The production module (`recording_genre::recording_genre`) reports 100.00%
+raw coverage over its four public functions, including exact full-payload BCS
+peeling/replay, append and order-preserving removal, primary promotion,
+last-removal Removed-then-Cleared cascading, explicit/absent clear separation,
+64-byte names, six-item bounds, duplicate-before-capacity and seventh-item
+guards, type-only cap semantics, unrelated dynamic-field preservation,
+phantom event isolation, the published/shared-object lifecycle, and
+post-clear re-attachment.

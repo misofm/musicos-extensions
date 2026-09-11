@@ -9,11 +9,10 @@
 /// id stands in for a real `Composition` — `recording::new_for_testing` only
 /// needs a composition `ID`, not a live `Composition` object.
 ///
-/// `RecordingAdminCap<RecordingShare>` is bound to its recording by type, not
-/// by a runtime id check (`recording::uid_mut` takes the cap as `_`). One
-/// share currency is minted per recording in production, so a "wrong cap,
-/// same type" scenario would be a compile error, not a runtime abort — there
-/// is deliberately no such test here, unlike the release side, where
+/// `RecordingAdminCap<RecordingShare>` is matched by type, not by a runtime id
+/// check (`recording::uid_mut` ignores the cap value). A mismatched share type
+/// cannot compile; a same-type cap value is not runtime-authenticated. There is
+/// deliberately no wrong-cap test here, unlike the release side, where
 /// `release::uid_mut` runtime-checks the cap and a wrong-cap abort is a real,
 /// testable case.
 #[test_only]
@@ -79,7 +78,7 @@ fun admin_classifies_a_published_shared_recording_and_a_stranger_reads_it() {
 
     assert_eq!(rg::genres(&rec), vector[b, a]);
 
-    let added_events = event::events_by_type<rg::GenreAddedEvent>();
+    let added_events = event::events_by_type<rg::RecordingGenreAddedEvent<REC, COMP>>();
     assert_eq!(added_events.length(), 2);
     let (added_id_0, added_genre_0) = rg::genre_added_event_fields(&added_events[0]);
     assert_eq!(added_id_0, rec_id);
@@ -103,7 +102,7 @@ fun admin_classifies_a_published_shared_recording_and_a_stranger_reads_it() {
     rg::clear_genres(&mut rec, &rec_cap);
     assert!(rg::genres(&rec).is_empty());
 
-    let cleared_events = event::events_by_type<rg::GenresClearedEvent>();
+    let cleared_events = event::events_by_type<rg::RecordingGenresClearedEvent<REC, COMP>>();
     assert_eq!(cleared_events.length(), 1);
     assert_eq!(rg::genres_cleared_event_recording_id(&cleared_events[0]), rec_id);
 
