@@ -29,10 +29,11 @@
 /// attesting, and belongs in the ingested `Audio` rather than here.
 module recording_master_reference::recording_master_reference;
 
-use musicos::recording::{Recording, RecordingAdminCap};
+use musicos::recording::{Self, Recording, RecordingAdminCap};
 use ori::data::WalrusBlob;
 use sui::dynamic_field as df;
 use sui::event::emit;
+use sui::hash::blake2b256;
 
 // === Errors ===
 
@@ -50,19 +51,34 @@ public struct ExtensionKey() has copy, drop, store;
 
 // === Events ===
 
-/// Emitted when a master reference is set or replaced, carrying the reference
-/// itself. What is playable for a recording changes when this does, so an
-/// indexer updates its row straight from the event rather than re-reading the
-/// object on its next sweep.
-public struct MasterReferenceSetEvent has copy, drop {
-    recording_id: ID,
-    reference: WalrusBlob,
+/// Emitted when a master reference is set or replaced. The primitive previous
+/// and current snapshots let an indexer replay the transition without reading
+/// the dynamic field.
+public struct RecordingMasterReferenceSetEvent<phantom RecordingShare, phantom CompositionShare>
+    has copy, drop {
+    recording_id: address,
+    composition_id: address,
+    had_master_reference: bool,
+    previous_blob_id: u256,
+    previous_is_encrypted: bool,
+    previous_sealed_dek_length: u64,
+    previous_sealed_dek_digest: vector<u8>,
+    blob_id: u256,
+    is_encrypted: bool,
+    sealed_dek_length: u64,
+    sealed_dek_digest: vector<u8>,
 }
 
 /// Emitted when a master reference is removed — including on the migration to an
 /// attested master, which is the expected reason.
-public struct MasterReferenceUnsetEvent has copy, drop {
-    recording_id: ID,
+public struct RecordingMasterReferenceClearedEvent<phantom RecordingShare, phantom CompositionShare>
+    has copy, drop {
+    recording_id: address,
+    composition_id: address,
+    removed_blob_id: u256,
+    removed_is_encrypted: bool,
+    removed_sealed_dek_length: u64,
+    removed_sealed_dek_digest: vector<u8>,
 }
 
 // === Public Functions ===
@@ -77,14 +93,41 @@ public fun set_master_reference<RecordingShare, CompositionShare>(
     cap: &RecordingAdminCap<RecordingShare>,
     reference: WalrusBlob,
 ) {
-    let recording_id = object::id(self);
+    let recording_id = object::id(self).to_address();
+    let composition_id = recording::composition_id(self).to_address();
     let uid = self.uid_mut(cap);
-    if (df::exists(uid, ExtensionKey())) {
+    let had_master_reference = df::exists(uid, ExtensionKey());
+    let mut previous_blob_id = 0;
+    let mut previous_is_encrypted = false;
+    let mut previous_sealed_dek_length = 0;
+    let mut previous_sealed_dek_digest = vector[];
+    if (had_master_reference) {
+        let previous = df::borrow(uid, ExtensionKey());
+        (
+            previous_blob_id,
+            previous_is_encrypted,
+            previous_sealed_dek_length,
+            previous_sealed_dek_digest,
+        ) = snapshot(previous);
         *df::borrow_mut(uid, ExtensionKey()) = reference;
     } else {
         df::add(uid, ExtensionKey(), reference);
     };
-    emit(MasterReferenceSetEvent { recording_id, reference });
+    let current = df::borrow(uid, ExtensionKey());
+    let (blob_id, is_encrypted, sealed_dek_length, sealed_dek_digest) = snapshot(current);
+    emit(RecordingMasterReferenceSetEvent<RecordingShare, CompositionShare> {
+        recording_id,
+        composition_id,
+        had_master_reference,
+        previous_blob_id,
+        previous_is_encrypted,
+        previous_sealed_dek_length,
+        previous_sealed_dek_digest,
+        blob_id,
+        is_encrypted,
+        sealed_dek_length,
+        sealed_dek_digest,
+    });
 }
 
 /// Removes the master reference, if any. Idempotent.
@@ -96,11 +139,21 @@ public fun unset_master_reference<RecordingShare, CompositionShare>(
     self: &mut Recording<RecordingShare, CompositionShare>,
     cap: &RecordingAdminCap<RecordingShare>,
 ) {
-    let recording_id = object::id(self);
+    let recording_id = object::id(self).to_address();
+    let composition_id = recording::composition_id(self).to_address();
     let uid = self.uid_mut(cap);
     if (df::exists(uid, ExtensionKey())) {
-        let _: WalrusBlob = df::remove(uid, ExtensionKey());
-        emit(MasterReferenceUnsetEvent { recording_id });
+        let removed = df::remove(uid, ExtensionKey());
+        let (removed_blob_id, removed_is_encrypted, removed_sealed_dek_length,
+            removed_sealed_dek_digest) = snapshot(&removed);
+        emit(RecordingMasterReferenceClearedEvent<RecordingShare, CompositionShare> {
+            recording_id,
+            composition_id,
+            removed_blob_id,
+            removed_is_encrypted,
+            removed_sealed_dek_length,
+            removed_sealed_dek_digest,
+        });
     }
 }
 
@@ -124,9 +177,69 @@ public fun master_reference<RecordingShare, CompositionShare>(
 // === Test Functions ===
 
 #[test_only]
-public fun set_event_fields(e: &MasterReferenceSetEvent): (ID, WalrusBlob) {
-    (e.recording_id, e.reference)
+public fun set_event_fields<RecordingShare, CompositionShare>(
+    e: &RecordingMasterReferenceSetEvent<RecordingShare, CompositionShare>,
+): (
+    address,
+    address,
+    bool,
+    u256,
+    bool,
+    u64,
+    vector<u8>,
+    u256,
+    bool,
+    u64,
+    vector<u8>,
+) {
+    (
+        e.recording_id,
+        e.composition_id,
+        e.had_master_reference,
+        e.previous_blob_id,
+        e.previous_is_encrypted,
+        e.previous_sealed_dek_length,
+        e.previous_sealed_dek_digest,
+        e.blob_id,
+        e.is_encrypted,
+        e.sealed_dek_length,
+        e.sealed_dek_digest,
+    )
 }
 
 #[test_only]
-public fun unset_event_recording_id(e: &MasterReferenceUnsetEvent): ID { e.recording_id }
+public fun cleared_event_fields<RecordingShare, CompositionShare>(
+    e: &RecordingMasterReferenceClearedEvent<RecordingShare, CompositionShare>,
+): (address, address, u256, bool, u64, vector<u8>) {
+    (
+        e.recording_id,
+        e.composition_id,
+        e.removed_blob_id,
+        e.removed_is_encrypted,
+        e.removed_sealed_dek_length,
+        e.removed_sealed_dek_digest,
+    )
+}
+
+#[test_only]
+public fun unset_event_recording_id<RecordingShare, CompositionShare>(
+    e: &RecordingMasterReferenceClearedEvent<RecordingShare, CompositionShare>,
+): ID { e.recording_id.to_id() }
+
+// === Private Functions ===
+
+/// Projects a blob reference into bounded event metadata without exposing the
+/// sealed DEK itself. Plaintext uses the canonical zero/empty representation.
+fun snapshot(reference: &WalrusBlob): (u256, bool, u64, vector<u8>) {
+    if (reference.blob_confidentiality().is_encrypted()) {
+        let sealed_dek = reference.blob_confidentiality().sealed_dek();
+        (
+            reference.blob_id(),
+            true,
+            sealed_dek.length() as u64,
+            blake2b256(sealed_dek),
+        )
+    } else {
+        (reference.blob_id(), false, 0, vector[])
+    }
+}

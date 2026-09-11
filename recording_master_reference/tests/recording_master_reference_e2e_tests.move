@@ -65,11 +65,25 @@ fun full_lifecycle_on_published_and_shared_recording() {
     assert!(mref::has_master_reference(&rec));
     assert_eq!(mref::master_reference(&rec).blob_id(), 111);
 
-    let events = event::events_by_type<mref::MasterReferenceSetEvent>();
+    let events =
+        event::events_by_type<mref::RecordingMasterReferenceSetEvent<REC, COMP>>();
     assert_eq!(events.length(), 1);
-    let (id, reference) = mref::set_event_fields(&events[0]);
-    assert_eq!(id, rec_id);
-    assert_eq!(reference, data::new_blob(111, confidentiality::new_unencrypted()));
+    let (event_recording_id, event_composition_id, had_master_reference, previous_blob_id,
+        previous_is_encrypted, previous_sealed_dek_length, previous_sealed_dek_digest,
+        blob_id, is_encrypted, sealed_dek_length, sealed_dek_digest) =
+        mref::set_event_fields(&events[0]);
+    assert_eq!(event_recording_id, rec_id.to_address());
+    assert_eq!(event_composition_id, recording::composition_id(&rec).to_address());
+    assert!(!had_master_reference);
+    assert_eq!(previous_blob_id, 0);
+    assert!(!previous_is_encrypted);
+    assert_eq!(previous_sealed_dek_length, 0);
+    assert_eq!(previous_sealed_dek_digest, vector[]);
+    assert_eq!(blob_id, 111);
+    assert!(!is_encrypted);
+    assert_eq!(sealed_dek_length, 0);
+    assert_eq!(sealed_dek_digest, vector[]);
+    assert_eq!(sui::bcs::to_bytes(&events[0]).length(), 149);
     test_scenario::return_shared(rec);
 
     // --- Tx 3 (STRANGER, owns no cap): the reference is publicly readable ---
@@ -95,11 +109,25 @@ fun full_lifecycle_on_published_and_shared_recording() {
 
     // `next_tx` resets the recorded event log — a fresh single-element feed,
     // exactly as a real indexer would see one transaction's events at a time.
-    let events = event::events_by_type<mref::MasterReferenceSetEvent>();
+    let events =
+        event::events_by_type<mref::RecordingMasterReferenceSetEvent<REC, COMP>>();
     assert_eq!(events.length(), 1);
-    let (id, reference) = mref::set_event_fields(&events[0]);
-    assert_eq!(id, rec_id);
-    assert_eq!(reference, data::new_blob(222, confidentiality::new_encrypted(b"dek")));
+    let (event_recording_id, event_composition_id, had_master_reference, previous_blob_id,
+        previous_is_encrypted, previous_sealed_dek_length, previous_sealed_dek_digest,
+        blob_id, is_encrypted, sealed_dek_length, sealed_dek_digest) =
+        mref::set_event_fields(&events[0]);
+    assert_eq!(event_recording_id, rec_id.to_address());
+    assert_eq!(event_composition_id, recording::composition_id(&rec).to_address());
+    assert!(had_master_reference);
+    assert_eq!(previous_blob_id, 111);
+    assert!(!previous_is_encrypted);
+    assert_eq!(previous_sealed_dek_length, 0);
+    assert_eq!(previous_sealed_dek_digest, vector[]);
+    assert_eq!(blob_id, 222);
+    assert!(is_encrypted);
+    assert_eq!(sealed_dek_length, 3);
+    assert_eq!(sealed_dek_digest, sui::hash::blake2b256(&b"dek"));
+    assert_eq!(sui::bcs::to_bytes(&events[0]).length(), 181);
     test_scenario::return_shared(rec);
 
     // --- Tx 5 (PAYER, owns no cap): the replacement is visible to anyone ---
@@ -116,9 +144,19 @@ fun full_lifecycle_on_published_and_shared_recording() {
     mref::unset_master_reference(&mut rec, &cap);
     assert!(!mref::has_master_reference(&rec));
 
-    let unset_events = event::events_by_type<mref::MasterReferenceUnsetEvent>();
+    let unset_events =
+        event::events_by_type<mref::RecordingMasterReferenceClearedEvent<REC, COMP>>();
     assert_eq!(unset_events.length(), 1);
-    assert_eq!(mref::unset_event_recording_id(&unset_events[0]), rec_id);
+    let (event_recording_id, event_composition_id, removed_blob_id, removed_is_encrypted,
+        removed_sealed_dek_length, removed_sealed_dek_digest) =
+        mref::cleared_event_fields(&unset_events[0]);
+    assert_eq!(event_recording_id, rec_id.to_address());
+    assert_eq!(event_composition_id, recording::composition_id(&rec).to_address());
+    assert_eq!(removed_blob_id, 222);
+    assert!(removed_is_encrypted);
+    assert_eq!(removed_sealed_dek_length, 3);
+    assert_eq!(removed_sealed_dek_digest, sui::hash::blake2b256(&b"dek"));
+    assert_eq!(sui::bcs::to_bytes(&unset_events[0]).length(), 138);
 
     mref::set_master_reference(
         &mut rec,
