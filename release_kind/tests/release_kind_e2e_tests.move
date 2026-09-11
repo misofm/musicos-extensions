@@ -62,16 +62,27 @@ fun kind_lifecycle_against_a_published_shared_release() {
     // --- Tx 2 (ADMIN): set the kind on the now-shared release ---
     ts.next_tx(ADMIN);
     let mut rel = ts.take_shared<Release>();
-    let rel_id = object::id(&rel);
+    let rel_id = object::id(&rel).to_address();
+    let cap_id = object::id(&cap).to_address();
     rk::set_kind(&mut rel, &cap, b"Album".to_string());
     assert!(rk::has_kind(&rel));
     assert_eq!(rk::kind(&rel), b"Album".to_string());
 
     let set_events = event::events_by_type<rk::KindSetEvent>();
     assert_eq!(set_events.length(), 1);
-    let (event_id, event_kind) = rk::set_event_fields(&set_events[0]);
+    let (
+        event_id, event_cap_id, existed_before, previous_kind, previous_length,
+        event_kind, kind_length, exists_after, changed,
+    ) = rk::set_event_payload(&set_events[0]);
     assert_eq!(event_id, rel_id);
-    assert_eq!(event_kind, b"Album".to_string());
+    assert_eq!(event_cap_id, cap_id);
+    assert!(!existed_before);
+    assert_eq!(previous_kind, vector[]);
+    assert_eq!(previous_length, 0);
+    assert_eq!(event_kind, b"Album");
+    assert_eq!(kind_length, 5);
+    assert!(exists_after);
+    assert!(changed);
     test_scenario::return_shared(rel);
 
     // --- Tx 3 (STRANGER, owns nothing): reads are permissionless ---
@@ -87,12 +98,40 @@ fun kind_lifecycle_against_a_published_shared_release() {
     rk::set_kind(&mut rel, &cap, b"Extended Play".to_string());
     assert_eq!(rk::kind(&rel), b"Extended Play".to_string());
 
+    let set_events = event::events_by_type<rk::KindSetEvent>();
+    assert_eq!(set_events.length(), 1);
+    let (
+        event_id, event_cap_id, existed_before, previous_kind, previous_length,
+        event_kind, kind_length, exists_after, changed,
+    ) = rk::set_event_payload(&set_events[0]);
+    assert_eq!(event_id, rel_id);
+    assert_eq!(event_cap_id, cap_id);
+    assert!(existed_before);
+    assert_eq!(previous_kind, b"Album");
+    assert_eq!(previous_length, 5);
+    assert_eq!(event_kind, b"Extended Play");
+    assert_eq!(kind_length, 13);
+    assert!(exists_after);
+    assert!(changed);
+
     rk::unset_kind(&mut rel, &cap);
     assert!(!rk::has_kind(&rel));
 
     let unset_events = event::events_by_type<rk::KindUnsetEvent>();
     assert_eq!(unset_events.length(), 1);
-    assert_eq!(rk::unset_event_release_id(&unset_events[0]), rel_id);
+    let (
+        event_id, event_cap_id, existed_before, previous_kind, previous_length,
+        event_kind, kind_length, exists_after, changed,
+    ) = rk::unset_event_payload(&unset_events[0]);
+    assert_eq!(event_id, rel_id);
+    assert_eq!(event_cap_id, cap_id);
+    assert!(existed_before);
+    assert_eq!(previous_kind, b"Extended Play");
+    assert_eq!(previous_length, 13);
+    assert_eq!(event_kind, vector[]);
+    assert_eq!(kind_length, 0);
+    assert!(!exists_after);
+    assert!(changed);
     test_scenario::return_shared(rel);
 
     destroy(cap);
