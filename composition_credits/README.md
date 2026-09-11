@@ -22,7 +22,7 @@ field record, so its event reports the record as existing both before and after.
 
 ### `composition_credits`
 
-- **`add_credit`** — cap-gated. Adds a `Credit<CompositionPartyRole>` for a `Party`, lazily initializing the credits record on first use. Asserts the 1-5 role bound, the 50-credit cap, and one-credit-per-party. Capacity is checked before duplicate-party conflict.
+- **`add_credit`** — cap-gated. Adds a `Credit<CompositionPartyRole>` for a `Party`, lazily initializing the credits record on first use. Checks at most five roles; `credit::new` guarantees at least one role. Also asserts the 50-credit cap and one-credit-per-party. Capacity is checked before duplicate-party conflict.
 - **`remove_credit`** — cap-gated. Removes a party's credit by `Party` ID; aborts if the credits record is absent or the party is not credited. `VecMap` insertion order is preserved for the event index.
 
 ### `composition_party_role`
@@ -39,7 +39,8 @@ field record, so its event reports the record as existing both before and after.
 ## Dependencies
 
 - **`musicos`** — provides `Composition` and `CompositionAdminCap`; the host object this extension attaches to and the cap that authorizes mutations.
-- **`partyos`** — provides `Party` (credited identity) and the generic `Credit<T>` (display name + roles) wrapped over `CompositionPartyRole`.
+- **`partyos`** — provides `Party` (the credited identity).
+- **`credit`** — provides the generic `Credit<T>` (display names and roles), instantiated here with `CompositionPartyRole`.
 
 ## Build & test
 
