@@ -80,7 +80,7 @@ fun credits_lifecycle_against_a_published_shared_release() {
     assert!(credits::has_credits(&rel));
     assert_eq!(credits::credits(&rel).length(), 2);
 
-    let events = event::events_by_type<credits::CreditAddedEvent>();
+    let events = event::events_by_type<credits::ReleaseCreditAddedEvent>();
     assert_eq!(events.length(), 2);
     let (event_rel_id, event_cap_id, event_party_id, display_name, role_kind, count_before,
         count_after, credit_index, record_before, record_after) =
@@ -122,7 +122,7 @@ fun credits_lifecycle_against_a_published_shared_release() {
     assert_eq!(credits::credits(&rel).length(), 1);
     assert!(credits::credits(&rel).contains(&feat_id));
 
-    let removed_events = event::events_by_type<credits::CreditRemovedEvent>();
+    let removed_events = event::events_by_type<credits::ReleaseCreditRemovedEvent>();
     assert_eq!(removed_events.length(), 1);
     let (event_rel_id, event_cap_id, event_party_id, display_name, role_kind, count_before,
         count_after, credit_index, record_before, record_after) =

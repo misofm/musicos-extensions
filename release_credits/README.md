@@ -20,6 +20,42 @@ The data model is a single `ReleaseCredits` record holding a `VecMap<ID, Credit<
 - **`release_party_role::new_primary_role`** — permissionless. Constructs a `Primary` role.
 - **`release_party_role::new_featured_role`** — permissionless. Constructs a `Featured` role.
 
+## Mutation event payloads
+
+Each successful mutation emits exactly one monomorphic `copy, drop` event:
+`ReleaseCreditAddedEvent` for an add and `ReleaseCreditRemovedEvent` for a
+remove. In both declarations, fields appear in this exact order:
+
+```text
+release_id: address
+release_admin_cap_id: address
+party_id: address
+display_name: vector<u8>
+role_kind: u8
+credit_count_before: u64
+credit_count_after: u64
+credit_index: u64
+credits_record_existed_before: bool
+credits_record_exists_after: bool
+```
+
+`role_kind` is the stable role tag: `Primary = 0`, `Featured = 1`. The
+`display_name` bytes are the UTF-8 bytes stored in the `Credit` value itself;
+they are not read from the Party object. `credit_index` is the insertion-order
+index after an add and the pre-removal index on a remove. Since `VecMap` keeps
+the remaining entries ordered, an indexer can replay removals and re-adds by
+shifting later entries and appending the re-added party.
+
+The first add reports `credits_record_existed_before = false` and
+`credits_record_exists_after = true`. Later adds and re-adds report
+`true / true`. Every successful removal also reports `true / true`, including
+removal of the final credit: the empty credits dynamic-field record is retained.
+
+For a display name of `n` bytes, the BCS payload size is
+`123 + ULEB128(n) + n` bytes. With the `Credit` maximum of 200 display-name
+bytes, the largest event is 325 bytes; useful boundaries are 125 bytes at
+`n = 1`, 251 bytes at `n = 127`, and 253 bytes at `n = 128`.
+
 ## Views
 
 - **`release_credits::has_credits`** — whether a credits record has been attached to the release yet.

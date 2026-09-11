@@ -69,7 +69,7 @@ public struct ReleaseCredits has store {
 /// Emitted when a credit is added for a party on the release. The bounded
 /// primitive snapshot lets an indexer upsert its row without re-reading the
 /// credits dynamic field.
-public struct CreditAddedEvent has copy, drop {
+public struct ReleaseCreditAddedEvent has copy, drop {
     release_id: address,
     release_admin_cap_id: address,
     party_id: address,
@@ -84,7 +84,7 @@ public struct CreditAddedEvent has copy, drop {
 
 /// Emitted when a party's credit is removed from the release. The primitive
 /// snapshot remains available after the map entry is gone.
-public struct CreditRemovedEvent has copy, drop {
+public struct ReleaseCreditRemovedEvent has copy, drop {
     release_id: address,
     release_admin_cap_id: address,
     party_id: address,
@@ -134,7 +134,7 @@ public fun add_credit(
     };
     let credits_record_exists_after = df::exists(uid, ExtensionKey());
 
-    emit(CreditAddedEvent {
+    emit(ReleaseCreditAddedEvent {
         release_id,
         release_admin_cap_id,
         party_id,
@@ -168,7 +168,7 @@ public fun remove_credit(self: &mut Release, cap: &ReleaseAdminCap, party_id: ID
     let credits_record_existed_before = true;
     let credits_record_exists_after = df::exists(uid, ExtensionKey());
 
-    emit(CreditRemovedEvent {
+    emit(ReleaseCreditRemovedEvent {
         release_id,
         release_admin_cap_id,
         party_id: party_address,
@@ -232,7 +232,7 @@ fun snapshot_credit(credit: &Credit<ReleasePartyRole>): (vector<u8>, u8) {
 // === Test Functions ===
 
 #[test_only]
-public fun added_event_fields(e: &CreditAddedEvent):
+public fun added_event_fields(e: &ReleaseCreditAddedEvent):
     (address, address, address, vector<u8>, u8, u64, u64, u64, bool, bool) {
     (
         e.release_id,
@@ -249,7 +249,7 @@ public fun added_event_fields(e: &CreditAddedEvent):
 }
 
 #[test_only]
-public fun removed_event_fields(e: &CreditRemovedEvent):
+public fun removed_event_fields(e: &ReleaseCreditRemovedEvent):
     (address, address, address, vector<u8>, u8, u64, u64, u64, bool, bool) {
     (
         e.release_id,
@@ -266,11 +266,11 @@ public fun removed_event_fields(e: &CreditRemovedEvent):
 }
 
 #[test_only]
-public fun added_event_bcs(e: &CreditAddedEvent): vector<u8> {
+public fun added_event_bcs(e: &ReleaseCreditAddedEvent): vector<u8> {
     bcs::to_bytes(e)
 }
 
 #[test_only]
-public fun removed_event_bcs(e: &CreditRemovedEvent): vector<u8> {
+public fun removed_event_bcs(e: &ReleaseCreditRemovedEvent): vector<u8> {
     bcs::to_bytes(e)
 }
