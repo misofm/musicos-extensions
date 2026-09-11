@@ -75,7 +75,7 @@ fun cover_art_lifecycle_against_published_shared_release() {
     // === Tx 2 (ADMIN): attach the album cover and a track override ===
     ts.next_tx(ADMIN);
     let mut rel = ts.take_shared<Release>();
-    let rel_id = object::id(&rel);
+    let rel_id = object::id(&rel).to_address();
     assert!(!release_cover_art::has_cover_art(&rel));
 
     let album_art = cover::new_for_testing();
@@ -83,22 +83,31 @@ fun cover_art_lifecycle_against_published_shared_release() {
     assert!(release_cover_art::has_cover_art(&rel));
     assert_eq!(*release_cover_art::cover(&rel), option::some(album_art));
 
-    let set_cover_events = event::events_by_type<release_cover_art::CoverSetEvent>();
+    let set_cover_events = event::events_by_type<release_cover_art::ReleaseCoverArtSetEvent>();
     assert_eq!(set_cover_events.length(), 1);
-    let (event_rel_id, event_art) = release_cover_art::cover_set_event_fields(&set_cover_events[0]);
+    let (event_rel_id, event_cap_id, event_track_count, event_field_before, event_field_after) =
+        release_cover_art::release_cover_art_set_event_header(&set_cover_events[0]);
     assert_eq!(event_rel_id, rel_id);
-    assert_eq!(event_art, album_art);
+    assert_eq!(event_cap_id, object::id(&rel_cap).to_address());
+    assert_eq!(event_track_count, 3);
+    assert!(!event_field_before);
+    assert!(event_field_after);
 
     let track1_art = cover::new_for_testing();
     release_cover_art::set_track_cover(&mut rel, &rel_cap, 1, track1_art);
 
-    let track_set_events = event::events_by_type<release_cover_art::TrackCoverSetEvent>();
+    let track_set_events = event::events_by_type<release_cover_art::ReleaseTrackCoverArtSetEvent>();
     assert_eq!(track_set_events.length(), 1);
-    let (t_rel_id, t_idx, t_art) =
-        release_cover_art::track_cover_set_event_fields(&track_set_events[0]);
+    let (t_rel_id, t_cap_id, t_count, t_field_before, t_field_after, t_idx, t_recording_id, t_composition_id) =
+        release_cover_art::release_track_cover_art_set_event_header(&track_set_events[0]);
     assert_eq!(t_rel_id, rel_id);
+    assert_eq!(t_cap_id, object::id(&rel_cap).to_address());
+    assert_eq!(t_count, 3);
+    assert!(t_field_before);
+    assert!(t_field_after);
     assert_eq!(t_idx, 1);
-    assert_eq!(t_art, track1_art);
+    assert_eq!(t_recording_id, rel.tracks()[1].recording_id().to_address());
+    assert_eq!(t_composition_id, rel.tracks()[1].composition_id().to_address());
 
     test_scenario::return_shared(rel);
 
@@ -117,22 +126,31 @@ fun cover_art_lifecycle_against_published_shared_release() {
     // Track 1 falls back to the album cover now that its override is gone.
     assert_eq!(release_cover_art::track_cover(&rel, 1), option::some(album_art));
 
-    let track_unset_events = event::events_by_type<release_cover_art::TrackCoverUnsetEvent>();
+    let track_unset_events = event::events_by_type<release_cover_art::ReleaseTrackCoverArtUnsetEvent>();
     assert_eq!(track_unset_events.length(), 1);
-    let (u_rel_id, u_idx) =
-        release_cover_art::track_cover_unset_event_fields(&track_unset_events[0]);
+    let (u_rel_id, u_cap_id, u_count, u_field_before, u_field_after, u_idx, u_recording_id, u_composition_id) =
+        release_cover_art::release_track_cover_art_unset_event_header(&track_unset_events[0]);
     assert_eq!(u_rel_id, rel_id);
+    assert_eq!(u_cap_id, object::id(&rel_cap).to_address());
+    assert_eq!(u_count, 3);
+    assert!(u_field_before);
+    assert!(u_field_after);
     assert_eq!(u_idx, 1);
+    assert_eq!(u_recording_id, rel.tracks()[1].recording_id().to_address());
+    assert_eq!(u_composition_id, rel.tracks()[1].composition_id().to_address());
 
     release_cover_art::unset_cover(&mut rel, &rel_cap);
     assert_eq!(release_cover_art::track_cover(&rel, 0), option::none());
 
-    let cover_unset_events = event::events_by_type<release_cover_art::CoverUnsetEvent>();
+    let cover_unset_events = event::events_by_type<release_cover_art::ReleaseCoverArtUnsetEvent>();
     assert_eq!(cover_unset_events.length(), 1);
-    assert_eq!(
-        release_cover_art::cover_unset_event_release_id(&cover_unset_events[0]),
-        rel_id,
-    );
+    let (c_rel_id, c_cap_id, c_count, c_field_before, c_field_after) =
+        release_cover_art::release_cover_art_unset_event_header(&cover_unset_events[0]);
+    assert_eq!(c_rel_id, rel_id);
+    assert_eq!(c_cap_id, object::id(&rel_cap).to_address());
+    assert_eq!(c_count, 3);
+    assert!(c_field_before);
+    assert!(c_field_after);
 
     test_scenario::return_shared(rel);
     destroy(rel_cap);

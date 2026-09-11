@@ -19,6 +19,7 @@ use musicos::test_helpers;
 use musicos::track;
 use release_cover_art::release_cover_art;
 use std::unit_test::{assert_eq, destroy};
+use sui::bcs::{Self, BCS};
 use sui::event;
 use sui::test_scenario;
 
@@ -42,6 +43,87 @@ fun mk_release(ctx: &mut TxContext): (Release, ReleaseAdminCap) {
         track::new_for_testing(comp_id, r2, rel_id, 3000u16),
     ];
     musicos::release::new_for_testing(b"Album".to_string(), tracks, ctx)
+}
+
+fun assert_snapshot(
+    bytes: &mut BCS,
+    present: bool,
+    still_blob_id: u256,
+    still_is_encrypted: bool,
+    still_sealed_dek_length: u64,
+    still_sealed_dek_digest: vector<u8>,
+    has_animated: bool,
+    animated_blob_id: u256,
+    animated_is_encrypted: bool,
+    animated_sealed_dek_length: u64,
+    animated_sealed_dek_digest: vector<u8>,
+) {
+    assert_eq!(bytes.peel_bool(), present);
+    assert_eq!(bytes.peel_u256(), still_blob_id);
+    assert_eq!(bytes.peel_bool(), still_is_encrypted);
+    assert_eq!(bytes.peel_u64(), still_sealed_dek_length);
+    assert_eq!(bytes.peel_vec_u8(), still_sealed_dek_digest);
+    assert_eq!(bytes.peel_bool(), has_animated);
+    assert_eq!(bytes.peel_u256(), animated_blob_id);
+    assert_eq!(bytes.peel_bool(), animated_is_encrypted);
+    assert_eq!(bytes.peel_u64(), animated_sealed_dek_length);
+    assert_eq!(bytes.peel_vec_u8(), animated_sealed_dek_digest);
+}
+
+fun assert_album_event(
+    bytes: vector<u8>,
+    release_id: address,
+    admin_cap_id: address,
+    field_existed_before: bool,
+    previous_present: bool,
+    current_present: bool,
+) {
+    let mut bytes = bcs::new(bytes);
+    assert_eq!(bytes.peel_address(), release_id);
+    assert_eq!(bytes.peel_address(), admin_cap_id);
+    assert_eq!(bytes.peel_u64(), 3);
+    assert_eq!(bytes.peel_bool(), field_existed_before);
+    assert!(bytes.peel_bool());
+    if (previous_present) {
+        assert_snapshot(&mut bytes, true, 0, false, 0, vector[], false, 0, false, 0, vector[]);
+    } else {
+        assert_snapshot(&mut bytes, false, 0, false, 0, vector[], false, 0, false, 0, vector[]);
+    };
+    if (current_present) {
+        assert_snapshot(&mut bytes, true, 0, false, 0, vector[], false, 0, false, 0, vector[]);
+    } else {
+        assert_snapshot(&mut bytes, false, 0, false, 0, vector[], false, 0, false, 0, vector[]);
+    };
+    assert!(bytes.into_remainder_bytes().is_empty());
+}
+
+fun assert_track_event(
+    bytes: vector<u8>,
+    release_id: address,
+    admin_cap_id: address,
+    recording_id: address,
+    composition_id: address,
+    is_set: bool,
+) {
+    let mut bytes = bcs::new(bytes);
+    assert_eq!(bytes.peel_address(), release_id);
+    assert_eq!(bytes.peel_address(), admin_cap_id);
+    assert_eq!(bytes.peel_u64(), 3);
+    assert_eq!(bytes.peel_bool(), !is_set);
+    assert!(bytes.peel_bool());
+    assert_eq!(bytes.peel_u64(), 1);
+    assert_eq!(bytes.peel_address(), recording_id);
+    assert_eq!(bytes.peel_address(), composition_id);
+    if (is_set) {
+        assert_snapshot(&mut bytes, false, 0, false, 0, vector[], false, 0, false, 0, vector[]);
+        assert_snapshot(&mut bytes, true, 0, false, 0, vector[], false, 0, false, 0, vector[]);
+        assert_snapshot(&mut bytes, false, 0, false, 0, vector[], false, 0, false, 0, vector[]);
+    } else {
+        assert_snapshot(&mut bytes, true, 0, false, 0, vector[], false, 0, false, 0, vector[]);
+        assert_snapshot(&mut bytes, false, 0, false, 0, vector[], false, 0, false, 0, vector[]);
+        assert_snapshot(&mut bytes, false, 0, false, 0, vector[], false, 0, false, 0, vector[]);
+    };
+    assert!(bytes.into_remainder_bytes().is_empty());
 }
 
 #[test]
@@ -127,74 +209,139 @@ fun unset_track_cover_rejects_out_of_bounds_index_when_attached() {
 // === Event assertions ===
 
 #[test]
-fun set_cover_emits_release_and_art() {
+fun set_cover_emits_complete_release_snapshot() {
     let ctx = &mut tx_context::dummy();
     let (mut rel, cap) = mk_release(ctx);
-    let rel_id = object::id(&rel);
+    let rel_id = object::id(&rel).to_address();
+    let cap_id = object::id(&cap).to_address();
 
     release_cover_art::set_cover(&mut rel, &cap, cover::new_for_testing());
 
-    let events = event::events_by_type<release_cover_art::CoverSetEvent>();
+    let events = event::events_by_type<release_cover_art::ReleaseCoverArtSetEvent>();
     assert_eq!(events.length(), 1);
-    let (release_id, art) = release_cover_art::cover_set_event_fields(&events[0]);
-    assert_eq!(release_id, rel_id);
-    assert_eq!(art, cover::new_for_testing());
+    assert_album_event(
+        release_cover_art::release_cover_art_set_event_bcs(&events[0]),
+        rel_id,
+        cap_id,
+        false,
+        false,
+        true,
+    );
+    assert_eq!(sui::bcs::to_bytes(&events[0]).length(), 246);
 
     destroy(rel);
     destroy(cap);
 }
 
 #[test]
-fun unset_cover_emits_release_id() {
+fun animated_zero_id_snapshot_is_canonical() {
     let ctx = &mut tx_context::dummy();
     let (mut rel, cap) = mk_release(ctx);
-    let rel_id = object::id(&rel);
+    let rel_id = object::id(&rel).to_address();
+    let cap_id = object::id(&cap).to_address();
+    let base = cover::new_for_testing();
+    let still = *base.still();
+
+    release_cover_art::set_cover(
+        &mut rel,
+        &cap,
+        cover::new(still, option::some(still)),
+    );
+    let events = event::events_by_type<release_cover_art::ReleaseCoverArtSetEvent>();
+    assert_eq!(events.length(), 1);
+    let mut bytes = bcs::new(release_cover_art::release_cover_art_set_event_bcs(&events[0]));
+    assert_eq!(bytes.peel_address(), rel_id);
+    assert_eq!(bytes.peel_address(), cap_id);
+    assert_eq!(bytes.peel_u64(), 3);
+    assert!(!bytes.peel_bool());
+    assert!(bytes.peel_bool());
+    assert_snapshot(&mut bytes, false, 0, false, 0, vector[], false, 0, false, 0, vector[]);
+    assert_snapshot(&mut bytes, true, 0, false, 0, vector[], true, 0, false, 0, vector[]);
+    assert!(bytes.into_remainder_bytes().is_empty());
+    assert_eq!(sui::bcs::to_bytes(&events[0]).length(), 246);
+    assert!(release_cover_art::cover(&rel).is_some());
+
+    destroy(rel);
+    destroy(cap);
+}
+
+#[test]
+fun unset_cover_emits_complete_release_snapshot() {
+    let ctx = &mut tx_context::dummy();
+    let (mut rel, cap) = mk_release(ctx);
+    let rel_id = object::id(&rel).to_address();
+    let cap_id = object::id(&cap).to_address();
 
     release_cover_art::set_cover(&mut rel, &cap, cover::new_for_testing());
     release_cover_art::unset_cover(&mut rel, &cap);
 
-    let events = event::events_by_type<release_cover_art::CoverUnsetEvent>();
+    let events = event::events_by_type<release_cover_art::ReleaseCoverArtUnsetEvent>();
     assert_eq!(events.length(), 1);
-    assert_eq!(release_cover_art::cover_unset_event_release_id(&events[0]), rel_id);
+    assert_album_event(
+        release_cover_art::release_cover_art_unset_event_bcs(&events[0]),
+        rel_id,
+        cap_id,
+        true,
+        true,
+        false,
+    );
+    assert_eq!(sui::bcs::to_bytes(&events[0]).length(), 246);
 
     destroy(rel);
     destroy(cap);
 }
 
 #[test]
-fun set_track_cover_emits_release_index_and_art() {
+fun set_track_cover_emits_complete_track_snapshot() {
     let ctx = &mut tx_context::dummy();
     let (mut rel, cap) = mk_release(ctx);
-    let rel_id = object::id(&rel);
+    let rel_id = object::id(&rel).to_address();
+    let cap_id = object::id(&cap).to_address();
+    let recording_id = rel.tracks()[1].recording_id().to_address();
+    let composition_id = rel.tracks()[1].composition_id().to_address();
 
     // A per-track set lazily initializes the record (no album cover first).
     release_cover_art::set_track_cover(&mut rel, &cap, 1, cover::new_for_testing());
 
-    let events = event::events_by_type<release_cover_art::TrackCoverSetEvent>();
+    let events = event::events_by_type<release_cover_art::ReleaseTrackCoverArtSetEvent>();
     assert_eq!(events.length(), 1);
-    let (release_id, track_index, art) = release_cover_art::track_cover_set_event_fields(&events[0]);
-    assert_eq!(release_id, rel_id);
-    assert_eq!(track_index, 1);
-    assert_eq!(art, cover::new_for_testing());
+    assert_track_event(
+        release_cover_art::release_track_cover_art_set_event_bcs(&events[0]),
+        rel_id,
+        cap_id,
+        recording_id,
+        composition_id,
+        true,
+    );
+    assert_eq!(sui::bcs::to_bytes(&events[0]).length(), 404);
 
     destroy(rel);
     destroy(cap);
 }
 
 #[test]
-fun unset_track_cover_emits_release_and_index() {
+fun unset_track_cover_emits_complete_track_snapshot() {
     let ctx = &mut tx_context::dummy();
     let (mut rel, cap) = mk_release(ctx);
-    let rel_id = object::id(&rel);
+    let rel_id = object::id(&rel).to_address();
+    let cap_id = object::id(&cap).to_address();
+    let recording_id = rel.tracks()[1].recording_id().to_address();
+    let composition_id = rel.tracks()[1].composition_id().to_address();
 
     release_cover_art::set_track_cover(&mut rel, &cap, 1, cover::new_for_testing());
     release_cover_art::unset_track_cover(&mut rel, &cap, 1);
 
-    let events = event::events_by_type<release_cover_art::TrackCoverUnsetEvent>();
+    let events = event::events_by_type<release_cover_art::ReleaseTrackCoverArtUnsetEvent>();
     assert_eq!(events.length(), 1);
-    let (release_id, track_index) = release_cover_art::track_cover_unset_event_fields(&events[0]);
-    assert_eq!(release_id, rel_id);
-    assert_eq!(track_index, 1);
+    assert_track_event(
+        release_cover_art::release_track_cover_art_unset_event_bcs(&events[0]),
+        rel_id,
+        cap_id,
+        recording_id,
+        composition_id,
+        false,
+    );
+    assert_eq!(sui::bcs::to_bytes(&events[0]).length(), 404);
 
     destroy(rel);
     destroy(cap);

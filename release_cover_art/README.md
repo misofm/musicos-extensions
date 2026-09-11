@@ -18,6 +18,34 @@ The `CoverArt` value type is provided by the independently versioned
 - **`release_cover_art::set_track_cover`** — cap-gated; sets or replaces a track's cover override, aborting if the track index is out of range for the release.
 - **`release_cover_art::unset_track_cover`** — cap-gated; removes a track's override (the track falls back to the album cover); aborts if no record is attached or the index is out of range.
 
+## Events
+
+Each successful write emits exactly one event after the storage write. The four
+event types are `ReleaseCoverArtSetEvent`, `ReleaseCoverArtUnsetEvent`,
+`ReleaseTrackCoverArtSetEvent`, and `ReleaseTrackCoverArtUnsetEvent`. Every
+event begins with `release_id`, `admin_cap_id`, `track_count`,
+`field_existed_before`, and `field_exists_after`. Track events then include
+`track_index`, the immutable track `recording_id`, and `composition_id`.
+
+Album events contain flat `previous_` and `current_` snapshots. Track events
+contain flat `previous_`, `current_`, and unchanged `album_` snapshots. Each
+snapshot contains `present`, the still blob ID, encryption flag, sealed-DEK
+length and digest, then the corresponding five animation fields. A snapshot
+uses zero IDs, false flags, zero lengths, and an empty digest when absent. A
+present plaintext blob uses the same canonical encryption fields. For an
+encrypted blob, the event retains the full blob ID and records the raw
+sealed-DEK length and `blake2b256` digest; the sealed-DEK bytes remain in the
+stored value and the digest cannot reconstruct them.
+
+The track snapshots describe the stored override, not the resolved cover. A
+consumer uses the override when `present` and otherwise the album snapshot.
+Album and track unsets keep the dynamic-field record and emit even when the
+value was already empty, so replay can observe those writes. `field_exists_after`
+is always true; views do not emit events. The fixed BCS sizes are 246 bytes
+for an album event with plaintext/absent snapshots and 404 bytes for a track
+event, plus 32 bytes per encrypted blob (maximums are 374/310 for album
+set/unset and 596/532 for track set/unset).
+
 ## Views
 
 - **`release_cover_art::has_cover_art`** — whether a `ReleaseCoverArt` record is attached to the release.
@@ -35,4 +63,6 @@ The `CoverArt` value type is provided by the independently versioned
 ```sh
 sui move build
 sui move test
+sui move test --coverage
+sui move coverage summary --summarize-functions
 ```
