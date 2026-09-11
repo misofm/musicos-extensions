@@ -53,11 +53,16 @@ fun admin_rates_a_published_shared_recording_and_a_stranger_reads_it() {
 
     adv::set_rating(&mut rec, &rec_cap, adv::explicit());
 
-    let events = event::events_by_type<adv::AdvisoryRatingSetEvent>();
+    let events = event::events_by_type<adv::RecordingAdvisoryRatingSetEvent<REC, COMP>>();
     assert_eq!(events.length(), 1);
-    let (event_id, event_rating) = adv::set_event_fields(&events[0]);
-    assert_eq!(event_id, rec_id);
-    assert!(event_rating.is_explicit());
+    let (event_id, event_comp_id, event_cap_id, had_rating, previous_rating, rating) =
+        adv::set_event_fields(&events[0]);
+    assert_eq!(event_id, rec_id.to_address());
+    assert_eq!(event_comp_id, @0xC0FFEE);
+    assert_eq!(event_cap_id, object::id(&rec_cap).to_address());
+    assert!(!had_rating);
+    assert_eq!(previous_rating, 0);
+    assert_eq!(rating, 0);
 
     test_scenario::return_shared(rec);
 
@@ -77,9 +82,15 @@ fun admin_rates_a_published_shared_recording_and_a_stranger_reads_it() {
     adv::unset_rating(&mut rec, &rec_cap);
     assert!(!adv::has_rating(&rec));
 
-    let unset_events = event::events_by_type<adv::AdvisoryRatingUnsetEvent>();
+    let unset_events =
+        event::events_by_type<adv::RecordingAdvisoryRatingClearedEvent<REC, COMP>>();
     assert_eq!(unset_events.length(), 1);
-    assert_eq!(adv::unset_event_recording_id(&unset_events[0]), rec_id);
+    let (event_id, event_comp_id, event_cap_id, previous_rating) =
+        adv::clear_event_fields(&unset_events[0]);
+    assert_eq!(event_id, rec_id.to_address());
+    assert_eq!(event_comp_id, @0xC0FFEE);
+    assert_eq!(event_cap_id, object::id(&rec_cap).to_address());
+    assert_eq!(previous_rating, 2);
 
     test_scenario::return_shared(rec);
 

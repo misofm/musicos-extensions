@@ -25,7 +25,7 @@
 /// holder, and a recording with nothing attached has simply said nothing.
 module recording_advisory::recording_advisory;
 
-use musicos::recording::{Recording, RecordingAdminCap};
+use musicos::recording::{Self, Recording, RecordingAdminCap};
 use sui::dynamic_field as df;
 use sui::event::emit;
 
@@ -53,17 +53,28 @@ public enum ExplicitRating has copy, drop, store {
 
 // === Events ===
 
-/// Emitted when a rating is set or replaced. Advisory status changes what a
-/// storefront may show and to whom, so an indexer needs to hear about it rather
-/// than discover it on the next full re-read.
-public struct AdvisoryRatingSetEvent has copy, drop {
-    recording_id: ID,
-    rating: ExplicitRating,
+/// Emitted when a rating is set or replaced. The primitive snapshot carries
+/// both the prior and resulting values so an indexer can reconcile the write
+/// without re-reading the dynamic field. The phantom parameters keep event
+/// streams separated by both recording-share and composition-share types.
+public struct RecordingAdvisoryRatingSetEvent<phantom RecordingShare, phantom CompositionShare>
+    has copy, drop {
+    recording_id: address,
+    composition_id: address,
+    admin_cap_id: address,
+    had_rating: bool,
+    previous_rating: u8,
+    rating: u8,
 }
 
-/// Emitted when a rating is removed.
-public struct AdvisoryRatingUnsetEvent has copy, drop {
-    recording_id: ID,
+/// Emitted when an attached rating is removed. An absent clear is a silent
+/// no-op, so every event represents an actual state transition.
+public struct RecordingAdvisoryRatingClearedEvent<phantom RecordingShare, phantom CompositionShare>
+    has copy, drop {
+    recording_id: address,
+    composition_id: address,
+    admin_cap_id: address,
+    previous_rating: u8,
 }
 
 // === Public Functions ===
@@ -83,14 +94,28 @@ public fun set_rating<RecordingShare, CompositionShare>(
     cap: &RecordingAdminCap<RecordingShare>,
     rating: ExplicitRating,
 ) {
-    let recording_id = object::id(self);
+    let recording_id = object::id(self).to_address();
+    let composition_id = recording::composition_id(self).to_address();
+    let admin_cap_id = object::id(cap).to_address();
     let uid = self.uid_mut(cap);
-    if (df::exists(uid, ExtensionKey())) {
+    let had_rating = df::exists(uid, ExtensionKey());
+    let mut previous_rating = 0;
+    if (had_rating) {
+        let previous = *df::borrow(uid, ExtensionKey());
+        previous_rating = rating_code(&previous);
         *df::borrow_mut(uid, ExtensionKey()) = rating;
     } else {
         df::add(uid, ExtensionKey(), rating);
     };
-    emit(AdvisoryRatingSetEvent { recording_id, rating });
+    let rating = rating_code(&rating);
+    emit(RecordingAdvisoryRatingSetEvent<RecordingShare, CompositionShare> {
+        recording_id,
+        composition_id,
+        admin_cap_id,
+        had_rating,
+        previous_rating,
+        rating,
+    });
 }
 
 /// Removes the rating, if any. Idempotent — the recording is left having said
@@ -99,11 +124,19 @@ public fun unset_rating<RecordingShare, CompositionShare>(
     self: &mut Recording<RecordingShare, CompositionShare>,
     cap: &RecordingAdminCap<RecordingShare>,
 ) {
-    let recording_id = object::id(self);
+    let recording_id = object::id(self).to_address();
+    let composition_id = recording::composition_id(self).to_address();
+    let admin_cap_id = object::id(cap).to_address();
     let uid = self.uid_mut(cap);
     if (df::exists(uid, ExtensionKey())) {
-        let _: ExplicitRating = df::remove(uid, ExtensionKey());
-        emit(AdvisoryRatingUnsetEvent { recording_id });
+        let previous = df::remove(uid, ExtensionKey());
+        let previous_rating = rating_code(&previous);
+        emit(RecordingAdvisoryRatingClearedEvent<RecordingShare, CompositionShare> {
+            recording_id,
+            composition_id,
+            admin_cap_id,
+            previous_rating,
+        });
     }
 }
 
@@ -154,9 +187,56 @@ public fun name(self: &ExplicitRating): vector<u8> {
 // === Test Functions ===
 
 #[test_only]
-public fun set_event_fields(e: &AdvisoryRatingSetEvent): (ID, ExplicitRating) {
-    (e.recording_id, e.rating)
+public fun set_event_fields<RecordingShare, CompositionShare>(
+    e: &RecordingAdvisoryRatingSetEvent<RecordingShare, CompositionShare>,
+): (address, address, address, bool, u8, u8) {
+    (
+        e.recording_id,
+        e.composition_id,
+        e.admin_cap_id,
+        e.had_rating,
+        e.previous_rating,
+        e.rating,
+    )
 }
 
 #[test_only]
-public fun unset_event_recording_id(e: &AdvisoryRatingUnsetEvent): ID { e.recording_id }
+public fun clear_event_fields<RecordingShare, CompositionShare>(
+    e: &RecordingAdvisoryRatingClearedEvent<RecordingShare, CompositionShare>,
+): (address, address, address, u8) {
+    (e.recording_id, e.composition_id, e.admin_cap_id, e.previous_rating)
+}
+
+#[test_only]
+public fun cleared_event_fields<RecordingShare, CompositionShare>(
+    e: &RecordingAdvisoryRatingClearedEvent<RecordingShare, CompositionShare>,
+): (address, address, address, u8) {
+    clear_event_fields(e)
+}
+
+#[test_only]
+public fun unset_event_fields<RecordingShare, CompositionShare>(
+    e: &RecordingAdvisoryRatingClearedEvent<RecordingShare, CompositionShare>,
+): (address, address, address, u8) {
+    clear_event_fields(e)
+}
+
+#[test_only]
+public fun unset_event_recording_id<RecordingShare, CompositionShare>(
+    e: &RecordingAdvisoryRatingClearedEvent<RecordingShare, CompositionShare>,
+): ID {
+    e.recording_id.to_id()
+}
+
+// === Private Functions ===
+
+/// Stable compact event representation. This helper is deliberately private
+/// and does not invoke the public name/view functions, keeping constructors,
+/// views, and rating transitions silent except for their specified events.
+fun rating_code(self: &ExplicitRating): u8 {
+    match (self) {
+        ExplicitRating::Explicit => 0,
+        ExplicitRating::NotExplicit => 1,
+        ExplicitRating::Cleaned => 2,
+    }
+}
