@@ -9,10 +9,9 @@
 /// by distinct senders across real transactions — is covered separately in
 /// `recording_language_e2e_tests`.
 ///
-/// A recording's `RecordingShare` type uniquely identifies it, so
-/// `RecordingAdminCap<RecordingShare>` is bound to its recording by type and
-/// `recording::uid_mut` performs no runtime check. A wrong-cap test is therefore
-/// not expressible — the call would fail to compile, not abort.
+/// A mismatched `RecordingShare` fails compilation. A different cap value with
+/// the same `RecordingShare` is accepted because `recording::uid_mut` ignores
+/// the cap value.
 #[test_only]
 module recording_language::recording_language_tests;
 
