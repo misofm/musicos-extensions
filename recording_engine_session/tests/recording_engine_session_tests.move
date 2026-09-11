@@ -587,17 +587,84 @@ fun same_share_foreign_cap_is_observationally_accepted() {
 #[test]
 fun independent_phantom_dimensions_have_independent_event_streams() {
     let ctx = &mut tx_context::dummy();
-    let (mut recording, cap) = new_recording(ctx);
+    let composition_id = test_helpers::fake_id(ctx);
+    let other_composition_id = test_helpers::fake_id(ctx);
+    let (mut recording, cap) = new_recording_with_composition(ctx, composition_id);
     let (mut other_recording, other_cap) =
-        recording::new_for_testing<REC, OTHER_COMP>(test_helpers::fake_id(ctx), ctx);
+        recording::new_for_testing<OTHER_REC, COMP>(composition_id, ctx);
+    let (mut other_composition_recording, other_composition_cap) =
+        recording::new_for_testing<REC, OTHER_COMP>(other_composition_id, ctx);
+
     session::set_engine_session(&mut recording, &cap, new_session(1));
     session::set_engine_session(&mut other_recording, &other_cap, new_session(2));
+    session::set_engine_session(
+        &mut other_composition_recording,
+        &other_composition_cap,
+        new_session(3),
+    );
+
     assert_eq!(event::events_by_type<session::EngineSessionSetEvent<REC, COMP>>().length(), 1);
+    let rec_comp_events = event::events_by_type<session::EngineSessionSetEvent<REC, COMP>>();
+    let (_, _, _, _, _, _, _, rec_comp_blob, _, _, _) =
+        session::set_event_fields(&rec_comp_events[0]);
+    assert_eq!(rec_comp_blob, 1);
+
+    let other_rec_comp_events =
+        event::events_by_type<session::EngineSessionSetEvent<OTHER_REC, COMP>>();
+    assert_eq!(other_rec_comp_events.length(), 1);
+    let (_, _, _, _, _, _, _, other_rec_comp_blob, _, _, _) =
+        session::set_event_fields(&other_rec_comp_events[0]);
+    assert_eq!(other_rec_comp_blob, 2);
+
     assert_eq!(event::events_by_type<session::EngineSessionSetEvent<REC, OTHER_COMP>>().length(), 1);
+    let other_comp_events =
+        event::events_by_type<session::EngineSessionSetEvent<REC, OTHER_COMP>>();
+    let (_, _, _, _, _, _, _, other_comp_blob, _, _, _) =
+        session::set_event_fields(&other_comp_events[0]);
+    assert_eq!(other_comp_blob, 3);
+    assert_eq!(
+        event::events_by_type<session::EngineSessionSetEvent<OTHER_REC, OTHER_COMP>>().length(),
+        0,
+    );
+
+    session::unset_engine_session(&mut recording, &cap);
+    session::unset_engine_session(&mut other_recording, &other_cap);
+    session::unset_engine_session(
+        &mut other_composition_recording,
+        &other_composition_cap,
+    );
+
+    let rec_comp_unset_events =
+        event::events_by_type<session::EngineSessionUnsetEvent<REC, COMP>>();
+    assert_eq!(rec_comp_unset_events.length(), 1);
+    let (_, _, _, rec_comp_removed_blob, _, _, _) =
+        session::unset_event_fields(&rec_comp_unset_events[0]);
+    assert_eq!(rec_comp_removed_blob, 1);
+
+    let other_rec_comp_unset_events =
+        event::events_by_type<session::EngineSessionUnsetEvent<OTHER_REC, COMP>>();
+    assert_eq!(other_rec_comp_unset_events.length(), 1);
+    let (_, _, _, other_rec_comp_removed_blob, _, _, _) =
+        session::unset_event_fields(&other_rec_comp_unset_events[0]);
+    assert_eq!(other_rec_comp_removed_blob, 2);
+
+    let other_comp_unset_events =
+        event::events_by_type<session::EngineSessionUnsetEvent<REC, OTHER_COMP>>();
+    assert_eq!(other_comp_unset_events.length(), 1);
+    let (_, _, _, other_comp_removed_blob, _, _, _) =
+        session::unset_event_fields(&other_comp_unset_events[0]);
+    assert_eq!(other_comp_removed_blob, 3);
+    assert_eq!(
+        event::events_by_type<session::EngineSessionUnsetEvent<OTHER_REC, OTHER_COMP>>().length(),
+        0,
+    );
+
     destroy(recording);
     destroy(cap);
     destroy(other_recording);
     destroy(other_cap);
+    destroy(other_composition_recording);
+    destroy(other_composition_cap);
 }
 
 #[test]

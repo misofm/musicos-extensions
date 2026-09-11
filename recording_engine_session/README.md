@@ -27,12 +27,13 @@ stem_digests: vector<vector<u8>>
 stem_blob_ids: vector<u256>
 ```
 
-An insertion uses zero and empty values for the absent previous snapshot and
-sets `had_previous = false`, `value_changed = true`. A replacement snapshots
-the complete prior value and compares the full session (session blob,
-ordered digests, and aligned stem blob IDs); an exactly equal replacement has
-`value_changed = false`. The digest and blob-ID vectors preserve stored order
-and remain positionally aligned.
+An insertion uses two zero scalar sentinels (`previous_session_blob_id` and
+`previous_stem_count`) for the absent previous value; it has no previous stem
+vectors, and sets `had_previous = false`, `value_changed = true`. A replacement
+snapshots only the prior session blob ID and stem count, then compares the full
+session (session blob, ordered digests, and aligned stem blob IDs); an exactly
+equal replacement has `value_changed = false`. The current digest and blob-ID
+vectors preserve stored order and remain positionally aligned.
 
 `unset_engine_session` emits one
 `EngineSessionUnsetEvent<RecordingShare, CompositionShare>` only when a value
@@ -51,6 +52,10 @@ removed_stem_blob_ids: vector<u256>
 An absent unset is silent. Both events carry the actual recording,
 composition, and admin-cap IDs; `uid_mut` remains type-only and does not
 authenticate a cap value.
+
+Current and removed stem snapshots are unbounded in count, so their event
+payloads grow linearly with the number of stems. The previous set snapshot is
+only the two scalar fields described above.
 
 For `n` stems, BCS sizes are:
 

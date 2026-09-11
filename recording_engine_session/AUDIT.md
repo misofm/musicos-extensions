@@ -22,9 +22,12 @@ values, each pairing a 32-byte canonical PCM digest with its own unencrypted
 (which also rejects duplicates), so a stored value has one canonical form.
 Session and stems are one value and replace atomically. The module stores one
 session per Recording, leaves unrelated dynamic fields untouched, and emits
-the recording, composition, and admin-cap addresses plus bounded primitive
-snapshots of the previous/current or removed value. An absent unset is an
-idempotent no-op and emits no misleading event.
+the recording, composition, and admin-cap addresses. A set event carries only
+the previous session blob ID and stem count, while its current snapshot and
+an unset event carry the complete ordered stem vectors; those current/removed
+snapshots are unbounded and their payloads grow linearly with stem count. An
+insertion uses zero values for those two previous fields and no previous stem
+vectors. An absent unset is an idempotent no-op and emits no misleading event.
 
 The extension records the Recording administrator's assertion. It cannot prove
 that any blob is stored or retrievable, that the session blob is a valid Session

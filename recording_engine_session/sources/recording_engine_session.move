@@ -89,8 +89,10 @@ public struct EngineSession has copy, drop, store {
 
 // === Events ===
 
-/// Emitted when a Miso Engine session is set or replaced. The payload is a
-/// bounded primitive snapshot of the previous and current session values.
+/// Emitted when a Miso Engine session is set or replaced. The previous value
+/// contributes only its blob ID and stem count; insertion uses two zero scalar
+/// sentinels and no previous vectors. Current and removed stem snapshots are
+/// unbounded and grow linearly with the stem count.
 public struct EngineSessionSetEvent<phantom RecordingShare, phantom CompositionShare>
     has copy, drop {
     recording_id: address,
