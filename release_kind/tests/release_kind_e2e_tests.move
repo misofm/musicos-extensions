@@ -68,12 +68,12 @@ fun kind_lifecycle_against_a_published_shared_release() {
     assert!(rk::has_kind(&rel));
     assert_eq!(rk::kind(&rel), b"Album".to_string());
 
-    let set_events = event::events_by_type<rk::KindSetEvent>();
+    let set_events = event::events_by_type<rk::ReleaseKindSetEvent>();
     assert_eq!(set_events.length(), 1);
     let (
         event_id, event_cap_id, existed_before, previous_kind, previous_length,
         event_kind, kind_length, exists_after, changed,
-    ) = rk::set_event_payload(&set_events[0]);
+    ) = rk::release_kind_set_event_payload(&set_events[0]);
     assert_eq!(event_id, rel_id);
     assert_eq!(event_cap_id, cap_id);
     assert!(!existed_before);
@@ -98,12 +98,12 @@ fun kind_lifecycle_against_a_published_shared_release() {
     rk::set_kind(&mut rel, &cap, b"Extended Play".to_string());
     assert_eq!(rk::kind(&rel), b"Extended Play".to_string());
 
-    let set_events = event::events_by_type<rk::KindSetEvent>();
+    let set_events = event::events_by_type<rk::ReleaseKindSetEvent>();
     assert_eq!(set_events.length(), 1);
     let (
         event_id, event_cap_id, existed_before, previous_kind, previous_length,
         event_kind, kind_length, exists_after, changed,
-    ) = rk::set_event_payload(&set_events[0]);
+    ) = rk::release_kind_set_event_payload(&set_events[0]);
     assert_eq!(event_id, rel_id);
     assert_eq!(event_cap_id, cap_id);
     assert!(existed_before);
@@ -117,12 +117,12 @@ fun kind_lifecycle_against_a_published_shared_release() {
     rk::unset_kind(&mut rel, &cap);
     assert!(!rk::has_kind(&rel));
 
-    let unset_events = event::events_by_type<rk::KindUnsetEvent>();
+    let unset_events = event::events_by_type<rk::ReleaseKindUnsetEvent>();
     assert_eq!(unset_events.length(), 1);
     let (
         event_id, event_cap_id, existed_before, previous_kind, previous_length,
         event_kind, kind_length, exists_after, changed,
-    ) = rk::unset_event_payload(&unset_events[0]);
+    ) = rk::release_kind_unset_event_payload(&unset_events[0]);
     assert_eq!(event_id, rel_id);
     assert_eq!(event_cap_id, cap_id);
     assert!(existed_before);

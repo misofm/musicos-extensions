@@ -56,7 +56,7 @@ public struct ExtensionKey() has copy, drop, store;
 
 /// Emitted when a release's kind is set or replaced. How a release is presented
 /// and grouped follows from this, so an indexer needs to hear every assignment.
-public struct KindSetEvent has copy, drop {
+public struct ReleaseKindSetEvent has copy, drop {
     release_id: address,
     release_admin_cap_id: address,
     kind_record_existed_before: bool,
@@ -69,7 +69,7 @@ public struct KindSetEvent has copy, drop {
 }
 
 /// Emitted when a release's kind is removed.
-public struct KindUnsetEvent has copy, drop {
+public struct ReleaseKindUnsetEvent has copy, drop {
     release_id: address,
     release_admin_cap_id: address,
     kind_record_existed_before: bool,
@@ -111,7 +111,7 @@ public fun set_kind(self: &mut Release, cap: &ReleaseAdminCap, kind: String) {
     };
     let kind_record_exists_after = df::exists(uid, ExtensionKey());
     let kind_changed = previous_kind != kind_bytes;
-    emit(KindSetEvent {
+    emit(ReleaseKindSetEvent {
         release_id,
         release_admin_cap_id,
         kind_record_existed_before,
@@ -137,7 +137,7 @@ public fun unset_kind(self: &mut Release, cap: &ReleaseAdminCap) {
         let previous_kind_length = previous_kind.length();
         let _: String = df::remove(uid, ExtensionKey());
         let kind_record_exists_after = df::exists(uid, ExtensionKey());
-        emit(KindUnsetEvent {
+        emit(ReleaseKindUnsetEvent {
             release_id,
             release_admin_cap_id,
             kind_record_existed_before,
@@ -167,12 +167,12 @@ public fun kind(self: &Release): String {
 // === Test Functions ===
 
 #[test_only]
-public fun set_event_fields(e: &KindSetEvent): (ID, String) {
+public fun release_kind_set_event_fields(e: &ReleaseKindSetEvent): (ID, String) {
     (object::id_from_address(e.release_id), std::string::utf8(e.kind))
 }
 
 #[test_only]
-public fun set_event_payload(e: &KindSetEvent):
+public fun release_kind_set_event_payload(e: &ReleaseKindSetEvent):
     (address, address, bool, vector<u8>, u64, vector<u8>, u64, bool, bool) {
     (
         e.release_id,
@@ -188,7 +188,7 @@ public fun set_event_payload(e: &KindSetEvent):
 }
 
 #[test_only]
-public fun unset_event_payload(e: &KindUnsetEvent):
+public fun release_kind_unset_event_payload(e: &ReleaseKindUnsetEvent):
     (address, address, bool, vector<u8>, u64, vector<u8>, u64, bool, bool) {
     (
         e.release_id,
@@ -204,12 +204,12 @@ public fun unset_event_payload(e: &KindUnsetEvent):
 }
 
 #[test_only]
-public fun unset_event_release_id(e: &KindUnsetEvent): ID {
+public fun release_kind_unset_event_release_id(e: &ReleaseKindUnsetEvent): ID {
     object::id_from_address(e.release_id)
 }
 
 #[test_only]
-public fun set_event_bcs(e: &KindSetEvent): vector<u8> { sui::bcs::to_bytes(e) }
+public fun release_kind_set_event_bcs(e: &ReleaseKindSetEvent): vector<u8> { sui::bcs::to_bytes(e) }
 
 #[test_only]
-public fun unset_event_bcs(e: &KindUnsetEvent): vector<u8> { sui::bcs::to_bytes(e) }
+public fun release_kind_unset_event_bcs(e: &ReleaseKindUnsetEvent): vector<u8> { sui::bcs::to_bytes(e) }

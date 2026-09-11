@@ -38,7 +38,7 @@ fun mk_release(ctx: &mut TxContext): (Release, ReleaseAdminCap) {
 }
 
 fun assert_set_payload(
-    event: &rk::KindSetEvent,
+    event: &rk::ReleaseKindSetEvent,
     release_id: address,
     release_admin_cap_id: address,
     kind_record_existed_before: bool,
@@ -59,7 +59,7 @@ fun assert_set_payload(
         actual_kind_length,
         actual_kind_record_exists_after,
         actual_kind_changed,
-    ) = rk::set_event_payload(event);
+    ) = rk::release_kind_set_event_payload(event);
     assert_eq!(actual_release_id, release_id);
     assert_eq!(actual_release_admin_cap_id, release_admin_cap_id);
     assert_eq!(actual_kind_record_existed_before, kind_record_existed_before);
@@ -72,7 +72,7 @@ fun assert_set_payload(
 }
 
 fun assert_unset_payload(
-    event: &rk::KindUnsetEvent,
+    event: &rk::ReleaseKindUnsetEvent,
     release_id: address,
     release_admin_cap_id: address,
     kind_record_existed_before: bool,
@@ -93,7 +93,7 @@ fun assert_unset_payload(
         actual_kind_length,
         actual_kind_record_exists_after,
         actual_kind_changed,
-    ) = rk::unset_event_payload(event);
+    ) = rk::release_kind_unset_event_payload(event);
     assert_eq!(actual_release_id, release_id);
     assert_eq!(actual_release_admin_cap_id, release_admin_cap_id);
     assert_eq!(actual_kind_record_existed_before, kind_record_existed_before);
@@ -106,7 +106,7 @@ fun assert_unset_payload(
 }
 
 fun assert_set_bcs(
-    event: &rk::KindSetEvent,
+    event: &rk::ReleaseKindSetEvent,
     release_id: address,
     release_admin_cap_id: address,
     kind_record_existed_before: bool,
@@ -117,7 +117,7 @@ fun assert_set_bcs(
     kind_record_exists_after: bool,
     kind_changed: bool,
 ) {
-    let mut bytes = bcs::new(rk::set_event_bcs(event));
+    let mut bytes = bcs::new(rk::release_kind_set_event_bcs(event));
     assert_eq!(bytes.peel_address(), release_id);
     assert_eq!(bytes.peel_address(), release_admin_cap_id);
     assert_eq!(bytes.peel_bool(), kind_record_existed_before);
@@ -131,7 +131,7 @@ fun assert_set_bcs(
 }
 
 fun assert_unset_bcs(
-    event: &rk::KindUnsetEvent,
+    event: &rk::ReleaseKindUnsetEvent,
     release_id: address,
     release_admin_cap_id: address,
     kind_record_existed_before: bool,
@@ -142,7 +142,7 @@ fun assert_unset_bcs(
     kind_record_exists_after: bool,
     kind_changed: bool,
 ) {
-    let mut bytes = bcs::new(rk::unset_event_bcs(event));
+    let mut bytes = bcs::new(rk::release_kind_unset_event_bcs(event));
     assert_eq!(bytes.peel_address(), release_id);
     assert_eq!(bytes.peel_address(), release_admin_cap_id);
     assert_eq!(bytes.peel_bool(), kind_record_existed_before);
@@ -155,64 +155,162 @@ fun assert_unset_bcs(
     assert!(bytes.into_remainder_bytes().is_empty());
 }
 
+/// Replays only the decoded event bytes into a tiny projection. The projection
+/// intentionally does not read the dynamic field; the final assertions compare
+/// its state with the permissionless views.
+fun project_set_event(
+    projected_exists: &mut bool,
+    projected_kind: &mut vector<u8>,
+    event: &rk::ReleaseKindSetEvent,
+) {
+    let mut bytes = bcs::new(rk::release_kind_set_event_bcs(event));
+    let _release_id = bytes.peel_address();
+    let _release_admin_cap_id = bytes.peel_address();
+    let existed_before = bytes.peel_bool();
+    let previous_kind = bytes.peel_vec_u8();
+    let previous_kind_length = bytes.peel_u64();
+    let kind = bytes.peel_vec_u8();
+    let kind_length = bytes.peel_u64();
+    let exists_after = bytes.peel_bool();
+    let kind_changed = bytes.peel_bool();
+    assert_eq!(existed_before, *projected_exists);
+    if (existed_before) {
+        assert_eq!(previous_kind, *projected_kind);
+    } else {
+        assert!(previous_kind.is_empty());
+    };
+    assert_eq!(previous_kind.length(), previous_kind_length);
+    assert_eq!(kind.length(), kind_length);
+    assert_eq!(kind_changed, previous_kind != kind);
+    assert!(exists_after);
+    assert!(bytes.into_remainder_bytes().is_empty());
+    *projected_exists = exists_after;
+    *projected_kind = kind;
+}
+
+fun project_unset_event(
+    projected_exists: &mut bool,
+    projected_kind: &mut vector<u8>,
+    event: &rk::ReleaseKindUnsetEvent,
+) {
+    let mut bytes = bcs::new(rk::release_kind_unset_event_bcs(event));
+    let _release_id = bytes.peel_address();
+    let _release_admin_cap_id = bytes.peel_address();
+    let existed_before = bytes.peel_bool();
+    let previous_kind = bytes.peel_vec_u8();
+    let previous_kind_length = bytes.peel_u64();
+    let kind = bytes.peel_vec_u8();
+    let kind_length = bytes.peel_u64();
+    let exists_after = bytes.peel_bool();
+    let kind_changed = bytes.peel_bool();
+    assert!(existed_before);
+    assert!(*projected_exists);
+    assert_eq!(previous_kind, *projected_kind);
+    assert_eq!(previous_kind.length(), previous_kind_length);
+    assert!(kind.is_empty());
+    assert_eq!(kind_length, 0);
+    assert!(!exists_after);
+    assert!(kind_changed);
+    assert!(bytes.into_remainder_bytes().is_empty());
+    *projected_exists = exists_after;
+    *projected_kind = kind;
+}
+
+fun assert_projection_matches_view(
+    release: &Release,
+    projected_exists: bool,
+    projected_kind: vector<u8>,
+) {
+    assert_eq!(rk::has_kind(release), projected_exists);
+    if (projected_exists) {
+        let view = rk::kind(release);
+        assert_eq!(*view.as_bytes(), projected_kind);
+    };
+}
+
 #[test]
 fun set_read_replace_unset_lifecycle() {
     let ctx = &mut tx_context::dummy();
     let (mut rel, cap) = mk_release(ctx);
     let release_id = object::id(&rel).to_address();
     let release_admin_cap_id = object::id(&cap).to_address();
+    let mut projected_exists = false;
+    let mut projected_kind = vector[];
 
     assert!(!rk::has_kind(&rel));
 
     rk::set_kind(&mut rel, &cap, b"Album".to_string());
     assert!(rk::has_kind(&rel));
     assert_eq!(rk::kind(&rel), b"Album".to_string());
-    let set_events = event::events_by_type<rk::KindSetEvent>();
+    let set_events = event::events_by_type<rk::ReleaseKindSetEvent>();
     assert_eq!(set_events.length(), 1);
     assert_set_payload(
         &set_events[0], release_id, release_admin_cap_id, false, vector[], 0,
         b"Album", 5, true, true,
     );
+    project_set_event(&mut projected_exists, &mut projected_kind, &set_events[0]);
+    assert_projection_matches_view(&rel, projected_exists, projected_kind);
 
     // A release may change its mind about what it is.
     rk::set_kind(&mut rel, &cap, b"Extended Play".to_string());
     assert_eq!(rk::kind(&rel), b"Extended Play".to_string());
-    let set_events = event::events_by_type<rk::KindSetEvent>();
+    let set_events = event::events_by_type<rk::ReleaseKindSetEvent>();
     assert_eq!(set_events.length(), 2);
     assert_set_payload(
         &set_events[1], release_id, release_admin_cap_id, true, b"Album", 5,
         b"Extended Play", 13, true, true,
     );
+    project_set_event(&mut projected_exists, &mut projected_kind, &set_events[1]);
+    assert_projection_matches_view(&rel, projected_exists, projected_kind);
+
+    // Equal replacement is still an assignment and event, but the decoded
+    // change flag is false and the projected state remains identical.
+    rk::set_kind(&mut rel, &cap, b"Extended Play".to_string());
+    let set_events = event::events_by_type<rk::ReleaseKindSetEvent>();
+    assert_eq!(set_events.length(), 3);
+    assert_set_payload(
+        &set_events[2], release_id, release_admin_cap_id, true,
+        b"Extended Play", 13, b"Extended Play", 13, true, false,
+    );
+    project_set_event(&mut projected_exists, &mut projected_kind, &set_events[2]);
+    assert_projection_matches_view(&rel, projected_exists, projected_kind);
 
     rk::unset_kind(&mut rel, &cap);
     assert!(!rk::has_kind(&rel));
-    let unset_events = event::events_by_type<rk::KindUnsetEvent>();
+    let unset_events = event::events_by_type<rk::ReleaseKindUnsetEvent>();
     assert_eq!(unset_events.length(), 1);
     assert_unset_payload(
         &unset_events[0], release_id, release_admin_cap_id, true,
         b"Extended Play", 13, vector[], 0, false, true,
     );
+    project_unset_event(&mut projected_exists, &mut projected_kind, &unset_events[0]);
+    assert_projection_matches_view(&rel, projected_exists, projected_kind);
 
     // Unset is idempotent.
     rk::unset_kind(&mut rel, &cap);
     assert!(!rk::has_kind(&rel));
-    assert_eq!(event::events_by_type<rk::KindUnsetEvent>().length(), 1);
+    assert_eq!(event::events_by_type<rk::ReleaseKindUnsetEvent>().length(), 1);
+    assert_projection_matches_view(&rel, projected_exists, projected_kind);
 
     // Removing the field permits a fresh set with an empty previous snapshot.
     rk::set_kind(&mut rel, &cap, b"Re-set".to_string());
-    let set_events = event::events_by_type<rk::KindSetEvent>();
-    assert_eq!(set_events.length(), 3);
+    let set_events = event::events_by_type<rk::ReleaseKindSetEvent>();
+    assert_eq!(set_events.length(), 4);
     assert_set_payload(
-        &set_events[2], release_id, release_admin_cap_id, false, vector[], 0,
+        &set_events[3], release_id, release_admin_cap_id, false, vector[], 0,
         b"Re-set", 6, true, true,
     );
+    project_set_event(&mut projected_exists, &mut projected_kind, &set_events[3]);
+    assert_projection_matches_view(&rel, projected_exists, projected_kind);
     rk::unset_kind(&mut rel, &cap);
-    let unset_events = event::events_by_type<rk::KindUnsetEvent>();
+    let unset_events = event::events_by_type<rk::ReleaseKindUnsetEvent>();
     assert_eq!(unset_events.length(), 2);
     assert_unset_payload(
         &unset_events[1], release_id, release_admin_cap_id, true,
         b"Re-set", 6, vector[], 0, false, true,
     );
+    project_unset_event(&mut projected_exists, &mut projected_kind, &unset_events[1]);
+    assert_projection_matches_view(&rel, projected_exists, projected_kind);
 
     destroy(rel);
     destroy(cap);
@@ -300,18 +398,18 @@ fun exactly_max_length_is_accepted() {
     rk::set_kind(&mut rel, &cap, second);
     rk::unset_kind(&mut rel, &cap);
 
-    let set_events = event::events_by_type<rk::KindSetEvent>();
+    let set_events = event::events_by_type<rk::ReleaseKindSetEvent>();
     assert_eq!(set_events.length(), 2);
-    assert_eq!(rk::set_event_bcs(&set_events[0]).length(), 117);
-    assert_eq!(rk::set_event_bcs(&set_events[1]).length(), 149);
+    assert_eq!(rk::release_kind_set_event_bcs(&set_events[0]).length(), 117);
+    assert_eq!(rk::release_kind_set_event_bcs(&set_events[1]).length(), 149);
     assert_set_bcs(
         &set_events[1], release_id, release_admin_cap_id, true,
         b"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", 32,
         b"BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB", 32, true, true,
     );
-    let unset_events = event::events_by_type<rk::KindUnsetEvent>();
+    let unset_events = event::events_by_type<rk::ReleaseKindUnsetEvent>();
     assert_eq!(unset_events.length(), 1);
-    assert_eq!(rk::unset_event_bcs(&unset_events[0]).length(), 117);
+    assert_eq!(rk::release_kind_unset_event_bcs(&unset_events[0]).length(), 117);
     assert_unset_bcs(
         &unset_events[0], release_id, release_admin_cap_id, true,
         b"BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB", 32, vector[], 0, false, true,
@@ -330,7 +428,7 @@ fun set_emits_the_kind() {
 
     rk::set_kind(&mut rel, &cap, b"Mixtape".to_string());
 
-    let events = event::events_by_type<rk::KindSetEvent>();
+    let events = event::events_by_type<rk::ReleaseKindSetEvent>();
     assert_eq!(events.length(), 1);
     assert_set_payload(
         &events[0], rel_id, cap_id, false, vector[], 0,
@@ -355,7 +453,7 @@ fun equal_replacement_is_an_assignment_but_not_a_change() {
     rk::set_kind(&mut rel, &cap, b"EP".to_string());
     rk::set_kind(&mut rel, &cap, b"EP".to_string());
 
-    let events = event::events_by_type<rk::KindSetEvent>();
+    let events = event::events_by_type<rk::ReleaseKindSetEvent>();
     assert_eq!(events.length(), 2);
     assert_set_payload(
         &events[1], release_id, release_admin_cap_id, true,
@@ -392,7 +490,7 @@ fun verbatim_whitespace_nul_and_multibyte_kinds() {
     rk::set_kind(&mut rel, &cap, std::string::utf8(multibyte));
     assert_eq!(rk::kind(&rel).as_bytes().length(), 32);
 
-    let events = event::events_by_type<rk::KindSetEvent>();
+    let events = event::events_by_type<rk::ReleaseKindSetEvent>();
     assert_eq!(events.length(), 2);
     assert_set_payload(
         &events[1], release_id, release_admin_cap_id, true,
@@ -414,8 +512,8 @@ fun views_are_silent() {
     let ctx = &mut tx_context::dummy();
     let (rel, cap) = mk_release(ctx);
     assert!(!rk::has_kind(&rel));
-    assert_eq!(event::events_by_type<rk::KindSetEvent>().length(), 0);
-    assert_eq!(event::events_by_type<rk::KindUnsetEvent>().length(), 0);
+    assert_eq!(event::events_by_type<rk::ReleaseKindSetEvent>().length(), 0);
+    assert_eq!(event::events_by_type<rk::ReleaseKindUnsetEvent>().length(), 0);
     destroy(rel);
     destroy(cap);
 }
@@ -428,12 +526,12 @@ fun unset_emits_only_when_something_was_removed() {
     let cap_id = object::id(&cap).to_address();
 
     rk::unset_kind(&mut rel, &cap);
-    assert_eq!(event::events_by_type<rk::KindUnsetEvent>().length(), 0);
+    assert_eq!(event::events_by_type<rk::ReleaseKindUnsetEvent>().length(), 0);
 
     rk::set_kind(&mut rel, &cap, b"EP".to_string());
     rk::unset_kind(&mut rel, &cap);
 
-    let events = event::events_by_type<rk::KindUnsetEvent>();
+    let events = event::events_by_type<rk::ReleaseKindUnsetEvent>();
     assert_eq!(events.length(), 1);
     assert_unset_payload(
         &events[0], rel_id, cap_id, true, b"EP", 2, vector[], 0, false, true,

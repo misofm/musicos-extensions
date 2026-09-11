@@ -17,8 +17,9 @@ cap belongs to another release; a valid foreign cap aborts in musicos with
 `EUnauthorized` (0). The bound is byte-based, not a character count.
 
 `unset_kind(release, cap)` authorizes first and then removes the field when it
-exists. An absent field is a successful silent no-op. Removing a field does not
-change the `Release` object itself. `has_kind` is a permissionless presence
+exists. An absent field is a successful silent no-op. Removing the extension's
+dynamic field leaves the embedded `Release` fields, object identity, and
+published/shared lifecycle unchanged. `has_kind` is a permissionless presence
 view, while `kind` is a permissionless value view that aborts with `ENoKind` (1)
 when the field is absent.
 
@@ -28,8 +29,8 @@ it with equal bytes. The event's `kind_changed` is `false` for equal bytes and
 
 ## Events and encoding
 
-`KindSetEvent` and `KindUnsetEvent` are monomorphic and have the identical field
-order and types:
+`ReleaseKindSetEvent` and `ReleaseKindUnsetEvent` are monomorphic and have the
+identical field order and types:
 
 1. `release_id: address`
 2. `release_admin_cap_id: address`
