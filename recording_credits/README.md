@@ -71,9 +71,10 @@ maximal tested BCS sizes are 1549 (`CreditAddedEvent`), 1550
 designation-removed event).
 
 `credit_index` and set indexes are insertion-order indexes at the mutation;
-all before/after counts are exact deltas. Credit removal's event snapshots the
-removed credit before map deletion, then emits primary and featured cascade
-events in that mutation order. Explicit designation removal sets
+all before/after counts are cardinalities (the exact before and after values,
+not deltas). Credit removal first removes the map entry, then emits the returned
+credit snapshot, then emits primary and featured cascade events in that mutation
+order. Explicit designation removal sets
 `caused_by_credit_removal` to false. The test-only event accessors serialize
 the complete event values, and tests compare those bytes with independently
 assembled BCS payloads rather than checking lengths alone.

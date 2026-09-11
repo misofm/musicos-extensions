@@ -330,24 +330,31 @@ fun remove_credit_then_add_primary_fails_on_published_recording() {
     let mut ts = test_scenario::begin(ADMIN);
     let cap = publish_shared_recording(&mut ts);
 
-    // --- Tx 2 (ADMIN): credit, designate primary, then remove ---
+    // --- Tx 2 (ADMIN): credits, designations, then removals ---
     ts.next_tx(ADMIN);
     let mut rec = ts.take_shared<Recording<RecordingShare, CompositionShare>>();
     let clock = sui::clock::create_for_testing(ts.ctx());
     let (p, _pc) = party::new(party::new_individual_kind(), b"Alice Party".to_string(), &clock, ts.ctx());
+    let (featured, _featured_pc) = party::new(party::new_individual_kind(), b"Featured Party".to_string(), &clock, ts.ctx());
     clock.destroy_for_testing();
     let pid = object::id(&p);
+    let featured_id = object::id(&featured);
     let recording_id = object::id(&rec).to_address();
     let composition_id = recording::composition_id(&rec).to_address();
     let admin_cap_id = object::id(&cap).to_address();
     let party_id = pid.to_address();
+    let featured_party_id = featured_id.to_address();
     credits::add_credit(&mut rec, &cap, &p,
         credit::new(b"Alice Display".to_string(), vector[rpr::new_vocalist_role(option::none())]));
+    credits::add_credit(&mut rec, &cap, &featured,
+        credit::new(b"Featured Display".to_string(), vector[rpr::new_producer_role(option::none())]));
     credits::add_primary_artist(&mut rec, &cap, &p);
+    credits::add_featured_artist(&mut rec, &cap, &featured);
     credits::remove_credit(&mut rec, &cap, pid);
+    credits::remove_credit(&mut rec, &cap, featured_id);
 
     let removed = event::events_by_type<credits::CreditRemovedEvent<RecordingShare, CompositionShare>>();
-    assert_eq!(removed.length(), 1);
+    assert_eq!(removed.length(), 2);
     assert_eq!(credits::credit_removed_event_fields(&removed[0]), expected_credit_removed(
         recording_id,
         composition_id,
@@ -359,10 +366,26 @@ fun remove_credit_then_add_primary_fails_on_published_recording() {
         vector[b""],
         vector[0],
         0,
+        2,
         1,
-        0,
         true,
         false,
+    ));
+    assert_eq!(credits::credit_removed_event_fields(&removed[1]), expected_credit_removed(
+        recording_id,
+        composition_id,
+        admin_cap_id,
+        featured_party_id,
+        b"Featured Display",
+        vector[23],
+        vector[b"Producer"],
+        vector[b""],
+        vector[0],
+        0,
+        1,
+        0,
+        false,
+        true,
     ));
 
     let primary_removed = event::events_by_type<credits::PrimaryArtistRemovedEvent<RecordingShare, CompositionShare>>();
@@ -376,6 +399,20 @@ fun remove_credit_then_add_primary_fails_on_published_recording() {
         0,
         1,
         0,
+        1,
+        true,
+    ));
+    let featured_removed = event::events_by_type<credits::FeaturedArtistRemovedEvent<RecordingShare, CompositionShare>>();
+    assert_eq!(featured_removed.length(), 1);
+    assert_eq!(credits::featured_artist_removed_event_fields(&featured_removed[0]), expected_artist_removed(
+        recording_id,
+        composition_id,
+        admin_cap_id,
+        featured_party_id,
+        b"Featured Display",
+        0,
+        1,
+        0,
         0,
         true,
     ));
@@ -386,6 +423,7 @@ fun remove_credit_then_add_primary_fails_on_published_recording() {
     assert_eq!(event::events_by_type<credits::FeaturedArtistRemovedEvent<RecordingShare, bool>>().length(), 0);
     assert_eq!(event::events_by_type<credits::FeaturedArtistRemovedEvent<bool, CompositionShare>>().length(), 0);
     assert!(!credits::is_primary_artist(&rec, pid));
+    assert!(!credits::is_featured_artist(&rec, featured_id));
 
     test_scenario::return_shared(rec);
 
