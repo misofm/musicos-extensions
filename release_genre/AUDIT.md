@@ -1,63 +1,68 @@
 # Security review — `release_genre`
 
-Reviewed 2026-09-08 for immutable publication. Verdict: no exploitable
-findings in the reviewed source.
+Reviewed 2026-09-11 for immutable publication. The event revision preserves
+the stored key/value layout and production API while making every successful
+mutation auditable as a bounded, replayable transition.
 
 ## Reviewed surface
 
 The public API is four functions: `add_genre`, `remove_genre`,
-`clear_genres`, and the single view `genres`. Two prior views — an emptiness
-predicate and a primary-genre accessor — were removed, since both were pure
-client-side derivations of `genres()` (`!genres(x).is_empty()` and
-`genres(x)[0]` respectively), and this package is never upgraded, so no
-function that composes from the others is carried as permanent surface.
-Neither writer ever called either removed view internally; all three writes
-use `df::exists` directly against the release's `UID`.
+`clear_genres`, and the permissionless `genres` view. The stored value remains
+the package-owned `ExtensionKey` mapped to a bare, ordered `vector<ID>`; index
+zero is primary and removing the final entry reclaims the dynamic field.
+
+`add_genre` takes a real `&Genre`, captures its raw `Genre.name()` bytes in the
+Added event, and appends only the object id. `remove_genre` retains its original
+guard order: missing field or missing member aborts with 42 before cap
+authorization; once a member field exists, `uid_mut` enforces the upstream
+authorization check. `clear_genres` calls `uid_mut` first, so even an absent
+field is authenticated before its silent no-op. The cap check is type-only in
+the pinned `musicos` dependency; a runtime cap value or id is not an additional
+authorization claim.
 
 ## Dependency provenance
 
 `Move.toml` pins `genre` at
-`09f6882b57b19498f36fa15840cd7ed61094dc41` and `musicos` at
-`4fed48b2b5632122fb677d742881259c65b1bc78`. Both the Testnet and Mainnet lock
-graphs resolve `bps` at `4ca1972a67d35c972ca567de7b08315e3778e52b` with no
-duplicate package aliases.
+`cddf9491426723e2c468cebf40fb4231d9fb0d5a` and `musicos` at
+`4cb3c926b1f9bb5103f3f7194e4e1e34b6c87840`. The checked-in `Move.lock`,
+`Move.toml`, and `Published.toml` remain byte-identical to the baseline; build
+resolution was restored after strict Mainnet verification.
 
-## Threat model and findings
+## Events
 
-The relevant threat is an unauthorized change to a release's genre
-assignment. Every write (`add_genre`, `remove_genre`, `clear_genres`)
-requires the matching `ReleaseAdminCap` through `Release::uid_mut`, whose
-`authorize` check rejects a cap for any other release before this package's
-logic ever runs. Every id that enters the list is proven by a real `&Genre`
-object from the shared vocabulary, so nothing outside it can be written
-here; removal takes a bare `ID` since no proof is needed to take an entry
-back out. The list is bounded at `MAX_GENRES` (6), rejects duplicates, and is
-non-empty by construction — `remove_genre` drops the field the instant the
-last entry leaves, so "the field exists" and "there is a primary" never
-diverge, and no reader has to handle an attached-but-empty state.
-`clear_genres` is cap-gated like every other write, only ever removes the
-field it finds (or does nothing), and cannot abort — there is no assertion on
-its path, so a caller can always reach the empty state regardless of the
-list's current contents. Reordering, including changing which genre is
-primary, is `clear_genres` followed by `add_genre` in the desired order
-within one programmable transaction block; there is no dedicated
-set-primary function, so there is no conditional-capacity branch to review
-for that path. The dynamic-field key is module-owned (`ExtensionKey`), so no
-other extension on the same release can collide with or overwrite this data.
-The package moves no funds and contains no Vault, Action, or Plugin surface.
+The three monomorphic event declarations are `ReleaseGenreAddedEvent`,
+`ReleaseGenreRemovedEvent`, and `ReleaseGenresClearedEvent`. Their fields are
+the exact source declaration order documented in `README.md`: actual release,
+cap, and genre addresses; Added's raw UTF-8 name; index; complete before and
+after ordered address vectors; counts; field-existence and primary flags; and
+primary ids/change flag. Cleared additionally carries `clear_cause` and
+`trigger_genre_id`. Cause 0 is explicit clear with an `@0x0` trigger; cause 1
+is the final-remove cascade with the removed id.
 
-This source is intended for a new immutable package identity. It does not
-claim compatibility with any retired deployment, including the prior
-primary/secondary/per-track shape; clients migrate explicitly by selecting
-the new package and its dynamic-field key type.
+Every successful add emits exactly one Added event after the field write.
+Every successful remove emits Removed before field deletion; a final remove
+then emits Cleared with the canonical empty `[] -> []`, `true -> false`
+snapshot. Explicit clear removes the field and emits one Cleared event; an
+absent explicit clear emits none. Constructors, views, and failed guards are
+silent. No owner, timestamp, or full `Genre` object is exposed.
+
+For snapshot lengths `b`, `a`, and Added name length `n`, the exact BCS bounds
+are:
+
+* Added: `192 + n + 32*(b+a)`, maximum 608 (`n=64`, `b=5`, `a=6`);
+* Removed: `191 + 32*(b+a)`, maximum 543;
+* Cleared: `184 + 32*(b+a)`, maximum 376.
+
+The final pair is 223-byte Removed plus 184-byte cascading Cleared. These are
+serialized event bounds; vector/name lengths still contribute transaction gas.
 
 ## Evidence
 
-With `sui 1.78.1-722ac4fcf484`, strict Testnet and Mainnet lint,
-warnings-as-errors builds pass clean, and tests pass 16/16. The production
-module reports 100.00% coverage over its four public functions, including
-published/shared Release lifecycle, authorization, the ordered-list
-invariants (append, remove, clear, re-add after clear, reorder via
-clear-and-re-add), bounds, duplicates, the clear-when-absent no-op, and event
-behavior — each case now asserted directly against `genres()` rather than
-through either of the two removed views.
+With Sui 1.79.0, strict lint and warnings-as-errors Testnet and Mainnet builds
+and tests pass 23/23. The Testnet and Mainnet production-module coverage
+summaries are both 100.00%. Tests include full field-order BCS decoding with
+empty-remainder assertions and event-only replay, exact 64-byte and six-item
+bounds, final-removal pair sizes, two-release monomorphic streams, stable
+ordering and primary promotion, clear/re-add lifecycle, absent and populated
+wrong-cap guard precedence, duplicate-before-capacity behavior, published and
+shared Release lifecycle, and no-op/event silence.

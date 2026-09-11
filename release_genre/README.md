@@ -26,16 +26,19 @@ release's primary when the recording has none.
 
 ## API
 
-All writes require `&ReleaseAdminCap` for the exact release and go through
-`release::uid_mut(cap)`; a wrong cap aborts with `EUnauthorized` (0) at
-`musicos::release`. Views are permissionless.
+All writes require `&ReleaseAdminCap` and go through `release::uid_mut(cap)`.
+The upstream cap check is type-only and rejects a cap for another release with
+`EUnauthorized` (0) at `musicos::release`. `remove_genre` checks field
+presence first, so an absent field reports `EGenreNotPresent` (42) before cap
+authorization; `clear_genres` authorizes even when the field is absent. Views
+are permissionless.
 
 ### Writes
 
 | Function | Description | Aborts |
 |---|---|---|
 | `add_genre(release, cap, &Genre)` | Appends a genre; the first ever added becomes the primary | wrong cap; `EDuplicateGenre` (40) if already assigned, `EMaxGenres` (41) at 6 genres |
-| `remove_genre(release, cap, genre_id)` | Removes a genre by id; if it was the primary, the next entry is promoted; removing the last one drops the field | wrong cap; `EGenreNotPresent` (42) if not assigned (including when nothing is attached) |
+| `remove_genre(release, cap, genre_id)` | Removes a genre by id; if it was the primary, the next entry is promoted; removing the last one drops the field | `EGenreNotPresent` (42) before authorization if no field or member; wrong cap (0) once a member field exists |
 | `clear_genres(release, cap)` | Removes the entire genre list; no-op when absent | wrong cap |
 
 ### Views
@@ -46,11 +49,75 @@ All writes require `&ReleaseAdminCap` for the exact release and go through
 
 ## Events
 
-| Event | When | Payload |
-|---|---|---|
-| `GenreAddedEvent` | A genre is appended (`add_genre`) | `release_id`, `genre_id` |
-| `GenreRemovedEvent` | A genre is removed (`remove_genre`) | `release_id`, `genre_id` |
-| `GenresClearedEvent` | `remove_genre` removes the last genre and drops the field, or `clear_genres` removes an attached list outright | `release_id` |
+Events are monomorphic and are emitted only after their corresponding dynamic
+field mutation succeeds. BCS follows the declaration order below; vectors are
+ordered primitive address snapshots, so a consumer can replay the list and
+field lifecycle without rereading the release.
+
+`ReleaseGenreAddedEvent` fields:
+
+```text
+release_id: address
+admin_cap_id: address
+genre_id: address
+genre_name: vector<u8>
+genre_index: u64
+genres_before: vector<address>
+genres_after: vector<address>
+genre_count_before: u64
+genre_count_after: u64
+field_existed_before: bool
+field_exists_after: bool
+had_primary_before: bool
+has_primary_after: bool
+primary_genre_id_before: address
+primary_genre_id_after: address
+primary_changed: bool
+```
+
+`ReleaseGenreRemovedEvent` has the same order except that it omits
+`genre_name`. `ReleaseGenresClearedEvent` fields are:
+
+```text
+release_id: address
+admin_cap_id: address
+clear_cause: u8
+trigger_genre_id: address
+genres_before: vector<address>
+genres_after: vector<address>
+genre_count_before: u64
+genre_count_after: u64
+field_existed_before: bool
+field_exists_after: bool
+had_primary_before: bool
+has_primary_after: bool
+primary_genre_id_before: address
+primary_genre_id_after: address
+primary_changed: bool
+```
+
+`clear_cause = 0` is explicit `clear_genres` and uses `@0x0` as its trigger;
+`clear_cause = 1` is the cascade after removing the last genre and carries the
+removed genre id. The last removal emits `ReleaseGenreRemovedEvent` first,
+with the field still represented as `true -> true` and `[A] -> []`, then
+deletes the field and emits the cause-1 cleared event with `[] -> []` and
+`true -> false`. An absent explicit clear is silent. Added events carry the
+raw `Genre.name()` bytes; IDs and cap IDs are the actual object addresses.
+
+## Event bounds
+
+For `b` and `a` snapshot lengths and an `n`-byte raw genre name:
+
+- Added is `192 + n + 32*(b + a)` bytes, with maximum `608` bytes at `n = 64`,
+  `b = 5`, `a = 6`.
+- Removed is `191 + 32*(b + a)` bytes, with maximum `543` bytes for six items
+  removing one.
+- Cleared is `184 + 32*(b + a)` bytes, with maximum `376` bytes for six items
+  cleared to empty.
+
+The final-removal pair is `223` bytes for Removed (`b = 1`, `a = 0`) plus
+`184` bytes for the cascading Cleared event. These are serialized event bounds;
+the list and name still affect transaction gas.
 
 ## Errors
 
@@ -64,10 +131,10 @@ All writes require `&ReleaseAdminCap` for the exact release and go through
 ## Dependencies
 
 - [`musicos`](https://github.com/misofm/musicos) at
-  `4fed48b2b5632122fb677d742881259c65b1bc78` — `Release` authorization
+  `4cb3c926b1f9bb5103f3f7194e4e1e34b6c87840` — `Release` authorization
   through `uid`/`uid_mut`.
 - [`genre`](https://github.com/misofm/genre) at
-  `09f6882b57b19498f36fa15840cd7ed61094dc41` — the canonical shared genre
+  `cddf9491426723e2c468cebf40fb4231d9fb0d5a` — the canonical shared genre
   vocabulary.
 
 Both are exact Git pins; this manifest has no local-path dependencies.
@@ -80,11 +147,14 @@ Both are exact Git pins; this manifest has no local-path dependencies.
 - **Ids are name-derived.** `genre::derive_address(registry, name)` computes
   the address a genre name would have without creating it, so clients can
   resolve or check a genre id offline.
-- **Every stored id is proven.** Both writes take `&Genre`, so nothing
-  outside the vocabulary can ever enter the list — readers can trust that
-  each id resolves to a real entry.
-- **Events are change signals.** Re-read `genres()` on any of the four
-  events; the payload is not the state.
+- **Every stored id is proven.** `add_genre` takes a real `&Genre`, so nothing
+  outside the vocabulary can enter the list; `remove_genre` intentionally takes
+  a bare `ID` because membership is already established by the stored list.
+  Readers can trust that every retained id resolves to a real entry.
+- **Events are replayable transitions.** Added, Removed, and Cleared carry
+  ordered address snapshots, counts, field lifecycle flags, primary metadata,
+  and the actual release/cap IDs. Added also carries the raw canonical genre
+  name, so clients may replay directly or reread `genres()`.
 - **Primary is protocol state here.** Unlike `party_genre`'s tag set, index 0
   in this list is not a client convention — it is the release's asserted
   primary genre, set and read through this API.

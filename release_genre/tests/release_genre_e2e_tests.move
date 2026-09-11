@@ -105,14 +105,16 @@ fun genre_lifecycle_on_published_shared_release() {
     assert_eq!(rg::genres(&rel), vector[electronic_id, hiphop_id]);
 
     // Full event payloads, pinned against the real (post-publish) release id.
-    let added_events = event::events_by_type<rg::GenreAddedEvent>();
+    let added_events = event::events_by_type<rg::ReleaseGenreAddedEvent>();
     assert_eq!(added_events.length(), 2);
-    let (a0_release_id, a0_genre_id) = rg::genre_added_event_fields(&added_events[0]);
-    assert_eq!(a0_release_id, release_id);
-    assert_eq!(a0_genre_id, electronic_id);
-    let (a1_release_id, a1_genre_id) = rg::genre_added_event_fields(&added_events[1]);
-    assert_eq!(a1_release_id, release_id);
-    assert_eq!(a1_genre_id, hiphop_id);
+    let (a0_release_id, _, a0_genre_id, _, _, _, _, _, _, _, _, _, _, _, _, _) =
+        rg::genre_added_event_fields(&added_events[0]);
+    assert_eq!(a0_release_id, release_id.to_address());
+    assert_eq!(a0_genre_id, electronic_id.to_address());
+    let (a1_release_id, _, a1_genre_id, _, _, _, _, _, _, _, _, _, _, _, _, _) =
+        rg::genre_added_event_fields(&added_events[1]);
+    assert_eq!(a1_release_id, release_id.to_address());
+    assert_eq!(a1_genre_id, hiphop_id.to_address());
 
     ts::return_immutable(hiphop);
     ts::return_immutable(electronic);
@@ -130,9 +132,11 @@ fun genre_lifecycle_on_published_shared_release() {
     rg::clear_genres(&mut rel, &cap);
 
     assert!(rg::genres(&rel).is_empty());
-    let cleared_events = event::events_by_type<rg::GenresClearedEvent>();
+    let cleared_events = event::events_by_type<rg::ReleaseGenresClearedEvent>();
     assert_eq!(cleared_events.length(), 1);
-    assert_eq!(rg::genres_cleared_event_release_id(&cleared_events[0]), release_id);
+    let (cleared_release_id, _, _, _, _, _, _, _, _, _, _, _, _, _, _) =
+        rg::genres_cleared_event_fields(&cleared_events[0]);
+    assert_eq!(cleared_release_id, release_id.to_address());
 
     ts::return_shared(rel);
     destroy(cap);
@@ -167,5 +171,65 @@ fun wrong_cap_from_other_release_aborts() {
 
     // Unreachable, but the compiler requires all non-drop values consumed on
     // any path that returns normally; this path never does.
+    abort
+}
+
+/// `remove_genre` deliberately checks field presence before borrowing the
+/// cap-gated UID. An absent field therefore reports the package's 42 even for
+/// a cap belonging to another release.
+#[test]
+#[expected_failure(abort_code = 42, location = release_genre::release_genre)]
+fun wrong_cap_remove_absent_preserves_guard_order() {
+    let mut scenario = ts::begin(CREATOR);
+    g::init_for_testing(scenario.ctx());
+    scenario.next_tx(LABEL);
+    let (_cap_a, release_id_a) = publish_and_share_release(&mut scenario);
+    scenario.next_tx(LABEL);
+    let (cap_b, _release_id_b) = publish_and_share_release(&mut scenario);
+    scenario.next_tx(STRANGER);
+    let mut rel_a = scenario.take_shared_by_id<Release>(release_id_a);
+    rg::remove_genre(&mut rel_a, &cap_b, object::id_from_address(@0xF00D));
+    abort
+}
+
+/// Once the field exists, the same wrong-cap call reaches `uid_mut` and is
+/// rejected by the upstream release authorization check.
+#[test]
+#[expected_failure(abort_code = 0, location = musicos::release)]
+fun wrong_cap_remove_present_reaches_authorization() {
+    let mut scenario = ts::begin(CREATOR);
+    g::init_for_testing(scenario.ctx());
+    scenario.next_tx(CREATOR);
+    let genre_id = create_genre(&scenario, b"HIP_HOP");
+    scenario.next_tx(LABEL);
+    let (cap_a, release_id_a) = publish_and_share_release(&mut scenario);
+    scenario.next_tx(LABEL);
+    let (cap_b, _release_id_b) = publish_and_share_release(&mut scenario);
+    scenario.next_tx(LABEL);
+    let mut rel_a = scenario.take_shared_by_id<Release>(release_id_a);
+    let genre = scenario.take_immutable_by_id<Genre>(genre_id);
+    rg::add_genre(&mut rel_a, &cap_a, &genre);
+    ts::return_immutable(genre);
+    ts::return_shared(rel_a);
+    scenario.next_tx(STRANGER);
+    let mut rel_a = scenario.take_shared_by_id<Release>(release_id_a);
+    rg::remove_genre(&mut rel_a, &cap_b, genre_id);
+    abort
+}
+
+/// In contrast with remove, clear authenticates first even when there is no
+/// dynamic field to remove.
+#[test]
+#[expected_failure(abort_code = 0, location = musicos::release)]
+fun wrong_cap_clear_absent_still_authenticates() {
+    let mut scenario = ts::begin(CREATOR);
+    g::init_for_testing(scenario.ctx());
+    scenario.next_tx(LABEL);
+    let (_cap_a, release_id_a) = publish_and_share_release(&mut scenario);
+    scenario.next_tx(LABEL);
+    let (cap_b, _release_id_b) = publish_and_share_release(&mut scenario);
+    scenario.next_tx(STRANGER);
+    let mut rel_a = scenario.take_shared_by_id<Release>(release_id_a);
+    rg::clear_genres(&mut rel_a, &cap_b);
     abort
 }
