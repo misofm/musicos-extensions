@@ -26,7 +26,7 @@
 module recording_language::recording_language;
 
 use language_code::language_code::LanguageCode;
-use musicos::recording::{Recording, RecordingAdminCap};
+use musicos::recording::{Self, Recording, RecordingAdminCap};
 use sui::dynamic_field as df;
 use sui::event::emit;
 use sui::vec_set;
@@ -53,16 +53,32 @@ public struct ExtensionKey() has copy, drop, store;
 
 // === Events ===
 
-/// Emitted when a recording's languages are set or replaced. Carries the codes
-/// so an indexer can update its search facets without re-reading the object.
-public struct LanguagesSetEvent has copy, drop {
-    recording_id: ID,
-    languages: vector<LanguageCode>,
+/// Emitted when a recording's languages are set or replaced. Carries primitive
+/// ordered code snapshots so an indexer can replay the transition directly.
+public struct LanguagesSetEvent<phantom RecordingShare, phantom CompositionShare>
+    has copy, drop {
+    recording_id: address,
+    composition_id: address,
+    admin_cap_id: address,
+    had_languages: bool,
+    previous_languages: vector<vector<u8>>,
+    languages: vector<vector<u8>>,
+    language_count_before: u64,
+    language_count_after: u64,
+    was_instrumental: bool,
+    is_instrumental: bool,
+    max_languages: u64,
 }
 
 /// Emitted when the language record is removed.
-public struct LanguagesUnsetEvent has copy, drop {
-    recording_id: ID,
+public struct LanguagesUnsetEvent<phantom RecordingShare, phantom CompositionShare>
+    has copy, drop {
+    recording_id: address,
+    composition_id: address,
+    admin_cap_id: address,
+    removed_languages: vector<vector<u8>>,
+    language_count_before: u64,
+    was_instrumental: bool,
 }
 
 // === Public Functions ===
@@ -77,14 +93,40 @@ public fun set_languages<RecordingShare, CompositionShare>(
     languages: vector<LanguageCode>,
 ) {
     validate(&languages);
-    let recording_id = object::id(self);
+    let recording_id = object::id(self).to_address();
+    let composition_id = recording::composition_id(self).to_address();
+    let admin_cap_id = object::id(cap).to_address();
     let uid = self.uid_mut(cap);
-    if (df::exists(uid, ExtensionKey())) {
+    let had_languages = df::exists(uid, ExtensionKey());
+    let mut previous_languages = vector[];
+    let mut language_count_before = 0;
+    let mut was_instrumental = false;
+    if (had_languages) {
+        let previous = df::borrow(uid, ExtensionKey());
+        previous_languages = encode_languages(previous);
+        language_count_before = previous.length();
+        was_instrumental = previous.is_empty();
         *df::borrow_mut(uid, ExtensionKey()) = languages;
     } else {
         df::add(uid, ExtensionKey(), languages);
     };
-    emit(LanguagesSetEvent { recording_id, languages: *df::borrow(self.uid(), ExtensionKey()) });
+    let current = df::borrow(uid, ExtensionKey());
+    let current_languages = encode_languages(current);
+    let language_count_after = current.length();
+    let is_instrumental = current.is_empty();
+    emit(LanguagesSetEvent<RecordingShare, CompositionShare> {
+        recording_id,
+        composition_id,
+        admin_cap_id,
+        had_languages,
+        previous_languages,
+        languages: current_languages,
+        language_count_before,
+        language_count_after,
+        was_instrumental,
+        is_instrumental,
+        max_languages: MAX_LANGUAGES,
+    });
 }
 
 /// Asserts the recording has no sung or spoken content.
@@ -101,11 +143,23 @@ public fun unset_languages<RecordingShare, CompositionShare>(
     self: &mut Recording<RecordingShare, CompositionShare>,
     cap: &RecordingAdminCap<RecordingShare>,
 ) {
-    let recording_id = object::id(self);
+    let recording_id = object::id(self).to_address();
+    let composition_id = recording::composition_id(self).to_address();
+    let admin_cap_id = object::id(cap).to_address();
     let uid = self.uid_mut(cap);
     if (df::exists(uid, ExtensionKey())) {
-        let _: vector<LanguageCode> = df::remove(uid, ExtensionKey());
-        emit(LanguagesUnsetEvent { recording_id });
+        let removed = df::remove(uid, ExtensionKey());
+        let removed_languages = encode_languages(&removed);
+        let language_count_before = removed.length();
+        let was_instrumental = removed.is_empty();
+        emit(LanguagesUnsetEvent<RecordingShare, CompositionShare> {
+            recording_id,
+            composition_id,
+            admin_cap_id,
+            removed_languages,
+            language_count_before,
+            was_instrumental,
+        });
     }
 }
 
@@ -155,9 +209,63 @@ fun validate(languages: &vector<LanguageCode>) {
 // === Test Functions ===
 
 #[test_only]
-public fun set_event_fields(e: &LanguagesSetEvent): (ID, vector<LanguageCode>) {
-    (e.recording_id, e.languages)
+public fun set_event_fields<RecordingShare, CompositionShare>(
+    e: &LanguagesSetEvent<RecordingShare, CompositionShare>,
+): (
+    address,
+    address,
+    address,
+    bool,
+    vector<vector<u8>>,
+    vector<vector<u8>>,
+    u64,
+    u64,
+    bool,
+    bool,
+    u64,
+) {
+    (
+        e.recording_id,
+        e.composition_id,
+        e.admin_cap_id,
+        e.had_languages,
+        e.previous_languages,
+        e.languages,
+        e.language_count_before,
+        e.language_count_after,
+        e.was_instrumental,
+        e.is_instrumental,
+        e.max_languages,
+    )
 }
 
 #[test_only]
-public fun unset_event_recording_id(e: &LanguagesUnsetEvent): ID { e.recording_id }
+public fun unset_event_fields<RecordingShare, CompositionShare>(
+    e: &LanguagesUnsetEvent<RecordingShare, CompositionShare>,
+): (address, address, address, vector<vector<u8>>, u64, bool) {
+    (
+        e.recording_id,
+        e.composition_id,
+        e.admin_cap_id,
+        e.removed_languages,
+        e.language_count_before,
+        e.was_instrumental,
+    )
+}
+
+#[test_only]
+public fun unset_event_recording_id<RecordingShare, CompositionShare>(
+    e: &LanguagesUnsetEvent<RecordingShare, CompositionShare>,
+): ID { e.recording_id.to_id() }
+
+// === Private Functions ===
+
+/// Encodes validated language codes as their raw ordered two-byte values.
+fun encode_languages(values: &vector<LanguageCode>): vector<vector<u8>> {
+    let mut result = vector[];
+    values.do_ref!(|value| {
+        let code = language_code::language_code::code(value);
+        result.push_back(*code.as_bytes());
+    });
+    result
+}

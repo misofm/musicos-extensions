@@ -25,6 +25,7 @@ use sui::event;
 public struct REC {}
 public struct COMP {}
 public struct OTHER_REC {}
+public struct OTHER_COMP {}
 
 // This package never touches the composition side of a recording, so a bare
 // id stands in for a real `Composition` — `recording::new_for_testing` only
@@ -44,24 +45,87 @@ fun lang(code: vector<u8>): language_code::LanguageCode {
 fun set_read_replace_unset_lifecycle() {
     let ctx = &mut tx_context::dummy();
     let (mut rec, cap) = new_rec(ctx);
+    let rec_id = object::id(&rec).to_address();
+    let cap_id = object::id(&cap).to_address();
 
     assert!(!rl::has_languages(&rec));
 
     rl::set_languages(&mut rec, &cap, vector[lang(b"en")]);
     assert!(rl::has_languages(&rec));
     assert_eq!(rl::languages(&rec).length(), 1);
+    let set_events = event::events_by_type<rl::LanguagesSetEvent<REC, COMP>>();
+    assert_eq!(set_events.length(), 1);
+    let (event_rec_id, event_comp_id, event_cap_id, had_languages, previous_languages,
+        languages, language_count_before, language_count_after, was_instrumental,
+        is_instrumental, max_languages) = rl::set_event_fields(&set_events[0]);
+    assert_eq!(event_rec_id, rec_id);
+    assert_eq!(event_comp_id, @0xC0);
+    assert_eq!(event_cap_id, cap_id);
+    assert!(!had_languages);
+    assert_eq!(previous_languages, vector[]);
+    assert_eq!(languages, vector[b"en"]);
+    assert_eq!(language_count_before, 0);
+    assert_eq!(language_count_after, 1);
+    assert!(!was_instrumental);
+    assert!(!is_instrumental);
+    assert_eq!(max_languages, 10);
 
     // Replacing swaps the whole record rather than merging.
     rl::set_languages(&mut rec, &cap, vector[lang(b"fr"), lang(b"es")]);
     assert_eq!(rl::languages(&rec).length(), 2);
     assert_eq!(rl::languages(&rec)[0].code(), b"fr".to_string());
+    let set_events = event::events_by_type<rl::LanguagesSetEvent<REC, COMP>>();
+    assert_eq!(set_events.length(), 2);
+    let (_, _, _, had_languages, previous_languages, languages, language_count_before,
+        language_count_after, was_instrumental, is_instrumental, _) =
+        rl::set_event_fields(&set_events[1]);
+    assert!(had_languages);
+    assert_eq!(previous_languages, vector[b"en"]);
+    assert_eq!(languages, vector[b"fr", b"es"]);
+    assert_eq!(language_count_before, 1);
+    assert_eq!(language_count_after, 2);
+    assert!(!was_instrumental);
+    assert!(!is_instrumental);
+
+    // Equal replacement still emits and reports an unchanged stored value.
+    rl::set_languages(&mut rec, &cap, vector[lang(b"fr"), lang(b"es")]);
+    let set_events = event::events_by_type<rl::LanguagesSetEvent<REC, COMP>>();
+    assert_eq!(set_events.length(), 3);
+    let (_, _, _, had_languages, previous_languages, languages, language_count_before,
+        language_count_after, was_instrumental, is_instrumental, _) =
+        rl::set_event_fields(&set_events[2]);
+    assert!(had_languages);
+    assert_eq!(previous_languages, vector[b"fr", b"es"]);
+    assert_eq!(languages, vector[b"fr", b"es"]);
+    assert_eq!(language_count_before, 2);
+    assert_eq!(language_count_after, 2);
+    assert!(!was_instrumental);
+    assert!(!is_instrumental);
+
+    // Reordering is a replacement, and event order is the stored order.
+    rl::set_languages(&mut rec, &cap, vector[lang(b"es"), lang(b"fr")]);
+    assert_eq!(rl::languages(&rec)[0].code(), b"es".to_string());
+    let set_events = event::events_by_type<rl::LanguagesSetEvent<REC, COMP>>();
+    assert_eq!(set_events.length(), 4);
+    let (_, _, _, _, previous_languages, languages, _, _, _, _, _) =
+        rl::set_event_fields(&set_events[3]);
+    assert_eq!(previous_languages, vector[b"fr", b"es"]);
+    assert_eq!(languages, vector[b"es", b"fr"]);
 
     rl::unset_languages(&mut rec, &cap);
     assert!(!rl::has_languages(&rec));
+    let unset_events = event::events_by_type<rl::LanguagesUnsetEvent<REC, COMP>>();
+    assert_eq!(unset_events.length(), 1);
+    let (_, _, _, removed_languages, language_count_before, was_instrumental) =
+        rl::unset_event_fields(&unset_events[0]);
+    assert_eq!(removed_languages, vector[b"es", b"fr"]);
+    assert_eq!(language_count_before, 2);
+    assert!(!was_instrumental);
 
     // Unset is idempotent.
     rl::unset_languages(&mut rec, &cap);
     assert!(!rl::has_languages(&rec));
+    assert_eq!(event::events_by_type<rl::LanguagesUnsetEvent<REC, COMP>>().length(), 1);
 
     destroy(rec);
     destroy(cap);
@@ -93,21 +157,58 @@ fun instrumental_is_distinct_from_absent_and_from_sung() {
     // Nothing attached: no claim either way.
     assert!(!rl::has_languages(&rec));
     assert!(!rl::is_instrumental(&rec));
+    assert_eq!(event::events_by_type<rl::LanguagesSetEvent<REC, COMP>>().length(), 0);
+    assert_eq!(event::events_by_type<rl::LanguagesUnsetEvent<REC, COMP>>().length(), 0);
 
     // Attached and empty: asserts instrumental.
     rl::set_instrumental(&mut rec, &cap);
     assert!(rl::has_languages(&rec));
     assert!(rl::is_instrumental(&rec));
     assert_eq!(rl::languages(&rec).length(), 0);
+    let set_events = event::events_by_type<rl::LanguagesSetEvent<REC, COMP>>();
+    assert_eq!(set_events.length(), 1);
+    let (_, _, _, had_languages, previous_languages, languages, language_count_before,
+        language_count_after, was_instrumental, is_instrumental, max_languages) =
+        rl::set_event_fields(&set_events[0]);
+    assert!(!had_languages);
+    assert_eq!(previous_languages, vector[]);
+    assert_eq!(languages, vector[]);
+    assert_eq!(language_count_before, 0);
+    assert_eq!(language_count_after, 0);
+    assert!(!was_instrumental);
+    assert!(is_instrumental);
+    assert_eq!(max_languages, 10);
+    assert_eq!(sui::bcs::to_bytes(&set_events[0]).length(), 125);
+    // Views are silent.
+    assert_eq!(event::events_by_type<rl::LanguagesSetEvent<REC, COMP>>().length(), 1);
 
     // Attached with a language: not instrumental.
     rl::set_languages(&mut rec, &cap, vector[lang(b"en")]);
     assert!(!rl::is_instrumental(&rec));
+    let set_events = event::events_by_type<rl::LanguagesSetEvent<REC, COMP>>();
+    assert_eq!(set_events.length(), 2);
+    let (_, _, _, had_languages, previous_languages, languages, language_count_before,
+        language_count_after, was_instrumental, is_instrumental, _) =
+        rl::set_event_fields(&set_events[1]);
+    assert!(had_languages);
+    assert_eq!(previous_languages, vector[]);
+    assert_eq!(languages, vector[b"en"]);
+    assert_eq!(language_count_before, 0);
+    assert_eq!(language_count_after, 1);
+    assert!(was_instrumental);
+    assert!(!is_instrumental);
 
     // Back to nothing attached: the instrumental claim is withdrawn, not kept.
     rl::unset_languages(&mut rec, &cap);
     assert!(!rl::is_instrumental(&rec));
     assert!(!rl::has_languages(&rec));
+    let unset_events = event::events_by_type<rl::LanguagesUnsetEvent<REC, COMP>>();
+    assert_eq!(unset_events.length(), 1);
+    let (_, _, _, removed_languages, language_count_before, was_instrumental) =
+        rl::unset_event_fields(&unset_events[0]);
+    assert_eq!(removed_languages, vector[b"en"]);
+    assert_eq!(language_count_before, 1);
+    assert!(!was_instrumental);
 
     destroy(rec);
     destroy(cap);
@@ -141,6 +242,47 @@ fun exactly_max_languages_is_accepted() {
 
     rl::set_languages(&mut rec, &cap, langs);
     assert_eq!(rl::languages(&rec).length(), 10);
+    let set_events = event::events_by_type<rl::LanguagesSetEvent<REC, COMP>>();
+    assert_eq!(set_events.length(), 1);
+    let (_, _, _, had_languages, previous_languages, languages, language_count_before,
+        language_count_after, was_instrumental, is_instrumental, max_languages) =
+        rl::set_event_fields(&set_events[0]);
+    assert!(!had_languages);
+    assert_eq!(previous_languages, vector[]);
+    assert_eq!(languages, vector[b"en", b"fr", b"es", b"de", b"it", b"ja", b"ko", b"pt", b"ru", b"zh"]);
+    assert_eq!(language_count_before, 0);
+    assert_eq!(language_count_after, 10);
+    assert!(!was_instrumental);
+    assert!(!is_instrumental);
+    assert_eq!(max_languages, 10);
+    assert_eq!(sui::bcs::to_bytes(&set_events[0]).length(), 155);
+
+    let mut replacement = vector[];
+    codes.do!(|c| replacement.push_back(lang(c)));
+    rl::set_languages(&mut rec, &cap, replacement);
+    let set_events = event::events_by_type<rl::LanguagesSetEvent<REC, COMP>>();
+    assert_eq!(set_events.length(), 2);
+    let (_, _, _, had_languages, previous_languages, languages, language_count_before,
+        language_count_after, was_instrumental, is_instrumental, _) =
+        rl::set_event_fields(&set_events[1]);
+    assert!(had_languages);
+    assert_eq!(previous_languages, vector[b"en", b"fr", b"es", b"de", b"it", b"ja", b"ko", b"pt", b"ru", b"zh"]);
+    assert_eq!(languages, vector[b"en", b"fr", b"es", b"de", b"it", b"ja", b"ko", b"pt", b"ru", b"zh"]);
+    assert_eq!(language_count_before, 10);
+    assert_eq!(language_count_after, 10);
+    assert!(!was_instrumental);
+    assert!(!is_instrumental);
+    assert_eq!(sui::bcs::to_bytes(&set_events[1]).length(), 185);
+
+    rl::unset_languages(&mut rec, &cap);
+    let unset_events = event::events_by_type<rl::LanguagesUnsetEvent<REC, COMP>>();
+    assert_eq!(unset_events.length(), 1);
+    let (_, _, _, removed_languages, language_count_before, was_instrumental) =
+        rl::unset_event_fields(&unset_events[0]);
+    assert_eq!(removed_languages, vector[b"en", b"fr", b"es", b"de", b"it", b"ja", b"ko", b"pt", b"ru", b"zh"]);
+    assert_eq!(language_count_before, 10);
+    assert!(!was_instrumental);
+    assert_eq!(sui::bcs::to_bytes(&unset_events[0]).length(), 136);
 
     destroy(rec);
     destroy(cap);
@@ -154,12 +296,23 @@ fun set_emits_the_codes() {
 
     rl::set_languages(&mut rec, &cap, vector[lang(b"en"), lang(b"fr")]);
 
-    let events = event::events_by_type<rl::LanguagesSetEvent>();
+    let events = event::events_by_type<rl::LanguagesSetEvent<REC, COMP>>();
     assert_eq!(events.length(), 1);
-    let (id, langs) = rl::set_event_fields(&events[0]);
-    assert_eq!(id, rec_id);
-    assert_eq!(langs.length(), 2);
-    assert_eq!(langs[0].code(), b"en".to_string());
+    let (event_rec_id, event_comp_id, event_cap_id, had_languages, previous_languages,
+        languages, language_count_before, language_count_after, was_instrumental,
+        is_instrumental, max_languages) = rl::set_event_fields(&events[0]);
+    assert_eq!(event_rec_id, rec_id.to_address());
+    assert_eq!(event_comp_id, @0xC0);
+    assert_eq!(event_cap_id, object::id(&cap).to_address());
+    assert!(!had_languages);
+    assert_eq!(previous_languages, vector[]);
+    assert_eq!(languages, vector[b"en", b"fr"]);
+    assert_eq!(language_count_before, 0);
+    assert_eq!(language_count_after, 2);
+    assert!(!was_instrumental);
+    assert!(!is_instrumental);
+    assert_eq!(max_languages, 10);
+    assert_eq!(sui::bcs::to_bytes(&events[0]).length(), 131);
 
     destroy(rec);
     destroy(cap);
@@ -172,14 +325,24 @@ fun unset_emits_only_when_something_was_removed() {
     let rec_id = object::id(&rec);
 
     rl::unset_languages(&mut rec, &cap);
-    assert_eq!(event::events_by_type<rl::LanguagesUnsetEvent>().length(), 0);
+    assert_eq!(
+        event::events_by_type<rl::LanguagesUnsetEvent<REC, COMP>>().length(),
+        0,
+    );
 
     rl::set_languages(&mut rec, &cap, vector[lang(b"en")]);
     rl::unset_languages(&mut rec, &cap);
 
-    let events = event::events_by_type<rl::LanguagesUnsetEvent>();
+    let events = event::events_by_type<rl::LanguagesUnsetEvent<REC, COMP>>();
     assert_eq!(events.length(), 1);
-    assert_eq!(rl::unset_event_recording_id(&events[0]), rec_id);
+    let (event_rec_id, event_comp_id, event_cap_id, removed_languages,
+        language_count_before, was_instrumental) = rl::unset_event_fields(&events[0]);
+    assert_eq!(event_rec_id, rec_id.to_address());
+    assert_eq!(event_comp_id, @0xC0);
+    assert_eq!(event_cap_id, object::id(&cap).to_address());
+    assert_eq!(removed_languages, vector[b"en"]);
+    assert_eq!(language_count_before, 1);
+    assert!(!was_instrumental);
 
     destroy(rec);
     destroy(cap);
@@ -189,14 +352,42 @@ fun unset_emits_only_when_something_was_removed() {
 fun languages_are_per_recording() {
     let ctx = &mut tx_context::dummy();
     let (mut a, a_cap) = new_rec(ctx);
-    let (b, b_cap) = recording::new_for_testing<OTHER_REC, COMP>(object::id_from_address(@0xC0), ctx);
+    let (mut b, b_cap) = recording::new_for_testing<OTHER_REC, COMP>(
+        object::id_from_address(@0xC0),
+        ctx,
+    );
+    let (mut c, c_cap) = recording::new_for_testing<REC, OTHER_COMP>(
+        object::id_from_address(@0xC1),
+        ctx,
+    );
 
     rl::set_languages(&mut a, &a_cap, vector[lang(b"en")]);
+    rl::set_languages(&mut b, &b_cap, vector[lang(b"fr")]);
+    rl::set_languages(&mut c, &c_cap, vector[lang(b"de")]);
 
     assert!(rl::has_languages(&a));
-    assert!(!rl::has_languages(&b));
+    assert!(rl::has_languages(&b));
+    assert!(rl::has_languages(&c));
+    assert_eq!(event::events_by_type<rl::LanguagesSetEvent<REC, COMP>>().length(), 1);
+    assert_eq!(event::events_by_type<rl::LanguagesSetEvent<OTHER_REC, COMP>>().length(), 1);
+    assert_eq!(event::events_by_type<rl::LanguagesSetEvent<REC, OTHER_COMP>>().length(), 1);
+    assert_eq!(
+        event::events_by_type<rl::LanguagesSetEvent<OTHER_REC, OTHER_COMP>>().length(),
+        0,
+    );
 
-    destroy(a); destroy(a_cap); destroy(b); destroy(b_cap);
+    rl::unset_languages(&mut a, &a_cap);
+    rl::unset_languages(&mut b, &b_cap);
+    rl::unset_languages(&mut c, &c_cap);
+    assert_eq!(event::events_by_type<rl::LanguagesUnsetEvent<REC, COMP>>().length(), 1);
+    assert_eq!(event::events_by_type<rl::LanguagesUnsetEvent<OTHER_REC, COMP>>().length(), 1);
+    assert_eq!(event::events_by_type<rl::LanguagesUnsetEvent<REC, OTHER_COMP>>().length(), 1);
+    assert_eq!(
+        event::events_by_type<rl::LanguagesUnsetEvent<OTHER_REC, OTHER_COMP>>().length(),
+        0,
+    );
+
+    destroy(a); destroy(a_cap); destroy(b); destroy(b_cap); destroy(c); destroy(c_cap);
 }
 
 #[test, expected_failure(abort_code = rl::ENoLanguages)]
@@ -222,7 +413,8 @@ fun more_than_max_languages_aborts() {
     let ctx = &mut tx_context::dummy();
     let (mut rec, cap) = new_rec(ctx);
 
-    let codes = vector[b"en", b"fr", b"es", b"de", b"it", b"ja", b"ko", b"pt", b"ru", b"zh", b"ar"];
+    // Count validation is first: this is both over capacity and duplicated.
+    let codes = vector[b"en", b"fr", b"es", b"de", b"it", b"ja", b"ko", b"pt", b"ru", b"zh", b"en"];
     let mut langs = vector[];
     codes.do!(|c| langs.push_back(lang(c)));
     assert_eq!(langs.length(), 11);

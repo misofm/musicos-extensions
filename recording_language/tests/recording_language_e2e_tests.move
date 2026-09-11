@@ -58,13 +58,23 @@ fun admin_sets_languages_on_a_published_shared_recording_and_a_stranger_reads_it
 
     rl::set_languages(&mut rec, &rec_cap, vector[lang(b"en"), lang(b"fr")]);
 
-    let events = event::events_by_type<rl::LanguagesSetEvent>();
+    let events = event::events_by_type<rl::LanguagesSetEvent<REC, COMP>>();
     assert_eq!(events.length(), 1);
-    let (event_id, event_langs) = rl::set_event_fields(&events[0]);
-    assert_eq!(event_id, rec_id);
-    assert_eq!(event_langs.length(), 2);
-    assert_eq!(event_langs[0].code(), b"en".to_string());
-    assert_eq!(event_langs[1].code(), b"fr".to_string());
+    let (event_id, event_comp_id, event_cap_id, had_languages, previous_languages,
+        event_langs, language_count_before, language_count_after, was_instrumental,
+        is_instrumental, max_languages) = rl::set_event_fields(&events[0]);
+    assert_eq!(event_id, rec_id.to_address());
+    assert_eq!(event_comp_id, @0xC0FFEE);
+    assert_eq!(event_cap_id, object::id(&rec_cap).to_address());
+    assert!(!had_languages);
+    assert_eq!(previous_languages, vector[]);
+    assert_eq!(event_langs, vector[b"en", b"fr"]);
+    assert_eq!(language_count_before, 0);
+    assert_eq!(language_count_after, 2);
+    assert!(!was_instrumental);
+    assert!(!is_instrumental);
+    assert_eq!(max_languages, 10);
+    assert_eq!(sui::bcs::to_bytes(&events[0]).length(), 131);
 
     test_scenario::return_shared(rec);
 
@@ -88,11 +98,24 @@ fun admin_sets_languages_on_a_published_shared_recording_and_a_stranger_reads_it
 
     // `test_scenario::next_tx` clears the event log, so only this
     // transaction's set event is visible here — not tx 2's.
-    let instrumental_events = event::events_by_type<rl::LanguagesSetEvent>();
+    let instrumental_events = event::events_by_type<rl::LanguagesSetEvent<REC, COMP>>();
     assert_eq!(instrumental_events.length(), 1);
-    let (last_event_id, last_event_langs) = rl::set_event_fields(&instrumental_events[0]);
-    assert_eq!(last_event_id, rec_id);
-    assert_eq!(last_event_langs.length(), 0);
+    let (last_event_id, last_event_comp_id, last_event_cap_id, had_languages,
+        previous_languages, last_event_langs, language_count_before, language_count_after,
+        was_instrumental, is_instrumental, max_languages) =
+        rl::set_event_fields(&instrumental_events[0]);
+    assert_eq!(last_event_id, rec_id.to_address());
+    assert_eq!(last_event_comp_id, @0xC0FFEE);
+    assert_eq!(last_event_cap_id, object::id(&rec_cap).to_address());
+    assert!(had_languages);
+    assert_eq!(previous_languages, vector[b"en", b"fr"]);
+    assert_eq!(last_event_langs, vector[]);
+    assert_eq!(language_count_before, 2);
+    assert_eq!(language_count_after, 0);
+    assert!(!was_instrumental);
+    assert!(is_instrumental);
+    assert_eq!(max_languages, 10);
+    assert_eq!(sui::bcs::to_bytes(&instrumental_events[0]).length(), 131);
 
     rl::unset_languages(&mut rec, &rec_cap);
     assert!(!rl::has_languages(&rec));
@@ -100,9 +123,17 @@ fun admin_sets_languages_on_a_published_shared_recording_and_a_stranger_reads_it
     // reading as instrumental once nothing is attached.
     assert!(!rl::is_instrumental(&rec));
 
-    let unset_events = event::events_by_type<rl::LanguagesUnsetEvent>();
+    let unset_events = event::events_by_type<rl::LanguagesUnsetEvent<REC, COMP>>();
     assert_eq!(unset_events.length(), 1);
-    assert_eq!(rl::unset_event_recording_id(&unset_events[0]), rec_id);
+    let (unset_id, unset_comp_id, unset_cap_id, removed_languages,
+        language_count_before, was_instrumental) = rl::unset_event_fields(&unset_events[0]);
+    assert_eq!(unset_id, rec_id.to_address());
+    assert_eq!(unset_comp_id, @0xC0FFEE);
+    assert_eq!(unset_cap_id, object::id(&rec_cap).to_address());
+    assert_eq!(removed_languages, vector[]);
+    assert_eq!(language_count_before, 0);
+    assert!(was_instrumental);
+    assert_eq!(sui::bcs::to_bytes(&unset_events[0]).length(), 106);
 
     test_scenario::return_shared(rec);
 
