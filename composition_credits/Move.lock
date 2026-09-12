@@ -73,29 +73,29 @@ deps = { std = "MoveStdlib", sui = "Sui" }
 [pinned.testnet.composition_credits]
 source = { root = true }
 use_environment = "testnet"
-manifest_digest = "4F18301CBB244FC2E059242EF89FA03A23C09BCBE0FCC0C11060E327DC8E9BC7"
+manifest_digest = "052A7CE44E48723332DD16301AC3E2145AEEA95EC886C3F166255A23A1102E59"
 deps = { credit = "credit", musicos = "musicos", partyos = "partyos", std = "MoveStdlib", sui = "Sui" }
 
 [pinned.testnet.credit]
-source = { git = "https://github.com/misofm/credit.git", subdir = ".", rev = "0780d1d694a4d35315af20e1ea7d707558846024" }
+source = { git = "https://github.com/misofm/credit.git", subdir = ".", rev = "4ebd93cd488bf217bd943a32fc81ad329d85b14f" }
 use_environment = "testnet"
 manifest_digest = "5745706258F61D6CE210904B3E6AE87A73CE9D31A6F93BE4718C442529332A87"
 deps = { std = "MoveStdlib", sui = "Sui" }
 
 [pinned.testnet.musicos]
-source = { git = "https://github.com/misofm/musicos.git", subdir = ".", rev = "4cb3c926b1f9bb5103f3f7194e4e1e34b6c87840" }
+source = { git = "https://github.com/misofm/musicos.git", subdir = ".", rev = "1513a450667e6453582f3b30c03c1c14e073b285" }
 use_environment = "testnet"
-manifest_digest = "B570E2104B35C19F25B955D3C87C48FE00C559F83B11F558F680DBBAF50EEB73"
+manifest_digest = "73602DE43CA787C75C08F7B2927677BB172C067E18DDB83C7FAA4E7F38E9AAAF"
 deps = { bps = "bps", share = "share", std = "MoveStdlib", sui = "Sui" }
 
 [pinned.testnet.partyos]
-source = { git = "https://github.com/misofm/partyos.git", subdir = ".", rev = "841a875a4989082a0ebeb1beb464b71f9ea2bd73" }
+source = { git = "https://github.com/misofm/partyos.git", subdir = ".", rev = "62915722b685f4744e6884c3c5fda0fb4d1f60ec" }
 use_environment = "testnet"
 manifest_digest = "5745706258F61D6CE210904B3E6AE87A73CE9D31A6F93BE4718C442529332A87"
 deps = { std = "MoveStdlib", sui = "Sui" }
 
 [pinned.testnet.share]
-source = { git = "https://github.com/misofm/share.git", subdir = ".", rev = "3fd8e0ce2803c12d41e04db23a7f79e51982298e" }
+source = { git = "https://github.com/misofm/share.git", subdir = ".", rev = "e635fa7a85fdfb433e105e9e0460263fdbec54ad" }
 use_environment = "testnet"
 manifest_digest = "5745706258F61D6CE210904B3E6AE87A73CE9D31A6F93BE4718C442529332A87"
 deps = { std = "MoveStdlib", sui = "Sui" }
