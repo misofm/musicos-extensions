@@ -41,6 +41,22 @@ public struct ReleaseCoverArt has store {
 
 // === Events ===
 
+/// Album fallback snapshot carried by track-cover events. Nesting keeps each
+/// event below the protocol's 32-field limit without dropping snapshot data.
+/// BCS field order is unchanged; JSON consumers read these fields under `album`.
+public struct CoverSnapshot has copy, drop {
+    present: bool,
+    still_blob_id: u256,
+    still_is_encrypted: bool,
+    still_sealed_dek_length: u64,
+    still_sealed_dek_digest: vector<u8>,
+    has_animated: bool,
+    animated_blob_id: u256,
+    animated_is_encrypted: bool,
+    animated_sealed_dek_length: u64,
+    animated_sealed_dek_digest: vector<u8>,
+}
+
 /// Emitted when the album-level cover is set or replaced.
 public struct ReleaseCoverArtSetEvent has copy, drop {
     release_id: address,
@@ -130,16 +146,7 @@ public struct ReleaseTrackCoverArtSetEvent has copy, drop {
     current_animated_is_encrypted: bool,
     current_animated_sealed_dek_length: u64,
     current_animated_sealed_dek_digest: vector<u8>,
-    album_present: bool,
-    album_still_blob_id: u256,
-    album_still_is_encrypted: bool,
-    album_still_sealed_dek_length: u64,
-    album_still_sealed_dek_digest: vector<u8>,
-    album_has_animated: bool,
-    album_animated_blob_id: u256,
-    album_animated_is_encrypted: bool,
-    album_animated_sealed_dek_length: u64,
-    album_animated_sealed_dek_digest: vector<u8>,
+    album: CoverSnapshot,
 }
 
 /// Emitted when a track's cover override is removed — the track falls back to
@@ -173,16 +180,7 @@ public struct ReleaseTrackCoverArtUnsetEvent has copy, drop {
     current_animated_is_encrypted: bool,
     current_animated_sealed_dek_length: u64,
     current_animated_sealed_dek_digest: vector<u8>,
-    album_present: bool,
-    album_still_blob_id: u256,
-    album_still_is_encrypted: bool,
-    album_still_sealed_dek_length: u64,
-    album_still_sealed_dek_digest: vector<u8>,
-    album_has_animated: bool,
-    album_animated_blob_id: u256,
-    album_animated_is_encrypted: bool,
-    album_animated_sealed_dek_length: u64,
-    album_animated_sealed_dek_digest: vector<u8>,
+    album: CoverSnapshot,
 }
 
 // === Public Functions ===
@@ -411,16 +409,18 @@ public fun set_track_cover(
         current_animated_is_encrypted,
         current_animated_sealed_dek_length,
         current_animated_sealed_dek_digest,
-        album_present,
-        album_still_blob_id,
-        album_still_is_encrypted,
-        album_still_sealed_dek_length,
-        album_still_sealed_dek_digest,
-        album_has_animated,
-        album_animated_blob_id,
-        album_animated_is_encrypted,
-        album_animated_sealed_dek_length,
-        album_animated_sealed_dek_digest,
+        album: CoverSnapshot {
+            present: album_present,
+            still_blob_id: album_still_blob_id,
+            still_is_encrypted: album_still_is_encrypted,
+            still_sealed_dek_length: album_still_sealed_dek_length,
+            still_sealed_dek_digest: album_still_sealed_dek_digest,
+            has_animated: album_has_animated,
+            animated_blob_id: album_animated_blob_id,
+            animated_is_encrypted: album_animated_is_encrypted,
+            animated_sealed_dek_length: album_animated_sealed_dek_length,
+            animated_sealed_dek_digest: album_animated_sealed_dek_digest,
+        },
     });
 }
 
@@ -513,16 +513,18 @@ public fun unset_track_cover(self: &mut Release, cap: &ReleaseAdminCap, track_in
         current_animated_is_encrypted,
         current_animated_sealed_dek_length,
         current_animated_sealed_dek_digest,
-        album_present,
-        album_still_blob_id,
-        album_still_is_encrypted,
-        album_still_sealed_dek_length,
-        album_still_sealed_dek_digest,
-        album_has_animated,
-        album_animated_blob_id,
-        album_animated_is_encrypted,
-        album_animated_sealed_dek_length,
-        album_animated_sealed_dek_digest,
+        album: CoverSnapshot {
+            present: album_present,
+            still_blob_id: album_still_blob_id,
+            still_is_encrypted: album_still_is_encrypted,
+            still_sealed_dek_length: album_still_sealed_dek_length,
+            still_sealed_dek_digest: album_still_sealed_dek_digest,
+            has_animated: album_has_animated,
+            animated_blob_id: album_animated_blob_id,
+            animated_is_encrypted: album_animated_is_encrypted,
+            animated_sealed_dek_length: album_animated_sealed_dek_length,
+            animated_sealed_dek_digest: album_animated_sealed_dek_digest,
+        },
     });
 }
 
