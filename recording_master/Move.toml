@@ -1,13 +1,11 @@
 [package]
-name = "recording_master_reference"
+name = "recording_master"
 edition = "2024"
 license = "Apache 2.0"
 authors = ["Miso Labs, Inc. (build@miso.network)"]
 
-# A deliberate holdover: a bare Walrus reference to a recording's master, with no
-# attestation and no technical claims about the audio. Depends only on musicos core
-# (to reach `Recording` through its cap-gated `uid_mut`) and `ori` for the
-# reference type.
 [dependencies]
 musicos = { git = "https://github.com/misofm/musicos.git", rev = "7f67ecc7b95f585346a9d52546582bea28b64e96" }
 ori = { git = "https://github.com/unconfirmedlabs/ori.git", subdir = "move", rev = "367ed5fe92a8b62da02c1116537cf08d111e0789" }
+
+audio = { git = "https://github.com/misofm/audio.git", rev = "54d54f6cecdbba39c880c64f2caf8b277d007679" }

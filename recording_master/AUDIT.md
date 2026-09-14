@@ -1,3 +1,9 @@
+# Historical security review — `recording_master_reference`
+
+> Superseded on 2026-09-14 by `recording_master`. The new package stores
+> `audio::audio::Audio` and emits the complete audio value. The report below describes the previous blob-only package and is
+> not an audit of the replacement. Publication records are retained as provenance.
+
 # Security review — `recording_master_reference`
 
 Reviewed 2026-09-11 for primitive master-reference transition events. Verdict:
