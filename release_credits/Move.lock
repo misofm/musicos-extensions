@@ -71,19 +71,19 @@ manifest_digest = "5745706258F61D6CE210904B3E6AE87A73CE9D31A6F93BE4718C442529332
 deps = { std = "MoveStdlib", sui = "Sui" }
 
 [pinned.testnet.credit]
-source = { git = "https://github.com/misofm/credit.git", subdir = ".", rev = "4ebd93cd488bf217bd943a32fc81ad329d85b14f" }
+source = { git = "https://github.com/misofm/credit.git", subdir = ".", rev = "c345b36c3753a9817cf603b0eba06bd7489210ce" }
 use_environment = "testnet"
 manifest_digest = "5745706258F61D6CE210904B3E6AE87A73CE9D31A6F93BE4718C442529332A87"
 deps = { std = "MoveStdlib", sui = "Sui" }
 
 [pinned.testnet.musicos]
-source = { git = "https://github.com/misofm/musicos.git", subdir = ".", rev = "1513a450667e6453582f3b30c03c1c14e073b285" }
+source = { git = "https://github.com/misofm/musicos.git", subdir = ".", rev = "7f67ecc7b95f585346a9d52546582bea28b64e96" }
 use_environment = "testnet"
-manifest_digest = "73602DE43CA787C75C08F7B2927677BB172C067E18DDB83C7FAA4E7F38E9AAAF"
+manifest_digest = "23D1E176FBB55124A8E9276F42D134ACF6DFB10B1625590DCD0DC8660DDEFDE4"
 deps = { bps = "bps", share = "share", std = "MoveStdlib", sui = "Sui" }
 
 [pinned.testnet.partyos]
-source = { git = "https://github.com/misofm/partyos.git", subdir = ".", rev = "62915722b685f4744e6884c3c5fda0fb4d1f60ec" }
+source = { git = "https://github.com/misofm/partyos.git", subdir = ".", rev = "3626ee19e42cf8df5ecea59cd5be6cb5a1538cc1" }
 use_environment = "testnet"
 manifest_digest = "5745706258F61D6CE210904B3E6AE87A73CE9D31A6F93BE4718C442529332A87"
 deps = { std = "MoveStdlib", sui = "Sui" }
@@ -91,11 +91,11 @@ deps = { std = "MoveStdlib", sui = "Sui" }
 [pinned.testnet.release_credits]
 source = { root = true }
 use_environment = "testnet"
-manifest_digest = "052A7CE44E48723332DD16301AC3E2145AEEA95EC886C3F166255A23A1102E59"
+manifest_digest = "56B4E9EDAC390387F6E0BC0F146FCB88BC208BD81D1CB4B5FAF9DDFF82F1B6B6"
 deps = { credit = "credit", musicos = "musicos", partyos = "partyos", std = "MoveStdlib", sui = "Sui" }
 
 [pinned.testnet.share]
-source = { git = "https://github.com/misofm/share.git", subdir = ".", rev = "e635fa7a85fdfb433e105e9e0460263fdbec54ad" }
+source = { git = "https://github.com/misofm/share.git", subdir = ".", rev = "7ddd3f4157e910a1808d30f2bd578970edca5e16" }
 use_environment = "testnet"
 manifest_digest = "5745706258F61D6CE210904B3E6AE87A73CE9D31A6F93BE4718C442529332A87"
 deps = { std = "MoveStdlib", sui = "Sui" }

@@ -77,15 +77,15 @@ manifest_digest = "5745706258F61D6CE210904B3E6AE87A73CE9D31A6F93BE4718C442529332
 deps = { std = "MoveStdlib", sui = "Sui" }
 
 [pinned.testnet.cover_art]
-source = { git = "https://github.com/misofm/cover-art.git", subdir = ".", rev = "fceaa6efb9cf42d4f6b62c0efa2590eb487ed304" }
+source = { git = "https://github.com/misofm/cover-art.git", subdir = ".", rev = "73bc4f9e7b20e7bf1cdd54f6b7393defd549ddb2" }
 use_environment = "testnet"
 manifest_digest = "7C4A14C06348625FD571B1CF30D4669A72A67304FD19876F629605F24D752C3D"
 deps = { ori = "ori", std = "MoveStdlib", sui = "Sui" }
 
 [pinned.testnet.musicos]
-source = { git = "https://github.com/misofm/musicos.git", subdir = ".", rev = "1513a450667e6453582f3b30c03c1c14e073b285" }
+source = { git = "https://github.com/misofm/musicos.git", subdir = ".", rev = "7f67ecc7b95f585346a9d52546582bea28b64e96" }
 use_environment = "testnet"
-manifest_digest = "73602DE43CA787C75C08F7B2927677BB172C067E18DDB83C7FAA4E7F38E9AAAF"
+manifest_digest = "23D1E176FBB55124A8E9276F42D134ACF6DFB10B1625590DCD0DC8660DDEFDE4"
 deps = { bps = "bps", share = "share", std = "MoveStdlib", sui = "Sui" }
 
 [pinned.testnet.ori]
@@ -95,19 +95,19 @@ manifest_digest = "5745706258F61D6CE210904B3E6AE87A73CE9D31A6F93BE4718C442529332
 deps = { std = "MoveStdlib", sui = "Sui" }
 
 [pinned.testnet.per_track]
-source = { git = "https://github.com/misofm/per-track.git", subdir = ".", rev = "d7f4b9a79a4fe3ef535349cdb4c7ca28a5703da2" }
+source = { git = "https://github.com/misofm/per-track.git", subdir = ".", rev = "f87d8fd7501fd07f1fe47b99eaff2840b0b97122" }
 use_environment = "testnet"
-manifest_digest = "A32796CFD10F6EE2800224CE79E9848DDFEAEE544CB773BEBBF560AFFDA25DE6"
+manifest_digest = "120F888BF234543EE44425A494483294243FB8B7B9919FC0EF8234C596DF60D4"
 deps = { musicos = "musicos", std = "MoveStdlib", sui = "Sui" }
 
 [pinned.testnet.release_cover_art]
 source = { root = true }
 use_environment = "testnet"
-manifest_digest = "882384852C7612714A6D475719ED2E6A763560CEF06C3C83B9B044A6A24B7037"
+manifest_digest = "AB90BFF3DF0AB682ED7565E7FB5880E56835891E0285AF9A333E43354C5F426A"
 deps = { cover_art = "cover_art", musicos = "musicos", per_track = "per_track", std = "MoveStdlib", sui = "Sui" }
 
 [pinned.testnet.share]
-source = { git = "https://github.com/misofm/share.git", subdir = ".", rev = "e635fa7a85fdfb433e105e9e0460263fdbec54ad" }
+source = { git = "https://github.com/misofm/share.git", subdir = ".", rev = "7ddd3f4157e910a1808d30f2bd578970edca5e16" }
 use_environment = "testnet"
 manifest_digest = "5745706258F61D6CE210904B3E6AE87A73CE9D31A6F93BE4718C442529332A87"
 deps = { std = "MoveStdlib", sui = "Sui" }
