@@ -54,8 +54,9 @@ public struct CompositionLyricsClearedEvent<phantom CompositionShare> has copy, 
 // === Public Functions ===
 
 /// Adds or replaces one language, preserving the supplied bytes exactly.
-/// Even an equal replacement emits a set event. Authorization precedes storage
-/// validation. Empty and malformed frames are left for clients to interpret.
+/// Authorization precedes storage validation. Empty and malformed frames are
+/// left for clients to interpret. Equal replacements still write the value but
+/// do not emit a change event.
 public fun set_lyrics<CompositionShare>(
     self: &mut Composition<CompositionShare>,
     cap: &CompositionAdminCap<CompositionShare>,
@@ -69,23 +70,26 @@ public fun set_lyrics<CompositionShare>(
     let key = ExtensionKey(language);
     let lyrics_existed_before = df::exists(uid, key);
     let lyrics_after = lyrics;
-    let lyrics_before = if (lyrics_existed_before) {
+    let (lyrics_before, lyrics_changed) = if (lyrics_existed_before) {
         let stored: &mut vector<u8> = df::borrow_mut(uid, key);
+        let lyrics_changed = *stored != lyrics;
         let previous = *stored;
         *stored = lyrics;
-        previous
+        (previous, lyrics_changed)
     } else {
         df::add(uid, key, lyrics);
-        vector[]
+        (vector[], true)
     };
-    emit(CompositionLyricsSetEvent<CompositionShare> {
-        composition_id,
-        composition_admin_cap_id,
-        language: *language.code().as_bytes(),
-        lyrics_existed_before,
-        lyrics_before,
-        lyrics_after,
-    });
+    if (lyrics_changed) {
+        emit(CompositionLyricsSetEvent<CompositionShare> {
+            composition_id,
+            composition_admin_cap_id,
+            language: *language.code().as_bytes(),
+            lyrics_existed_before,
+            lyrics_before,
+            lyrics_after,
+        });
+    };
 }
 
 /// Removes only this language. An absent entry is an authorized, silent no-op.

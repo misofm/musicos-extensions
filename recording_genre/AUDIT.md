@@ -60,7 +60,7 @@ warnings-as-errors builds pass clean, and all 25 tests pass in both networks.
 The production module (`recording_genre::recording_genre`) reports 100.00%
 raw coverage over its four public functions, including exact full-payload BCS
 peeling/replay, append and order-preserving removal, primary promotion,
-last-removal Removed-then-Cleared cascading, explicit/absent clear separation,
+last-removal cleanup with one final-state Removed event, explicit/absent clear separation,
 64-byte names, six-item bounds, duplicate-before-capacity and seventh-item
 guards, same-type foreign-cap transitions with target/cap identity checks,
 type-only cap semantics, unrelated dynamic-field preservation,

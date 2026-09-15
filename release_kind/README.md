@@ -23,9 +23,9 @@ published/shared lifecycle unchanged. `has_kind` is a permissionless presence
 view, while `kind` is a permissionless value view that aborts with `ENoKind` (1)
 when the field is absent.
 
-Setting a value always writes the field and emits an event, including replacing
-it with equal bytes. The event's `kind_changed` is `false` for equal bytes and
-`true` otherwise. An unset event is emitted only for an attached field.
+Setting a value always writes the field. It emits an event only when the
+complete byte value changes; the event's `kind_changed` is therefore true for
+every emitted set event. An unset event is emitted only for an attached field.
 
 ## Events and encoding
 

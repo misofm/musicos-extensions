@@ -19,8 +19,9 @@ authorizes before silently returning. Set validates emptiness (2) and the
 abort precedence. A module-owned key stores one bounded UTF-8 String exactly as
 provided. The monomorphic set and unset events carry both actual object IDs,
 raw previous/current bytes and lengths, record existence before/after, and the
-change flag. Equal replacements still assign and emit with `kind_changed =
-false`; views do not emit. There is no value or custody surface.
+change flag. Equal replacements still assign but emit no event; every emitted
+set event has `kind_changed = true`. Views do not emit. There is no value or
+custody surface.
 
 ## Evidence
 

@@ -142,12 +142,14 @@ fun set_emits_the_audio_and_recording() {
     let ctx = &mut tx_context::dummy();
     let (mut rec, cap) = new_rec(ctx);
     let rec_id = object::id(&rec);
+    let audio = new_audio(data::new_blob(7, confidentiality::new_unencrypted()));
 
-    master_ext::set_master(
-        &mut rec,
-        &cap,
-        new_audio(data::new_blob(7, confidentiality::new_unencrypted())),
-    );
+    // Audio construction is a pure value operation; attaching it is the
+    // canonical source of the master event.
+    assert_eq!(sui::event::num_events(), 0);
+
+    master_ext::set_master(&mut rec, &cap, audio);
+    assert_eq!(sui::event::num_events(), 1);
 
     // The event is the indexer's whole feed: it must carry the audio
     // itself, not just a pointer back to the object.
@@ -157,6 +159,54 @@ fun set_emits_the_audio_and_recording() {
     assert_audio_metadata(&master);
     assert_eq!(id, rec_id);
     assert_eq!(*master.data(), data::new_blob(7, confidentiality::new_unencrypted()));
+
+    destroy(rec);
+    destroy(cap);
+}
+
+#[test]
+fun equal_master_assignment_is_silent() {
+    let ctx = &mut tx_context::dummy();
+    let (mut rec, cap) = new_rec(ctx);
+    let audio = new_audio(data::new_blob(17, confidentiality::new_unencrypted()));
+
+    master_ext::set_master(&mut rec, &cap, audio);
+    assert_eq!(event::events_by_type<master_ext::MasterSetEvent>().length(), 1);
+    master_ext::set_master(&mut rec, &cap, audio);
+    assert_eq!(event::events_by_type<master_ext::MasterSetEvent>().length(), 1);
+    assert_eq!(master_ext::master(&rec).data().blob_id(), 17);
+
+    destroy(rec);
+    destroy(cap);
+}
+
+#[test]
+fun same_blob_with_changed_audio_metadata_emits() {
+    let ctx = &mut tx_context::dummy();
+    let (mut rec, cap) = new_rec(ctx);
+    let digest = vector[0x11u8, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11,
+        0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11,
+        0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11,
+        0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11];
+    let first = audio::new(
+        b"flac".to_string(), 2, 24, 48000, 48000, digest,
+        data::new_blob(27, confidentiality::new_unencrypted()),
+    );
+    let changed = audio::new(
+        b"wav".to_string(), 1, 16, 44100, 88200, vector::tabulate!(32, |_| 0x22u8),
+        data::new_blob(27, confidentiality::new_encrypted(b"dek")),
+    );
+
+    master_ext::set_master(&mut rec, &cap, first);
+    assert_eq!(event::events_by_type<master_ext::MasterSetEvent>().length(), 1);
+    master_ext::set_master(&mut rec, &cap, changed);
+    let events = event::events_by_type<master_ext::MasterSetEvent>();
+    assert_eq!(events.length(), 2);
+    let (_, master) = master_ext::set_event_fields(&events[1]);
+    assert_eq!(master.data().blob_id(), 27);
+    assert_eq!(*audio::format(&master), b"wav".to_string());
+    assert_eq!(master.channels(), 1);
+    assert!(master.data().blob_confidentiality().is_encrypted());
 
     destroy(rec);
     destroy(cap);

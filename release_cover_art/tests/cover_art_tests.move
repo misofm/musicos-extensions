@@ -347,6 +347,36 @@ fun unset_track_cover_emits_complete_track_snapshot() {
     destroy(cap);
 }
 
+#[test]
+fun equal_and_empty_cover_writes_are_silent() {
+    let ctx = &mut tx_context::dummy();
+    let (mut rel, cap) = mk_release(ctx);
+    let art = cover::new_for_testing();
+
+    release_cover_art::set_cover(&mut rel, &cap, art);
+    assert_eq!(event::events_by_type<release_cover_art::ReleaseCoverArtSetEvent>().length(), 1);
+    release_cover_art::set_cover(&mut rel, &cap, art);
+    assert_eq!(event::events_by_type<release_cover_art::ReleaseCoverArtSetEvent>().length(), 1);
+
+    release_cover_art::unset_cover(&mut rel, &cap);
+    assert_eq!(event::events_by_type<release_cover_art::ReleaseCoverArtUnsetEvent>().length(), 1);
+    release_cover_art::unset_cover(&mut rel, &cap);
+    assert_eq!(event::events_by_type<release_cover_art::ReleaseCoverArtUnsetEvent>().length(), 1);
+
+    release_cover_art::set_track_cover(&mut rel, &cap, 1, art);
+    assert_eq!(event::events_by_type<release_cover_art::ReleaseTrackCoverArtSetEvent>().length(), 1);
+    release_cover_art::set_track_cover(&mut rel, &cap, 1, art);
+    assert_eq!(event::events_by_type<release_cover_art::ReleaseTrackCoverArtSetEvent>().length(), 1);
+
+    release_cover_art::unset_track_cover(&mut rel, &cap, 1);
+    assert_eq!(event::events_by_type<release_cover_art::ReleaseTrackCoverArtUnsetEvent>().length(), 1);
+    release_cover_art::unset_track_cover(&mut rel, &cap, 1);
+    assert_eq!(event::events_by_type<release_cover_art::ReleaseTrackCoverArtUnsetEvent>().length(), 1);
+
+    destroy(rel);
+    destroy(cap);
+}
+
 // === Unattached aborts ===
 
 #[test, expected_failure(abort_code = ENoCoverArt, location = release_cover_art)]

@@ -96,6 +96,10 @@ fun album_link_set_replace_clear_is_independent_per_platform() {
     assert!(current_present);
     assert_eq!(current_fields, vector[b"3xTbtTM3BSRIGxzWSMaEpc"]);
 
+    // An equal full-value replacement writes but is silent.
+    links::set_release_link(&mut rel, &cap, links::new_spotify(b"3xTbtTM3BSRIGxzWSMaEpc".to_string()));
+    assert_eq!(event::events_by_type<links::ReleaseDspLinkSetEvent>().length(), 2);
+
     // Replacing Spotify's link leaves Tidal's untouched.
     links::set_release_link(&mut rel, &cap, links::new_spotify(b"6rqhFgbbKwnb9MLmUQDhG6".to_string()));
     assert_eq!(
@@ -186,11 +190,21 @@ fun track_link_set_replace_clear_lifecycle() {
         links::track_link(&rel, bandcamp, 1).destroy_some(),
         links::new_bandcamp(b"anartist".to_string(), b"b-track".to_string()),
     );
+    assert_eq!(event::events_by_type<links::ReleaseTrackDspLinkSetEvent>().length(), 2);
+
+    // A full-value equal replacement is silent.
+    links::set_track_link(&mut rel, &cap, 1, links::new_bandcamp(b"anartist".to_string(), b"b-track".to_string()));
+    assert_eq!(event::events_by_type<links::ReleaseTrackDspLinkSetEvent>().length(), 2);
 
     // Clearing the slot resets it to none; other slots and other platforms are
     // unaffected.
     links::clear_track_link(&mut rel, &cap, bandcamp, 1);
     assert!(links::track_link(&rel, bandcamp, 1).is_none());
+    assert_eq!(event::events_by_type<links::ReleaseTrackDspLinkClearedEvent>().length(), 1);
+
+    // An already-empty slot is still assigned none but emits no event.
+    links::clear_track_link(&mut rel, &cap, bandcamp, 1);
+    assert_eq!(event::events_by_type<links::ReleaseTrackDspLinkClearedEvent>().length(), 1);
 
     destroy(rel);
     destroy(cap);
@@ -227,6 +241,13 @@ fun clear_track_links_removes_the_whole_array() {
 
     // A second bulk clear is a silent no-op.
     links::clear_track_links(&mut rel, &cap, deezer);
+    assert_eq!(event::events_by_type<links::ReleaseTrackDspLinksClearedEvent>().length(), 1);
+
+    // Reclaiming an attached all-empty array is also silent.
+    links::set_track_link(&mut rel, &cap, 0, links::new_deezer(b"10".to_string()));
+    links::clear_track_link(&mut rel, &cap, deezer, 0);
+    links::clear_track_links(&mut rel, &cap, deezer);
+    assert_eq!(event::events_by_type<links::ReleaseTrackDspLinksClearedEvent>().length(), 1);
 
     destroy(rel);
     destroy(cap);
@@ -352,6 +373,19 @@ fun another_releases_cap_is_rejected() {
     destroy(_a_cap);
     destroy(b);
     destroy(b_cap);
+}
+
+/// Event suppression for an equal value must not bypass the release's
+/// authorization gate.
+#[test, expected_failure(abort_code = EUnauthorized, location = musicos::release)]
+fun equal_release_link_still_requires_the_cap() {
+    let ctx = &mut tx_context::dummy();
+    let (mut release, release_cap) = mk_release(ctx);
+    let (_foreign_release, foreign_cap) = mk_release(ctx);
+
+    links::set_release_link(&mut release, &release_cap, links::new_spotify(b"same".to_string()));
+    links::set_release_link(&mut release, &foreign_cap, links::new_spotify(b"same".to_string()));
+    abort
 }
 
 #[test, expected_failure(abort_code = EUnauthorized, location = musicos::release)]

@@ -108,24 +108,27 @@ public fun set_description(self: &mut Release, cap: &ReleaseAdminCap, descriptio
     let description_after = *description.as_bytes();
     let uid = self.uid_mut(cap);
     let description_existed_before = df::exists(uid, ExtensionKey());
-    let description_before = if (description_existed_before) {
+    let (description_before, description_changed) = if (description_existed_before) {
         // Keep the old value snapshot and replacement in this one mutable
         // borrow, so the dynamic-field mutation remains the only write.
         let stored: &mut String = df::borrow_mut(uid, ExtensionKey());
         let previous = *stored.as_bytes();
+        let description_changed = previous != description_after;
         *stored = description;
-        previous
+        (previous, description_changed)
     } else {
         df::add(uid, ExtensionKey(), description);
-        vector[]
+        (vector[], true)
     };
-    emit(ReleaseDescriptionSetEvent {
-        release_id,
-        release_admin_cap_id,
-        description_existed_before,
-        description_before,
-        description_after,
-    });
+    if (description_changed) {
+        emit(ReleaseDescriptionSetEvent {
+            release_id,
+            release_admin_cap_id,
+            description_existed_before,
+            description_before,
+            description_after,
+        });
+    };
 }
 
 /// Removes the description, if any. Idempotent. Leaves the release having said

@@ -39,7 +39,7 @@ instrumental composition.
 
 | Function | Behavior |
 |---|---|
-| `set_lyrics(composition, cap, language, bytes)` | Add or replace one entry; emits even for an equal replacement. |
+| `set_lyrics(composition, cap, language, bytes)` | Add or replace one entry; an event is emitted only when the complete byte payload changes. |
 | `clear_lyrics(composition, cap, language)` | Remove one entry; authorized absent clears are silent no-ops. |
 | `has_lyrics(composition, language)` | Test for presence. |
 | `lyrics(composition, language)` | Borrow stored bytes; abort if absent. |

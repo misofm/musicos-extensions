@@ -101,11 +101,13 @@ public fun set_languages<RecordingShare, CompositionShare>(
     let mut previous_languages = vector[];
     let mut language_count_before = 0;
     let mut was_instrumental = false;
+    let mut languages_changed = true;
     if (had_languages) {
         let previous = df::borrow(uid, ExtensionKey());
         previous_languages = encode_languages(previous);
         language_count_before = previous.length();
         was_instrumental = previous.is_empty();
+        languages_changed = *previous != languages;
         *df::borrow_mut(uid, ExtensionKey()) = languages;
     } else {
         df::add(uid, ExtensionKey(), languages);
@@ -114,19 +116,21 @@ public fun set_languages<RecordingShare, CompositionShare>(
     let current_languages = encode_languages(current);
     let language_count_after = current.length();
     let is_instrumental = current.is_empty();
-    emit(RecordingLanguagesSetEvent<RecordingShare, CompositionShare> {
-        recording_id,
-        composition_id,
-        admin_cap_id,
-        had_languages,
-        previous_languages,
-        languages: current_languages,
-        language_count_before,
-        language_count_after,
-        was_instrumental,
-        is_instrumental,
-        max_languages: MAX_LANGUAGES,
-    });
+    if (languages_changed) {
+        emit(RecordingLanguagesSetEvent<RecordingShare, CompositionShare> {
+            recording_id,
+            composition_id,
+            admin_cap_id,
+            had_languages,
+            previous_languages,
+            languages: current_languages,
+            language_count_before,
+            language_count_after,
+            was_instrumental,
+            is_instrumental,
+            max_languages: MAX_LANGUAGES,
+        });
+    };
 }
 
 /// Asserts the recording has no sung or spoken content.

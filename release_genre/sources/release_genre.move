@@ -203,9 +203,10 @@ public fun add_genre(self: &mut Release, cap: &ReleaseAdminCap, genre: &Genre) {
 
 /// Removes a genre from the release by id. If it was the primary, the next
 /// entry (if any) becomes primary by virtue of now sitting at index 0.
-/// Removing the last genre drops the field entirely and additionally emits
-/// `ReleaseGenresClearedEvent`. Aborts `EGenreNotPresent` if the genre is not
-/// currently assigned, including when the release has no genres at all.
+/// Removing the last genre drops the field entirely before emitting its
+/// final-state `ReleaseGenreRemovedEvent`. Aborts `EGenreNotPresent` if the
+/// genre is not currently assigned, including when the release has no genres
+/// at all.
 public fun remove_genre(self: &mut Release, cap: &ReleaseAdminCap, genre_id: ID) {
     let release_id = object::id(self).to_address();
     let admin_cap_id = object::id(cap).to_address();
@@ -223,6 +224,9 @@ public fun remove_genre(self: &mut Release, cap: &ReleaseAdminCap, genre_id: ID)
     let primary_genre_id_after = primary_id(&genres_after);
     let genre_count_before = genres_before.length();
     let genre_count_after = genres_after.length();
+    if (now_empty) {
+        let _: vector<ID> = df::remove(uid, ExtensionKey()); // vector<ID> has drop
+    };
     emit(ReleaseGenreRemovedEvent {
         release_id,
         admin_cap_id,
@@ -233,33 +237,13 @@ public fun remove_genre(self: &mut Release, cap: &ReleaseAdminCap, genre_id: ID)
         genre_count_before,
         genre_count_after,
         field_existed_before: true,
-        field_exists_after: true,
+        field_exists_after: !now_empty,
         had_primary_before: true,
         has_primary_after: !now_empty,
         primary_genre_id_before,
         primary_genre_id_after,
         primary_changed: primary_genre_id_before != primary_genre_id_after,
     });
-    if (now_empty) {
-        let _: vector<ID> = df::remove(uid, ExtensionKey()); // vector<ID> has drop
-        emit(ReleaseGenresClearedEvent {
-            release_id,
-            admin_cap_id,
-            clear_cause: 1,
-            trigger_genre_id: genre_id_address,
-            genres_before: vector[],
-            genres_after: vector[],
-            genre_count_before: 0,
-            genre_count_after: 0,
-            field_existed_before: true,
-            field_exists_after: false,
-            had_primary_before: false,
-            has_primary_after: false,
-            primary_genre_id_before: @0x0,
-            primary_genre_id_after: @0x0,
-            primary_changed: false,
-        });
-    }
 }
 
 /// Removes the release's entire genre list. A no-op when nothing is

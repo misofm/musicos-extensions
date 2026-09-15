@@ -34,15 +34,16 @@ the exact source declaration order documented in `README.md`: actual release,
 cap, and genre addresses; Added's raw UTF-8 name; index; complete before and
 after ordered address vectors; counts; field-existence and primary flags; and
 primary ids/change flag. Cleared additionally carries `clear_cause` and
-`trigger_genre_id`. Cause 0 is explicit clear with an `@0x0` trigger; cause 1
-is the final-remove cascade with the removed id.
+`trigger_genre_id`. Cause 0 is explicit clear with an `@0x0` trigger; the
+legacy cause-1 fields remain for wire compatibility but are no longer emitted
+by final removal.
 
 Every successful add emits exactly one Added event after the field write.
-Every successful remove emits Removed before field deletion; a final remove
-then emits Cleared with the canonical empty `[] -> []`, `true -> false`
-snapshot. Explicit clear removes the field and emits one Cleared event; an
-absent explicit clear emits none. Constructors, views, and failed guards are
-silent. No owner, timestamp, or full `Genre` object is exposed.
+Every successful remove deletes the field before emitting Removed when it is
+the final item, so that event reports `field_exists_after = false`. Explicit
+clear removes the field and emits one Cleared event; an absent explicit clear
+emits none. Constructors, views, and failed guards are silent. No owner,
+timestamp, or full `Genre` object is exposed.
 
 For snapshot lengths `b`, `a`, and Added name length `n`, the exact BCS bounds
 are:
@@ -51,8 +52,8 @@ are:
 * Removed: `191 + 32*(b+a)`, maximum 543;
 * Cleared: `184 + 32*(b+a)`, maximum 376.
 
-The final pair is 223-byte Removed plus 184-byte cascading Cleared. These are
-serialized event bounds; vector/name lengths still contribute transaction gas.
+The final-removal event is 223-byte Removed. These are serialized event bounds;
+vector/name lengths still contribute transaction gas.
 
 ## Evidence
 

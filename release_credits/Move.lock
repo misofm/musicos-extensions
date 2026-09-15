@@ -35,7 +35,7 @@ manifest_digest = "43EF3B938D7EEE22C9657EB418DA5C9E9984D02D725538A82E7D3268322F9
 deps = { bps = "bps", share = "share", std = "MoveStdlib", sui = "Sui" }
 
 [pinned.mainnet.partyos]
-source = { git = "https://github.com/misofm/partyos.git", subdir = ".", rev = "3626ee19e42cf8df5ecea59cd5be6cb5a1538cc1" }
+source = { git = "https://github.com/misofm/partyos.git", subdir = ".", rev = "c23df9018e15a76395c65bc8dfca4b365140aa12" }
 use_environment = "mainnet"
 manifest_digest = "E41BBD67BE8940D26C79D78B028477EF5B33BA217A1282C78ACB344CF8A5ECF6"
 deps = { std = "MoveStdlib", sui = "Sui" }
@@ -43,7 +43,7 @@ deps = { std = "MoveStdlib", sui = "Sui" }
 [pinned.mainnet.release_credits]
 source = { root = true }
 use_environment = "mainnet"
-manifest_digest = "ACEECDD2B2E5C98B33F9B92A98ED7CB233101A293A7AB700F5A8A2A8B7FEBE49"
+manifest_digest = "80B703A21062E2C0580AAA8E4B301C12A54359D5C53A78B217B184ED2847BDE5"
 deps = { credit = "credit", musicos = "musicos", partyos = "partyos", std = "MoveStdlib", sui = "Sui" }
 
 [pinned.mainnet.share]
@@ -83,7 +83,7 @@ manifest_digest = "6746D45CC0E1EB869033BB4778064980963001D5C9C151F74A7A7D1DDEAE0
 deps = { bps = "bps", share = "share", std = "MoveStdlib", sui = "Sui" }
 
 [pinned.testnet.partyos]
-source = { git = "https://github.com/misofm/partyos.git", subdir = ".", rev = "3626ee19e42cf8df5ecea59cd5be6cb5a1538cc1" }
+source = { git = "https://github.com/misofm/partyos.git", subdir = ".", rev = "c23df9018e15a76395c65bc8dfca4b365140aa12" }
 use_environment = "testnet"
 manifest_digest = "5745706258F61D6CE210904B3E6AE87A73CE9D31A6F93BE4718C442529332A87"
 deps = { std = "MoveStdlib", sui = "Sui" }
@@ -91,7 +91,7 @@ deps = { std = "MoveStdlib", sui = "Sui" }
 [pinned.testnet.release_credits]
 source = { root = true }
 use_environment = "testnet"
-manifest_digest = "F5FEB47E788F4D9B494E7A396BFC45A7EACD0B06582B0F8D994A8012297F3CF2"
+manifest_digest = "2855D44ED2539C5399D546944B67CAC08C0EFC548667E563A381D0D3D08F36B8"
 deps = { credit = "credit", musicos = "musicos", partyos = "partyos", std = "MoveStdlib", sui = "Sui" }
 
 [pinned.testnet.share]

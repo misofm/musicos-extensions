@@ -10,9 +10,9 @@ can be changed through the typed `RecordingAdminCap`.
 
 ## Entry points
 
-- `set_rating` adds, replaces, or equal-replaces the rating and emits exactly
-  one `RecordingAdvisoryRatingSetEvent<RecordingShare, CompositionShare>` after
-  the dynamic-field mutation.
+- `set_rating` adds, replaces, or equal-replaces the rating. It emits one
+  `RecordingAdvisoryRatingSetEvent<RecordingShare, CompositionShare>` after the
+  dynamic-field mutation only when the complete rating changes.
 - `unset_rating` removes an attached rating and emits one
   `RecordingAdvisoryRatingClearedEvent<RecordingShare, CompositionShare>`.
   Clearing an absent field is an idempotent silent no-op.

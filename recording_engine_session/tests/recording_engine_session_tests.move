@@ -369,14 +369,14 @@ fun set_events_report_insert_equal_and_each_component_change() {
         &cap,
         session::new(plain_blob(10), vector[session::new_stem(first_digest, plain_blob(20))]),
     );
-    // Full equality, including stem vectors, reports false on replacement.
+    // Full equality, including stem vectors, makes the replacement silent.
     session::set_engine_session(
         &mut recording,
         &cap,
         session::new(plain_blob(10), vector[session::new_stem(first_digest, plain_blob(20))]),
     );
     let events = event::events_by_type<session::EngineSessionSetEvent<REC, COMP>>();
-    assert_eq!(events.length(), 2);
+    assert_eq!(events.length(), 1);
     let (event_recording_id, event_composition_id, event_admin_cap_id, had_previous,
         value_changed, previous_blob_id, previous_stem_count, current_blob_id, stem_count,
         stem_digests, stem_blob_ids) = session::set_event_fields(&events[0]);
@@ -392,17 +392,7 @@ fun set_events_report_insert_equal_and_each_component_change() {
     assert_eq!(stem_digests, vector[first_digest]);
     assert_eq!(stem_blob_ids, vector[20]);
 
-    let (_, _, _, had_previous, value_changed, previous_blob_id, previous_stem_count,
-        current_blob_id, stem_count, stem_digests, stem_blob_ids) =
-        session::set_event_fields(&events[1]);
-    assert!(had_previous);
-    assert!(!value_changed);
-    assert_eq!(previous_blob_id, 10);
-    assert_eq!(previous_stem_count, 1);
-    assert_eq!(current_blob_id, 10);
-    assert_eq!(stem_count, 1);
-    assert_eq!(stem_digests, vector[first_digest]);
-    assert_eq!(stem_blob_ids, vector[20]);
+    assert_eq!(session::set_event_bcs(&events[0]).length(), 245);
 
     destroy(recording);
     destroy(cap);

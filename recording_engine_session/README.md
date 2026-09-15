@@ -11,7 +11,8 @@ rejected. There is no finite stem-count cap.
 
 `set_engine_session` emits one
 `EngineSessionSetEvent<RecordingShare, CompositionShare>` after the dynamic
-field write. Its fields are declared in this exact order:
+field write only when the complete session and ordered stem vectors change.
+Its fields are declared in this exact order:
 
 ```text
 recording_id: address
@@ -32,7 +33,8 @@ An insertion uses two zero scalar sentinels (`previous_session_blob_id` and
 vectors, and sets `had_previous = false`, `value_changed = true`. A replacement
 snapshots only the prior session blob ID and stem count, then compares the full
 session (session blob, ordered digests, and aligned stem blob IDs); an exactly
-equal replacement has `value_changed = false`. The current digest and blob-ID
+equal replacement is assigned silently and has `value_changed = false` in the
+event schema. The current digest and blob-ID
 vectors preserve stored order and remain positionally aligned.
 
 `unset_engine_session` emits one

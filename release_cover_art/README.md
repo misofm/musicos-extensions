@@ -20,9 +20,11 @@ The `CoverArt` value type is provided by the independently versioned
 
 ## Events
 
-Each successful write emits exactly one event after the storage write. The four
-event types are `ReleaseCoverArtSetEvent`, `ReleaseCoverArtUnsetEvent`,
-`ReleaseTrackCoverArtSetEvent`, and `ReleaseTrackCoverArtUnsetEvent`. Every
+Each successful write compares the complete before and after cover values after
+the storage write. The four event types are `ReleaseCoverArtSetEvent`,
+`ReleaseCoverArtUnsetEvent`, `ReleaseTrackCoverArtSetEvent`, and
+`ReleaseTrackCoverArtUnsetEvent`; an event is emitted only when that value
+changes. Every
 event begins with `release_id`, `admin_cap_id`, `track_count`,
 `field_existed_before`, and `field_exists_after`. Track events then include
 `track_index`, the immutable track `recording_id`, and `composition_id`.
@@ -39,9 +41,9 @@ stored value and the digest cannot reconstruct them.
 
 The track snapshots describe the stored override, not the resolved cover. A
 consumer uses the override when `present` and otherwise the album snapshot.
-Album and track unsets keep the dynamic-field record and emit even when the
-value was already empty, so replay can observe those writes. `field_exists_after`
-is always true; views do not emit events. The fixed BCS sizes are 246 bytes
+Album and track unsets keep the dynamic-field record and are silent when the
+value was already empty, so replay observes actual value transitions.
+`field_exists_after` is always true; views do not emit events. The fixed BCS sizes are 246 bytes
 for an album event with plaintext/absent snapshots and 404 bytes for a track
 event, plus 32 bytes per encrypted blob (maximums are 374/310 for album
 set/unset and 596/532 for track set/unset).

@@ -18,7 +18,8 @@ wraps exactly one `ori::data::WalrusQuilt`; standalone blobs and individual
 Quilt patches cannot reach the API. The module stores one reference per
 Recording, leaves unrelated dynamic fields untouched, and emits primitive
 Recording/composition/cap addresses, presence, and previous/current Quilt IDs
-on every set or replacement. An absent unset is an idempotent no-op and emits
+on each value-changing set or replacement. An equal replacement writes silently.
+An absent unset is an idempotent no-op and emits
 no misleading event.
 
 The extension records the Recording administrator's assertion. Its set event
@@ -37,6 +38,6 @@ With the available Sui toolchain, strict lint and warnings-as-errors builds pass
 for Testnet and Mainnet. All 7 tests pass in both environments, covering set,
 replacement including equal assignment, idempotent unset, absent reads, wrapper
 construction and access, zero/large/max `u256` preservation, per-Recording and
-phantom isolation, exact event payloads and BCS replay, the six-event 900-byte
-composition, permissionless reads, and the published shared-Recording
+phantom isolation, exact event payloads and BCS replay, the three-set/two-clear
+739-byte composition, permissionless reads, and the published shared-Recording
 lifecycle. Production-module raw coverage is 100.00%.
