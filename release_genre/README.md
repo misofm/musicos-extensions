@@ -50,74 +50,9 @@ are permissionless.
 
 ## Events
 
-Events are monomorphic and are emitted only after their corresponding dynamic
-field mutation succeeds. BCS follows the declaration order below; vectors are
-ordered primitive address snapshots, so a consumer can replay the list and
-field lifecycle without rereading the release.
+Added/removed events retain release/admin-cap/genre IDs, changed index, before/after counts, field lifecycle flags, and primary-genre identity/flags (189 BCS bytes). Consumers replay ordered relationships using the changed ID/index. Clear retains the removed ordered ID list (at most six) and its existing cause/count/primary metadata (at most 375 bytes). Redundant display name and full before/after list copies are omitted.
 
-`ReleaseGenreAddedEvent` fields:
-
-```text
-release_id: address
-admin_cap_id: address
-genre_id: address
-genre_name: vector<u8>
-genre_index: u64
-genres_before: vector<address>
-genres_after: vector<address>
-genre_count_before: u64
-genre_count_after: u64
-field_existed_before: bool
-field_exists_after: bool
-had_primary_before: bool
-has_primary_after: bool
-primary_genre_id_before: address
-primary_genre_id_after: address
-primary_changed: bool
-```
-
-`ReleaseGenreRemovedEvent` has the same order except that it omits
-`genre_name`. `ReleaseGenresClearedEvent` fields are:
-
-```text
-release_id: address
-admin_cap_id: address
-clear_cause: u8
-trigger_genre_id: address
-genres_before: vector<address>
-genres_after: vector<address>
-genre_count_before: u64
-genre_count_after: u64
-field_existed_before: bool
-field_exists_after: bool
-had_primary_before: bool
-has_primary_after: bool
-primary_genre_id_before: address
-primary_genre_id_after: address
-primary_changed: bool
-```
-
-`clear_cause = 0` is explicit `clear_genres` and uses `@0x0` as its trigger.
-The legacy `clear_cause = 1` shape remains in the event type for wire
-compatibility, but final removal no longer emits that companion event. The
-last removal emits one `ReleaseGenreRemovedEvent` after deleting the field,
-with `field_existed_before = true`, `field_exists_after = false`, and
-`[A] -> []`. An absent explicit clear is silent. Added events carry the raw
-`Genre.name()` bytes; IDs and cap IDs are the actual object addresses.
-
-## Event bounds
-
-For `b` and `a` snapshot lengths and an `n`-byte raw genre name:
-
-- Added is `192 + n + 32*(b + a)` bytes, with maximum `608` bytes at `n = 64`,
-  `b = 5`, `a = 6`.
-- Removed is `191 + 32*(b + a)` bytes, with maximum `543` bytes for six items
-  removing one.
-- Cleared is `184 + 32*(b + a)` bytes, with maximum `376` bytes for six items
-  cleared to empty.
-
-The final-removal event is `223` bytes for Removed (`b = 1`, `a = 0`). These are
-serialized event bounds; the list and name still affect transaction gas.
+See [the repository payload inventory](../EVENT_PAYLOADS.md) for byte bounds and retained context.
 
 ## Errors
 
@@ -131,10 +66,10 @@ serialized event bounds; the list and name still affect transaction gas.
 ## Dependencies
 
 - [`musicos`](https://github.com/misofm/musicos) at
-  `4cb3c926b1f9bb5103f3f7194e4e1e34b6c87840` — `Release` authorization
+  `eafd01ab1f57ed84f9660beb142d34c98fa9fd04` — `Release` authorization
   through `uid`/`uid_mut`.
 - [`genre`](https://github.com/misofm/genre) at
-  `cddf9491426723e2c468cebf40fb4231d9fb0d5a` — the canonical shared genre
+  `268d4bc45eecdaf7b75dc443e4974b9469912513` — the canonical shared genre
   vocabulary.
 
 Both are exact Git pins; this manifest has no local-path dependencies.
@@ -152,9 +87,9 @@ Both are exact Git pins; this manifest has no local-path dependencies.
   a bare `ID` because membership is already established by the stored list.
   Readers can trust that every retained id resolves to a real entry.
 - **Events are replayable transitions.** Added, Removed, and Cleared carry
-  ordered address snapshots, counts, field lifecycle flags, primary metadata,
-  and the actual release/cap IDs. Added also carries the raw canonical genre
-  name, so clients may replay directly or reread `genres()`.
+  changed IDs and indices, counts, field lifecycle flags, primary metadata,
+  and the actual release/cap IDs. Clients may replay relationships directly
+  or reread `genres()`; genre names are resolved from their IDs.
 - **Primary is protocol state here.** Unlike `party_genre`'s tag set, index 0
   in this list is not a client convention — it is the release's asserted
   primary genre, set and read through this API.

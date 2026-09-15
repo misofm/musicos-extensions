@@ -82,13 +82,10 @@ fun description_lifecycle_on_a_published_and_shared_release() {
 
     let set_events = event::events_by_type<rd::ReleaseDescriptionSetEvent>();
     assert_eq!(set_events.length(), 1);
-    let (event_id, event_cap_id, existed, before, event_description) =
-        rd::set_event_fields(&set_events[0]);
+    let (event_id, event_cap_id, existed) = rd::set_event_fields(&set_events[0]);
     assert_eq!(event_id, rel_id.to_address());
     assert_eq!(event_cap_id, object::id(&cap).to_address());
     assert!(!existed);
-    assert_eq!(before, vector[]);
-    assert_eq!(event_description, b"Recorded live in one room.");
 
     // --- Tx 4 (STRANGER): reads back the same prose a transaction later ---
     ts.next_tx(STRANGER);
@@ -107,20 +104,16 @@ fun description_lifecycle_on_a_published_and_shared_release() {
 
     let set_events = event::events_by_type<rd::ReleaseDescriptionSetEvent>();
     assert_eq!(set_events.length(), 1);
-    let (event_id, event_cap_id, existed, before, after) = rd::set_event_fields(&set_events[0]);
+    let (event_id, event_cap_id, existed) = rd::set_event_fields(&set_events[0]);
     assert_eq!(event_id, rel_id.to_address());
     assert_eq!(event_cap_id, object::id(&cap).to_address());
     assert!(existed);
-    assert_eq!(before, b"Recorded live in one room.");
-    assert_eq!(after, b"Recorded live in one room, in two days.");
 
     let cleared_events = event::events_by_type<rd::ReleaseDescriptionClearedEvent>();
     assert_eq!(cleared_events.length(), 1);
-    let (cleared_id, cleared_cap_id, cleared_before) =
-        rd::clear_event_fields(&cleared_events[0]);
+    let (cleared_id, cleared_cap_id) = rd::clear_event_fields(&cleared_events[0]);
     assert_eq!(cleared_id, rel_id.to_address());
     assert_eq!(cleared_cap_id, object::id(&cap).to_address());
-    assert_eq!(cleared_before, b"Recorded live in one room, in two days.");
 
     // --- Tx 6 (STRANGER): the clear is visible too ---
     ts.next_tx(STRANGER);

@@ -35,10 +35,10 @@ fun expected_credit_added(
     composition_id: address,
     admin_cap_id: address,
     party_id: address,
-    display_name: vector<u8>,
+    _display_name: vector<u8>,
     role_kinds: vector<u8>,
-    role_names: vector<vector<u8>>,
-    role_instruments: vector<vector<u8>>,
+    _role_names: vector<vector<u8>>,
+    _role_instruments: vector<vector<u8>>,
     role_levels: vector<u8>,
     credit_index: u64,
     credit_count_before: u64,
@@ -50,10 +50,7 @@ fun expected_credit_added(
     bytes.append(bcs::to_bytes(&composition_id));
     bytes.append(bcs::to_bytes(&admin_cap_id));
     bytes.append(bcs::to_bytes(&party_id));
-    bytes.append(bcs::to_bytes(&display_name));
     bytes.append(bcs::to_bytes(&role_kinds));
-    bytes.append(bcs::to_bytes(&role_names));
-    bytes.append(bcs::to_bytes(&role_instruments));
     bytes.append(bcs::to_bytes(&role_levels));
     bytes.append(bcs::to_bytes(&credit_index));
     bytes.append(bcs::to_bytes(&credit_count_before));
@@ -67,10 +64,10 @@ fun expected_credit_removed(
     composition_id: address,
     admin_cap_id: address,
     party_id: address,
-    display_name: vector<u8>,
+    _display_name: vector<u8>,
     role_kinds: vector<u8>,
-    role_names: vector<vector<u8>>,
-    role_instruments: vector<vector<u8>>,
+    _role_names: vector<vector<u8>>,
+    _role_instruments: vector<vector<u8>>,
     role_levels: vector<u8>,
     credit_index: u64,
     credit_count_before: u64,
@@ -83,10 +80,7 @@ fun expected_credit_removed(
     bytes.append(bcs::to_bytes(&composition_id));
     bytes.append(bcs::to_bytes(&admin_cap_id));
     bytes.append(bcs::to_bytes(&party_id));
-    bytes.append(bcs::to_bytes(&display_name));
     bytes.append(bcs::to_bytes(&role_kinds));
-    bytes.append(bcs::to_bytes(&role_names));
-    bytes.append(bcs::to_bytes(&role_instruments));
     bytes.append(bcs::to_bytes(&role_levels));
     bytes.append(bcs::to_bytes(&credit_index));
     bytes.append(bcs::to_bytes(&credit_count_before));
@@ -101,7 +95,7 @@ fun expected_artist_added(
     composition_id: address,
     admin_cap_id: address,
     party_id: address,
-    display_name: vector<u8>,
+    _display_name: vector<u8>,
     artist_index: u64,
     artist_count_before: u64,
     artist_count_after: u64,
@@ -112,7 +106,6 @@ fun expected_artist_added(
     bytes.append(bcs::to_bytes(&composition_id));
     bytes.append(bcs::to_bytes(&admin_cap_id));
     bytes.append(bcs::to_bytes(&party_id));
-    bytes.append(bcs::to_bytes(&display_name));
     bytes.append(bcs::to_bytes(&artist_index));
     bytes.append(bcs::to_bytes(&artist_count_before));
     bytes.append(bcs::to_bytes(&artist_count_after));
@@ -125,7 +118,7 @@ fun expected_artist_removed(
     composition_id: address,
     admin_cap_id: address,
     party_id: address,
-    display_name: vector<u8>,
+    _display_name: vector<u8>,
     artist_index: u64,
     artist_count_before: u64,
     artist_count_after: u64,
@@ -137,7 +130,7 @@ fun expected_artist_removed(
         composition_id,
         admin_cap_id,
         party_id,
-        display_name,
+        _display_name,
         artist_index,
         artist_count_before,
         artist_count_after,
@@ -1073,22 +1066,22 @@ fun rich_event_bcs_sizes_match_declared_maxima() {
     let pid = object::id(&p);
     credits::add_credit(&mut rec, &cap, &p, max_credit);
     let added = event::events_by_type<credits::CreditAddedEvent<RecordingShare, CompositionShare>>();
-    assert_eq!(credits::credit_added_event_fields(&added[0]).length(), 1549);
+    assert_eq!(credits::credit_added_event_fields(&added[0]).length(), 175);
     credits::add_primary_artist(&mut rec, &cap, &p);
     let primary_added = event::events_by_type<credits::PrimaryArtistAddedEvent<RecordingShare, CompositionShare>>();
-    assert_eq!(credits::primary_artist_added_event_fields(&primary_added[0]).length(), 362);
+    assert_eq!(credits::primary_artist_added_event_fields(&primary_added[0]).length(), 160);
     credits::remove_primary_artist(&mut rec, &cap, pid);
     let primary_removed = event::events_by_type<credits::PrimaryArtistRemovedEvent<RecordingShare, CompositionShare>>();
-    assert_eq!(credits::primary_artist_removed_event_fields(&primary_removed[0]).length(), 363);
+    assert_eq!(credits::primary_artist_removed_event_fields(&primary_removed[0]).length(), 161);
     credits::add_featured_artist(&mut rec, &cap, &p);
     let featured_added = event::events_by_type<credits::FeaturedArtistAddedEvent<RecordingShare, CompositionShare>>();
-    assert_eq!(credits::featured_artist_added_event_fields(&featured_added[0]).length(), 362);
+    assert_eq!(credits::featured_artist_added_event_fields(&featured_added[0]).length(), 160);
     credits::remove_featured_artist(&mut rec, &cap, pid);
     let featured_removed = event::events_by_type<credits::FeaturedArtistRemovedEvent<RecordingShare, CompositionShare>>();
-    assert_eq!(credits::featured_artist_removed_event_fields(&featured_removed[0]).length(), 363);
+    assert_eq!(credits::featured_artist_removed_event_fields(&featured_removed[0]).length(), 161);
     credits::remove_credit(&mut rec, &cap, pid);
     let removed = event::events_by_type<credits::CreditRemovedEvent<RecordingShare, CompositionShare>>();
-    assert_eq!(credits::credit_removed_event_fields(&removed[0]).length(), 1550);
+    assert_eq!(credits::credit_removed_event_fields(&removed[0]).length(), 176);
     destroy(rec); destroy(cap); destroy(p); destroy(pc);
     ts.end();
 }

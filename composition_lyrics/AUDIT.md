@@ -1,3 +1,5 @@
+> Historical audit below predates the 2026-09-15 payload revision. Current event contracts and size bounds are documented in [EVENT_PAYLOADS.md](../EVENT_PAYLOADS.md). Storage, authority, and mutation behavior remain unchanged.
+
 # Implementation review — composition_lyrics
 
 Reviewed locally on 2026-09-15. This is an implementation review and test record,

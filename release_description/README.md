@@ -19,14 +19,9 @@ bytes are not normalized or hashed.
 - `has_description` is a permissionless presence view. `description` is a
   permissionless value view and aborts with `ENoDescription` when absent.
 
-The set event fields, in order, are `release_id`,
-`release_admin_cap_id`, `description_existed_before`, `description_before`,
-and `description_after`. The clear event fields are `release_id`,
-`release_admin_cap_id`, and `description_before`. IDs are event provenance;
-the extension adds no cap-ID equality check beyond the core release's existing
-`uid_mut` authorization. Their exact maximum BCS sizes are 8260 bytes for an
-initial max-length set, 16453 bytes for a max-length replacement, and 8258
-bytes for a max-length clear.
+## Events
+
+Set carries `release_id`, `release_admin_cap_id`, and `description_existed_before` (65 BCS bytes). Clear carries the two IDs (64 bytes). Description bytes stay in the dynamic field; consumers fetch current prose when needed. Empty writes, equal replacements, authorization, and clear behavior are unchanged.
 
 ## Verification
 

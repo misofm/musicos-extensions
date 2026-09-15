@@ -106,3 +106,8 @@ protocol objects and focused invariant and authorization tests.
 ## License
 
 [Apache-2.0](./LICENSE)
+
+## Event payload policy
+
+See [EVENT_PAYLOADS.md](EVENT_PAYLOADS.md) for the complete event inventory,
+content omission policy, source-derived BCS bounds, and consumer migration notes.

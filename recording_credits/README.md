@@ -34,50 +34,9 @@ All `recording_credits` write functions are cap-gated by `RecordingAdminCap`.
 
 ## Events
 
-Every mutation emits only its corresponding rich event(s); all views and
-constructors are silent. Credit events carry recording, composition, admin-cap,
-and party addresses, display-name bytes, stable role kind/name/instrument/level
-vectors, map index/counts, and initialization or cascade flags. Designation
-events carry the display-name bytes, set index/counts, credit count, and the
-cascade flag on removals. Event types retain both phantom recording and
-composition share parameters without constraints. Role kinds use the stable
-`Actor = 0` through `Custom = 31` codes; levels use `None = 0` through
-`Principal = 9`, with clerical roles forced to level `0`.
+Credit added/removed events retain recording/composition/admin-cap/party IDs, ordered compact role kinds and levels (at most 10 each), credit index/counts, and lifecycle or artist-membership flags. Maximum sizes are 175/176 BCS bytes. Primary and featured artist added/removed events retain the four IDs, ordered-set index/counts, and removal cause (160/161 bytes). Display names, custom labels, and instruments stay in storage. Custom-role kind is retained, but the exact custom label requires reading the credit while present. Credit removal and primary/featured cascade events remain distinct and are all retained.
 
-Event BCS is field-order BCS with no phantom bytes. Addresses are 32-byte
-values; `u64` values are little-endian; `bool` is one byte; strings are UTF-8
-byte vectors with their BCS length prefix; and nested role vectors retain their
-outer order and each inner vector's length prefix. The exact field order is:
-
-- `CreditAddedEvent`: `recording_id`, `composition_id`, `admin_cap_id`,
-  `party_id`, `display_name`, `role_kinds`, `role_names`, `role_instruments`,
-  `role_levels`, `credit_index`, `credit_count_before`,
-  `credit_count_after`, `credits_initialized`.
-- `CreditRemovedEvent`: the same first twelve fields through
-  `credit_count_after`, followed by `was_primary_artist`,
-  `was_featured_artist`.
-- `PrimaryArtistAddedEvent` and `FeaturedArtistAddedEvent`: recording ID,
-  composition ID, admin-cap ID, party ID, display-name bytes, set index,
-  set count before, set count after, and credit count after. The field name is
-  `primary_artist_index` or `featured_artist_index` respectively.
-- `PrimaryArtistRemovedEvent` and `FeaturedArtistRemovedEvent`: the matching
-  added-event fields followed by `caused_by_credit_removal`.
-
-The accepted primitive bounds are a 200-byte display name, at most 10 roles per
-recording credit, and 100-byte instrument/custom-role names. The package-wide
-collection bounds are 150 credits, 20 primary IDs, and 50 featured IDs. The
-maximal tested BCS sizes are 1549 (`CreditAddedEvent`), 1550
-(`CreditRemovedEvent`), 362 (either designation-added event), and 363 (either
-designation-removed event).
-
-`credit_index` and set indexes are insertion-order indexes at the mutation;
-all before/after counts are cardinalities (the exact before and after values,
-not deltas). Credit removal first removes the map entry, then emits the returned
-credit snapshot, then emits primary and featured cascade events in that mutation
-order. Explicit designation removal sets
-`caused_by_credit_removal` to false. The test-only event accessors serialize
-the complete event values, and tests compare those bytes with independently
-assembled BCS payloads rather than checking lengths alone.
+See [the repository payload inventory](../EVENT_PAYLOADS.md) for byte bounds and retained context.
 
 ## Dependencies
 

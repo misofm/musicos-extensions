@@ -85,10 +85,10 @@ fun assert_added_payload(
     composition_id: address,
     admin_cap_id: address,
     genre_id: address,
-    genre_name: vector<u8>,
+    _genre_name: vector<u8>,
     genre_index: u64,
-    genres_before: vector<address>,
-    genres_after: vector<address>,
+    _genres_before: vector<address>,
+    _genres_after: vector<address>,
     genre_count_before: u64,
     genre_count_after: u64,
     field_existed_before: bool,
@@ -104,10 +104,7 @@ fun assert_added_payload(
     assert_eq!(bytes.peel_address(), composition_id);
     assert_eq!(bytes.peel_address(), admin_cap_id);
     assert_eq!(bytes.peel_address(), genre_id);
-    assert_eq!(bytes.peel_vec_u8(), genre_name);
     assert_eq!(bytes.peel_u64(), genre_index);
-    assert_eq!(bytes.peel_vec_address(), genres_before);
-    assert_eq!(bytes.peel_vec_address(), genres_after);
     assert_eq!(bytes.peel_u64(), genre_count_before);
     assert_eq!(bytes.peel_u64(), genre_count_after);
     assert_eq!(bytes.peel_bool(), field_existed_before);
@@ -127,8 +124,8 @@ fun assert_removed_payload(
     admin_cap_id: address,
     genre_id: address,
     genre_index: u64,
-    genres_before: vector<address>,
-    genres_after: vector<address>,
+    _genres_before: vector<address>,
+    _genres_after: vector<address>,
     genre_count_before: u64,
     genre_count_after: u64,
     field_existed_before: bool,
@@ -145,8 +142,6 @@ fun assert_removed_payload(
     assert_eq!(bytes.peel_address(), admin_cap_id);
     assert_eq!(bytes.peel_address(), genre_id);
     assert_eq!(bytes.peel_u64(), genre_index);
-    assert_eq!(bytes.peel_vec_address(), genres_before);
-    assert_eq!(bytes.peel_vec_address(), genres_after);
     assert_eq!(bytes.peel_u64(), genre_count_before);
     assert_eq!(bytes.peel_u64(), genre_count_after);
     assert_eq!(bytes.peel_bool(), field_existed_before);
@@ -167,7 +162,7 @@ fun assert_cleared_payload(
     clear_cause: u8,
     trigger_genre_id: address,
     genres_before: vector<address>,
-    genres_after: vector<address>,
+    _genres_after: vector<address>,
     genre_count_before: u64,
     genre_count_after: u64,
     field_existed_before: bool,
@@ -185,7 +180,6 @@ fun assert_cleared_payload(
     assert_eq!(bytes.peel_u8(), clear_cause);
     assert_eq!(bytes.peel_address(), trigger_genre_id);
     assert_eq!(bytes.peel_vec_address(), genres_before);
-    assert_eq!(bytes.peel_vec_address(), genres_after);
     assert_eq!(bytes.peel_u64(), genre_count_before);
     assert_eq!(bytes.peel_u64(), genre_count_after);
     assert_eq!(bytes.peel_bool(), field_existed_before);
@@ -227,10 +221,10 @@ fun replay_added(
     let composition_id = bytes.peel_address();
     let admin_cap_id = bytes.peel_address();
     let genre_id = bytes.peel_address();
-    let genre_name = bytes.peel_vec_u8();
     let genre_index = bytes.peel_u64();
-    let genres_before = bytes.peel_vec_address();
-    let genres_after = bytes.peel_vec_address();
+    let genres_before = projected.genres;
+    let mut genres_after = genres_before;
+    genres_after.push_back(genre_id);
     let genre_count_before = bytes.peel_u64();
     let genre_count_after = bytes.peel_u64();
     let field_existed_before = bytes.peel_bool();
@@ -243,7 +237,6 @@ fun replay_added(
     assert_eq!(recording_id, projected.recording_id);
     assert_eq!(composition_id, projected.composition_id);
     assert_eq!(admin_cap_id, projected.admin_cap_id);
-    assert!(!genre_name.is_empty());
     assert_eq!(genres_before, projected.genres);
     assert_eq!(genre_count_before, genres_before.length());
     assert_eq!(genre_count_after, genres_after.length());
@@ -277,8 +270,9 @@ fun replay_removed(
     let admin_cap_id = bytes.peel_address();
     let genre_id = bytes.peel_address();
     let genre_index = bytes.peel_u64();
-    let genres_before = bytes.peel_vec_address();
-    let genres_after = bytes.peel_vec_address();
+    let genres_before = projected.genres;
+    let mut genres_after = genres_before;
+    genres_after.remove(genre_index);
     let genre_count_before = bytes.peel_u64();
     let genre_count_after = bytes.peel_u64();
     let field_existed_before = bytes.peel_bool();
@@ -331,7 +325,7 @@ fun replay_cleared(
     let clear_cause = bytes.peel_u8();
     let trigger_genre_id = bytes.peel_address();
     let genres_before = bytes.peel_vec_address();
-    let genres_after = bytes.peel_vec_address();
+    let genres_after: vector<address> = vector[];
     let genre_count_before = bytes.peel_u64();
     let genre_count_after = bytes.peel_u64();
     let field_existed_before = bytes.peel_bool();
@@ -425,7 +419,7 @@ fun rich_events_replay_order_primary_and_cascades() {
         &added[0], recording_id, composition_id, admin_cap_id, addr(a), b"HIP_HOP", 0,
         vector[], vector[addr(a)], 0, 1, false, true, false, true, @0x0, addr(a), true,
     );
-    assert_eq!(rg::added_event_bcs(&added[0]).length(), 263);
+    assert_eq!(rg::added_event_bcs(&added[0]).length(), 221);
     replay_added(&mut projected, &added[0]);
     assert_projected(&rec, &projected);
     assert_eq!(projected.genres, vector[addr(a)]);
@@ -438,7 +432,7 @@ fun rich_events_replay_order_primary_and_cascades() {
         vector[addr(a)], vector[addr(a), addr(b)], 1, 2, true, true, true, true,
         addr(a), addr(a), false,
     );
-    assert_eq!(rg::added_event_bcs(&added[1]).length(), 330);
+    assert_eq!(rg::added_event_bcs(&added[1]).length(), 221);
     replay_added(&mut projected, &added[1]);
     assert_projected(&rec, &projected);
     assert_eq!(projected.genres, vector[addr(a), addr(b)]);
@@ -464,7 +458,7 @@ fun rich_events_replay_order_primary_and_cascades() {
         vector[addr(a), addr(b), addr(c)], vector[addr(a), addr(c)], 3, 2, true, true,
         true, true, addr(a), addr(a), false,
     );
-    assert_eq!(rg::removed_event_bcs(&removed[0]).length(), 383);
+    assert_eq!(rg::removed_event_bcs(&removed[0]).length(), 221);
     replay_removed(&mut projected, &removed[0]);
     assert_projected(&rec, &projected);
     assert_eq!(projected.genres, vector[addr(a), addr(c)]);
@@ -491,7 +485,7 @@ fun rich_events_replay_order_primary_and_cascades() {
         &removed[2], recording_id, composition_id, admin_cap_id, addr(c), 0,
         vector[addr(c)], vector[], 1, 0, true, false, true, false, addr(c), @0x0, true,
     );
-    assert_eq!(rg::removed_event_bcs(&removed[2]).length(), 255);
+    assert_eq!(rg::removed_event_bcs(&removed[2]).length(), 221);
     replay_removed(&mut projected, &removed[2]);
     assert!(!projected.has_primary);
     assert!(!projected.field_exists);
@@ -533,7 +527,7 @@ fun rich_events_replay_order_primary_and_cascades() {
         vector[addr(c), addr(a), addr(b)], vector[], 3, 0, true, false, true, false,
         addr(c), @0x0, true,
     );
-    assert_eq!(rg::cleared_event_bcs(&cleared[0]).length(), 312);
+    assert_eq!(rg::cleared_event_bcs(&cleared[0]).length(), 311);
     replay_cleared(&mut projected, &cleared[0], 0, @0x0);
     assert!(rg::genres(&rec).is_empty());
     assert_projected(&rec, &projected);
@@ -669,7 +663,7 @@ fun event_bounds_cover_64_byte_names_and_six_genres() {
         vector[addr(a), addr(b), addr(c), addr(d), addr(e), addr(long)],
         5, 6, true, true, true, true, addr(a), addr(a), false,
     );
-    assert_eq!(rg::added_event_bcs(&added[5]).length(), 640);
+    assert_eq!(rg::added_event_bcs(&added[5]).length(), 221);
 
     // Removing one entry from a six-item list exercises the maximum Removed
     // payload while preserving primary and survivor order.
@@ -682,7 +676,7 @@ fun event_bounds_cover_64_byte_names_and_six_genres() {
         vector[addr(a), addr(b), addr(c), addr(d), addr(long)], 6, 5,
         true, true, true, true, addr(a), addr(a), false,
     );
-    assert_eq!(rg::removed_event_bcs(&removed[0]).length(), 575);
+    assert_eq!(rg::removed_event_bcs(&removed[0]).length(), 221);
 
     // Re-adding restores six entries, then explicit clear exercises the
     // maximum Cleared snapshot.
@@ -696,7 +690,7 @@ fun event_bounds_cover_64_byte_names_and_six_genres() {
         vector[addr(a), addr(b), addr(c), addr(d), addr(long), addr(e)], vector[],
         6, 0, true, false, true, false, addr(a), @0x0, true,
     );
-    assert_eq!(rg::cleared_event_bcs(&cleared[0]).length(), 408);
+    assert_eq!(rg::cleared_event_bcs(&cleared[0]).length(), 407);
     assert!(rg::genres(&rec).is_empty());
 
     ts::return_immutable(genre_a);

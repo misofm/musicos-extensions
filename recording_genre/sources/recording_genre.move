@@ -103,17 +103,15 @@ public struct ExtensionKey() has copy, drop, store;
 
 // === Events ===
 
-/// Emitted when a genre is appended (`add_genre`).
+/// Compact change notifications; content remains in the dynamic field.
+/// See EVENT_PAYLOADS.md for retained context and BCS bounds.
 public struct RecordingGenreAddedEvent<phantom RecordingShare, phantom CompositionShare>
     has copy, drop {
     recording_id: address,
     composition_id: address,
     admin_cap_id: address,
     genre_id: address,
-    genre_name: vector<u8>,
     genre_index: u64,
-    genres_before: vector<address>,
-    genres_after: vector<address>,
     genre_count_before: u64,
     genre_count_after: u64,
     field_existed_before: bool,
@@ -133,8 +131,6 @@ public struct RecordingGenreRemovedEvent<phantom RecordingShare, phantom Composi
     admin_cap_id: address,
     genre_id: address,
     genre_index: u64,
-    genres_before: vector<address>,
-    genres_after: vector<address>,
     genre_count_before: u64,
     genre_count_after: u64,
     field_existed_before: bool,
@@ -157,7 +153,6 @@ public struct RecordingGenresClearedEvent<phantom RecordingShare, phantom Compos
     clear_cause: u8,
     trigger_genre_id: address,
     genres_before: vector<address>,
-    genres_after: vector<address>,
     genre_count_before: u64,
     genre_count_after: u64,
     field_existed_before: bool,
@@ -186,12 +181,10 @@ public fun add_genre<RecordingShare, CompositionShare>(
     let admin_cap_id = object::id(cap).to_address();
     let genre_object_id = object::id(genre);
     let genre_id = genre_object_id.to_address();
-    let genre_name = *genre::name(genre).as_bytes();
+
     let field_existed_before = df::exists(self.uid(), ExtensionKey());
     let (
         genre_index,
-        genres_before,
-        genres_after,
         genre_count_before,
         genre_count_after,
         had_primary_before,
@@ -204,7 +197,7 @@ public fun add_genre<RecordingShare, CompositionShare>(
         let uid = self.uid_mut(cap);
         let genres: &mut vector<ID> = df::borrow_mut(uid, ExtensionKey());
         let before = *genres;
-        let genres_before = ids_to_addresses(&before);
+
         let genre_count_before = before.length();
         let (had_primary, primary_id_before) = primary_state(&before);
         assert!(!genres.contains(&genre_object_id), EDuplicateGenre);
@@ -212,15 +205,13 @@ public fun add_genre<RecordingShare, CompositionShare>(
         let genre_index = genres.length();
         genres.push_back(genre_object_id);
         let after = *genres;
-        let genres_after = ids_to_addresses(&after);
+
         let genre_count_after = after.length();
         let (has_primary, primary_id_after) = primary_state(&after);
         let primary_changed = had_primary != has_primary
             || primary_id_before != primary_id_after;
         (
             genre_index,
-            genres_before,
-            genres_after,
             genre_count_before,
             genre_count_after,
             had_primary,
@@ -234,8 +225,6 @@ public fun add_genre<RecordingShare, CompositionShare>(
         df::add(uid, ExtensionKey(), vector[genre_object_id]);
         (
             0,
-            vector[],
-            vector[genre_id],
             0,
             1,
             false,
@@ -250,10 +239,7 @@ public fun add_genre<RecordingShare, CompositionShare>(
         composition_id,
         admin_cap_id,
         genre_id,
-        genre_name,
         genre_index,
-        genres_before,
-        genres_after,
         genre_count_before,
         genre_count_after,
         field_existed_before,
@@ -286,12 +272,12 @@ public fun remove_genre<RecordingShare, CompositionShare>(
     let (found, idx) = genres.index_of(&genre_id);
     assert!(found, EGenreNotPresent);
     let before = *genres;
-    let genres_before = ids_to_addresses(&before);
+
     let genre_count_before = before.length();
     let (had_primary_before, primary_genre_id_before) = primary_state(&before);
     genres.remove(idx);
     let after = *genres;
-    let genres_after = ids_to_addresses(&after);
+
     let genre_count_after = after.length();
     let (has_primary_after, primary_genre_id_after) = primary_state(&after);
     // Last read of `genres` — bind the result before it goes out of scope so
@@ -308,8 +294,6 @@ public fun remove_genre<RecordingShare, CompositionShare>(
         admin_cap_id,
         genre_id: genre_address,
         genre_index: idx,
-        genres_before,
-        genres_after,
         genre_count_before,
         genre_count_after,
         field_existed_before: true,
@@ -336,6 +320,7 @@ public fun clear_genres<RecordingShare, CompositionShare>(
     if (df::exists(uid, ExtensionKey())) {
         let removed: vector<ID> = df::remove(uid, ExtensionKey());
         let genres_before = ids_to_addresses(&removed);
+
         let genre_count_before = removed.length();
         let (had_primary_before, primary_genre_id_before) = primary_state(&removed);
         emit(RecordingGenresClearedEvent<RecordingShare, CompositionShare> {
@@ -345,7 +330,6 @@ public fun clear_genres<RecordingShare, CompositionShare>(
             clear_cause: 0,
             trigger_genre_id: @0x0,
             genres_before,
-            genres_after: vector[],
             genre_count_before,
             genre_count_after: 0,
             field_existed_before: true,

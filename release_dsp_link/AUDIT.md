@@ -1,3 +1,5 @@
+> Historical audit below predates the 2026-09-15 payload revision. Current event contracts and size bounds are documented in [EVENT_PAYLOADS.md](../EVENT_PAYLOADS.md). Storage, authority, and mutation behavior remain unchanged.
+
 # Security review — `release_dsp_link`
 
 Reviewed 2026-09-02 for immutable publication. Verdict: no exploitable

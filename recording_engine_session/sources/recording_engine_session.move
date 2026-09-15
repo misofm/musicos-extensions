@@ -78,10 +78,8 @@ public struct EngineSession has copy, drop, store {
 
 // === Events ===
 
-/// Emitted when a Miso Engine session is set or replaced. The previous value
-/// contributes only its blob ID and stem count; insertion uses two zero scalar
-/// sentinels and no previous vectors. Current and removed stem snapshots are
-/// unbounded and grow linearly with the stem count.
+/// Compact change notifications; content remains in the dynamic field.
+/// See EVENT_PAYLOADS.md for retained context and BCS bounds.
 public struct EngineSessionSetEvent<phantom RecordingShare, phantom CompositionShare>
     has copy, drop {
     recording_id: address,
@@ -93,8 +91,6 @@ public struct EngineSessionSetEvent<phantom RecordingShare, phantom CompositionS
     previous_stem_count: u64,
     session_blob_id: u256,
     stem_count: u64,
-    stem_digests: vector<vector<u8>>,
-    stem_blob_ids: vector<u256>,
 }
 
 /// Emitted when a Miso Engine session is removed.
@@ -105,8 +101,6 @@ public struct EngineSessionUnsetEvent<phantom RecordingShare, phantom Compositio
     admin_cap_id: address,
     removed_session_blob_id: u256,
     removed_stem_count: u64,
-    removed_stem_digests: vector<vector<u8>>,
-    removed_stem_blob_ids: vector<u256>,
 }
 
 // === Public Functions ===
@@ -172,7 +166,7 @@ public fun set_engine_session<RecordingShare, CompositionShare>(
     } else {
         (0, 0, true)
     };
-    let (session_blob_id, stem_count, stem_digests, stem_blob_ids) = event_snapshot(&session);
+    let (session_blob_id, stem_count) = event_snapshot(&session);
     if (had_previous) {
         *df::borrow_mut(uid, ExtensionKey()) = session;
     } else {
@@ -189,8 +183,6 @@ public fun set_engine_session<RecordingShare, CompositionShare>(
             previous_stem_count,
             session_blob_id,
             stem_count,
-            stem_digests,
-            stem_blob_ids,
         });
     };
 }
@@ -205,7 +197,7 @@ public fun unset_engine_session<RecordingShare, CompositionShare>(
     let admin_cap_id = object::id(cap).to_address();
     let uid = self.uid_mut(cap);
     if (df::exists(uid, ExtensionKey())) {
-        let (removed_session_blob_id, removed_stem_count, removed_stem_digests, removed_stem_blob_ids) = {
+        let (removed_session_blob_id, removed_stem_count) = {
             let previous = df::borrow(uid, ExtensionKey());
             event_snapshot(previous)
         };
@@ -216,8 +208,6 @@ public fun unset_engine_session<RecordingShare, CompositionShare>(
             admin_cap_id,
             removed_session_blob_id,
             removed_stem_count,
-            removed_stem_digests,
-            removed_stem_blob_ids,
         });
     }
 }
@@ -251,56 +241,23 @@ fun digest_lt(a: &vector<u8>, b: &vector<u8>): bool {
     false
 }
 
-/// Returns the complete ordered primitive snapshot used by both mutation
-/// events. Digests and stem blob IDs remain aligned with the stored stem order.
-fun event_snapshot(
-    session: &EngineSession,
-): (u256, u64, vector<vector<u8>>, vector<u256>) {
-    let session_blob_id = session.blob_id;
-    let stem_count = session.stems.length();
-    let mut stem_digests = vector[];
-    let mut stem_blob_ids = vector[];
-    let mut i = 0;
-    while (i < stem_count) {
-        stem_digests.push_back(session.stems[i].digest);
-        stem_blob_ids.push_back(session.stems[i].blob_id);
-        i = i + 1;
-    };
-    (session_blob_id, stem_count, stem_digests, stem_blob_ids)
+/// Projects only the fixed-size identity and count used by mutation events.
+fun event_snapshot(session: &EngineSession): (u256, u64) {
+    (session.blob_id, session.stems.length())
 }
 
 // === Test Functions ===
 
 #[test_only]
 public fun set_event_fields<R, C>(e: &EngineSessionSetEvent<R, C>):
-    (address, address, address, bool, bool, u256, u64, u256, u64, vector<vector<u8>>, vector<u256>) {
-    (
-        e.recording_id,
-        e.composition_id,
-        e.admin_cap_id,
-        e.had_previous,
-        e.value_changed,
-        e.previous_session_blob_id,
-        e.previous_stem_count,
-        e.session_blob_id,
-        e.stem_count,
-        e.stem_digests,
-        e.stem_blob_ids,
-    )
+    (address, address, address, bool, bool, u256, u64, u256, u64) {
+    (e.recording_id, e.composition_id, e.admin_cap_id, e.had_previous, e.value_changed, e.previous_session_blob_id, e.previous_stem_count, e.session_blob_id, e.stem_count)
 }
 
 #[test_only]
 public fun unset_event_fields<R, C>(e: &EngineSessionUnsetEvent<R, C>):
-    (address, address, address, u256, u64, vector<vector<u8>>, vector<u256>) {
-    (
-        e.recording_id,
-        e.composition_id,
-        e.admin_cap_id,
-        e.removed_session_blob_id,
-        e.removed_stem_count,
-        e.removed_stem_digests,
-        e.removed_stem_blob_ids,
-    )
+    (address, address, address, u256, u64) {
+    (e.recording_id, e.composition_id, e.admin_cap_id, e.removed_session_blob_id, e.removed_stem_count)
 }
 
 #[test_only]

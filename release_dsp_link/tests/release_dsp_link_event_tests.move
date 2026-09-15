@@ -40,26 +40,19 @@ fun set_event_projection_covers_every_variant_and_selector_shape() {
 
     let events = event::events_by_type<links::ReleaseDspLinkSetEvent>();
     assert_eq!(events.length(), 10);
-    let (_, _, _, _, _, _, _, _, _, fields) = links::release_link_set_event_fields(&events[0]);
-    assert_eq!(fields, vector[b"s"]);
-    let (_, _, _, _, _, _, _, _, _, fields) = links::release_link_set_event_fields(&events[1]);
-    assert_eq!(fields, vector[b"us", b"a"]);
-    let (_, _, _, _, _, _, _, _, _, fields) = links::release_link_set_event_fields(&events[2]);
-    assert_eq!(fields, vector[b"gb", b"b", b"c"]);
-    let (_, _, _, _, _, _, _, _, _, fields) = links::release_link_set_event_fields(&events[3]);
-    assert_eq!(fields, vector[b"d"]);
-    let (_, _, _, _, _, _, _, _, _, fields) = links::release_link_set_event_fields(&events[4]);
-    assert_eq!(fields, vector[b"e", b"f"]);
-    let (_, _, _, _, _, _, _, _, _, fields) = links::release_link_set_event_fields(&events[5]);
-    assert_eq!(fields, vector[b"artist", b"slug"]);
-    let (_, _, _, _, _, _, _, _, _, fields) = links::release_link_set_event_fields(&events[6]);
-    assert_eq!(fields, vector[b"g"]);
-    let (_, _, _, _, _, _, _, _, _, fields) = links::release_link_set_event_fields(&events[7]);
-    assert_eq!(fields, vector[b"user", b"h"]);
-    let (_, _, _, _, _, _, _, _, _, fields) = links::release_link_set_event_fields(&events[8]);
-    assert_eq!(fields, vector[b"i"]);
-    let (_, _, _, _, _, _, _, _, _, fields) = links::release_link_set_event_fields(&events[9]);
-    assert_eq!(fields, vector[b"j"]);
+    let platforms = vector[0u8, 1, 1, 2, 2, 3, 4, 5, 6, 7];
+    let mut i = 0;
+    while (i < events.length()) {
+        let (id, admin, platform, count, _, after, _, present) =
+            links::release_link_set_event_fields(&events[i]);
+        assert_eq!(id, object::id(&rel).to_address());
+        assert_eq!(admin, object::id(&cap).to_address());
+        assert_eq!(platform, platforms[i]);
+        assert_eq!(count, 2);
+        assert!(after && present);
+        assert_eq!(sui::bcs::to_bytes(&events[i]).length(), 77);
+        i = i + 1;
+    };
 
     destroy(rel);
     destroy(cap);
@@ -76,8 +69,7 @@ fun track_events_snapshot_override_album_and_track_identity() {
     links::set_track_link(&mut rel, &cap, 1, links::new_tidal(b"track".to_string()));
 
     let events = event::events_by_type<links::ReleaseTrackDspLinkSetEvent>();
-    let (erid, eaid, p, count, before, after, index, recording, composition, previous, previous_fields, current, current_fields, album, album_fields) =
-        links::track_link_set_event_fields(&events[0]);
+    let (erid, eaid, p, count, before, after, index, recording, composition, previous, current, album) = links::track_link_set_event_fields(&events[0]);
     assert_eq!(erid, rid);
     assert_eq!(eaid, aid);
     assert_eq!(p, platform);
@@ -88,23 +80,48 @@ fun track_events_snapshot_override_album_and_track_identity() {
     assert_eq!(recording, track::recording_id(&rel.tracks()[1]).to_address());
     assert_eq!(composition, track::composition_id(&rel.tracks()[1]).to_address());
     assert!(!previous);
-    assert_eq!(previous_fields, vector[]);
     assert!(current);
-    assert_eq!(current_fields, vector[b"track"]);
     assert!(album);
-    assert_eq!(album_fields, vector[b"album"]);
 
     links::clear_track_link(&mut rel, &cap, platform, 1);
     let events = event::events_by_type<links::ReleaseTrackDspLinkClearedEvent>();
-    let (_, _, _, _, before, after, _, _, _, previous, previous_fields, current, current_fields, _, _) =
-        links::track_link_cleared_event_fields(&events[0]);
+    let (_, _, _, _, before, after, _, _, _, previous, current, _) = links::track_link_cleared_event_fields(&events[0]);
     assert!(before);
     assert!(after);
     assert!(previous);
-    assert_eq!(previous_fields, vector[b"track"]);
     assert!(!current);
-    assert_eq!(current_fields, vector[]);
 
+    destroy(rel);
+    destroy(cap);
+}
+
+#[test]
+fun content_length_and_cleared_slot_count_do_not_inflate_events() {
+    let ctx = &mut tx_context::dummy();
+    let (mut rel, cap) = release(ctx);
+    let short = links::new_bandcamp(b"a".to_string(), b"b".to_string());
+    let long_text = vector::tabulate!(128, |_| 97u8).to_string();
+    let long = links::new_bandcamp(long_text, long_text);
+    links::set_release_link(&mut rel, &cap, short);
+    links::set_release_link(&mut rel, &cap, long);
+    let albums = event::events_by_type<links::ReleaseDspLinkSetEvent>();
+    assert_eq!(sui::bcs::to_bytes(&albums[0]).length(), 77);
+    assert_eq!(sui::bcs::to_bytes(&albums[1]).length(), 77);
+    links::set_track_link(&mut rel, &cap, 0, short);
+    links::clear_track_links(&mut rel, &cap, links::platform_bandcamp());
+    links::set_track_link(&mut rel, &cap, 0, long);
+    links::set_track_link(&mut rel, &cap, 1, long);
+    links::clear_track_links(&mut rel, &cap, links::platform_bandcamp());
+    let tracks = event::events_by_type<links::ReleaseTrackDspLinkSetEvent>();
+    assert_eq!(sui::bcs::to_bytes(&tracks[0]).length(), 150);
+    assert_eq!(sui::bcs::to_bytes(&tracks[1]).length(), 150);
+    let clears = event::events_by_type<links::ReleaseTrackDspLinksClearedEvent>();
+    assert_eq!(sui::bcs::to_bytes(&clears[0]).length(), 84);
+    assert_eq!(sui::bcs::to_bytes(&clears[1]).length(), 84);
+    let (_, _, _, _, _, _, first_count, _) = links::track_links_cleared_event_fields(&clears[0]);
+    let (_, _, _, _, _, _, second_count, _) = links::track_links_cleared_event_fields(&clears[1]);
+    assert_eq!(first_count, 1);
+    assert_eq!(second_count, 2);
     destroy(rel);
     destroy(cap);
 }

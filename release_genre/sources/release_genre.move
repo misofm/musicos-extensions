@@ -89,15 +89,13 @@ public struct ExtensionKey() has copy, drop, store;
 
 // === Events ===
 
-/// Emitted when a genre is appended (`add_genre`).
+/// Compact change notifications; content remains in the dynamic field.
+/// See EVENT_PAYLOADS.md for retained context and BCS bounds.
 public struct ReleaseGenreAddedEvent has copy, drop {
     release_id: address,
     admin_cap_id: address,
     genre_id: address,
-    genre_name: vector<u8>,
     genre_index: u64,
-    genres_before: vector<address>,
-    genres_after: vector<address>,
     genre_count_before: u64,
     genre_count_after: u64,
     field_existed_before: bool,
@@ -115,8 +113,6 @@ public struct ReleaseGenreRemovedEvent has copy, drop {
     admin_cap_id: address,
     genre_id: address,
     genre_index: u64,
-    genres_before: vector<address>,
-    genres_after: vector<address>,
     genre_count_before: u64,
     genre_count_after: u64,
     field_existed_before: bool,
@@ -137,7 +133,6 @@ public struct ReleaseGenresClearedEvent has copy, drop {
     clear_cause: u8,
     trigger_genre_id: address,
     genres_before: vector<address>,
-    genres_after: vector<address>,
     genre_count_before: u64,
     genre_count_after: u64,
     field_existed_before: bool,
@@ -159,7 +154,7 @@ public fun add_genre(self: &mut Release, cap: &ReleaseAdminCap, genre: &Genre) {
     let release_id = object::id(self).to_address(); // read before uid_mut borrows self
     let admin_cap_id = object::id(cap).to_address();
     let genre_id = object::id(genre).to_address();
-    let genre_name = *genre.name().as_bytes();
+
     let field_existed_before = df::exists(self.uid(), ExtensionKey());
     let genres_before = if (field_existed_before) {
         ids_as_addresses(df::borrow(self.uid(), ExtensionKey()))
@@ -185,10 +180,7 @@ public fun add_genre(self: &mut Release, cap: &ReleaseAdminCap, genre: &Genre) {
         release_id,
         admin_cap_id,
         genre_id,
-        genre_name,
         genre_index,
-        genres_before,
-        genres_after,
         genre_count_before,
         genre_count_after: genres_after.length(),
         field_existed_before,
@@ -232,8 +224,6 @@ public fun remove_genre(self: &mut Release, cap: &ReleaseAdminCap, genre_id: ID)
         admin_cap_id,
         genre_id: genre_id_address,
         genre_index: idx,
-        genres_before,
-        genres_after,
         genre_count_before,
         genre_count_after,
         field_existed_before: true,
@@ -264,7 +254,6 @@ public fun clear_genres(self: &mut Release, cap: &ReleaseAdminCap) {
             clear_cause: 0,
             trigger_genre_id: @0x0,
             genres_before,
-            genres_after: vector[],
             genre_count_before,
             genre_count_after: 0,
             field_existed_before: true,
@@ -294,45 +283,18 @@ public fun genres(self: &Release): vector<ID> {
 // than just "an event fired".
 
 #[test_only]
-public fun genre_added_event_fields(e: &ReleaseGenreAddedEvent): (
-    address, address, address, vector<u8>, u64, vector<address>, vector<address>,
-    u64, u64, bool, bool, bool, bool, address, address, bool,
-) {
-    (
-        e.release_id, e.admin_cap_id, e.genre_id, e.genre_name, e.genre_index,
-        e.genres_before, e.genres_after, e.genre_count_before, e.genre_count_after,
-        e.field_existed_before, e.field_exists_after, e.had_primary_before,
-        e.has_primary_after, e.primary_genre_id_before, e.primary_genre_id_after,
-        e.primary_changed,
-    )
+public fun genre_added_event_fields(e: &ReleaseGenreAddedEvent): (address, address, address, u64, u64, u64, bool, bool, bool, bool, address, address, bool) {
+    (e.release_id, e.admin_cap_id, e.genre_id, e.genre_index, e.genre_count_before, e.genre_count_after, e.field_existed_before, e.field_exists_after, e.had_primary_before, e.has_primary_after, e.primary_genre_id_before, e.primary_genre_id_after, e.primary_changed)
 }
 
 #[test_only]
-public fun genre_removed_event_fields(e: &ReleaseGenreRemovedEvent): (
-    address, address, address, u64, vector<address>, vector<address>, u64, u64,
-    bool, bool, bool, bool, address, address, bool,
-) {
-    (
-        e.release_id, e.admin_cap_id, e.genre_id, e.genre_index, e.genres_before,
-        e.genres_after, e.genre_count_before, e.genre_count_after,
-        e.field_existed_before, e.field_exists_after, e.had_primary_before,
-        e.has_primary_after, e.primary_genre_id_before, e.primary_genre_id_after,
-        e.primary_changed,
-    )
+public fun genre_removed_event_fields(e: &ReleaseGenreRemovedEvent): (address, address, address, u64, u64, u64, bool, bool, bool, bool, address, address, bool) {
+    (e.release_id, e.admin_cap_id, e.genre_id, e.genre_index, e.genre_count_before, e.genre_count_after, e.field_existed_before, e.field_exists_after, e.had_primary_before, e.has_primary_after, e.primary_genre_id_before, e.primary_genre_id_after, e.primary_changed)
 }
 
 #[test_only]
-public fun genres_cleared_event_fields(e: &ReleaseGenresClearedEvent): (
-    address, address, u8, address, vector<address>, vector<address>, u64, u64,
-    bool, bool, bool, bool, address, address, bool,
-) {
-    (
-        e.release_id, e.admin_cap_id, e.clear_cause, e.trigger_genre_id,
-        e.genres_before, e.genres_after, e.genre_count_before, e.genre_count_after,
-        e.field_existed_before, e.field_exists_after, e.had_primary_before,
-        e.has_primary_after, e.primary_genre_id_before, e.primary_genre_id_after,
-        e.primary_changed,
-    )
+public fun genres_cleared_event_fields(e: &ReleaseGenresClearedEvent): (address, address, u8, address, vector<address>, u64, u64, bool, bool, bool, bool, address, address, bool) {
+    (e.release_id, e.admin_cap_id, e.clear_cause, e.trigger_genre_id, e.genres_before, e.genre_count_before, e.genre_count_after, e.field_existed_before, e.field_exists_after, e.had_primary_before, e.has_primary_after, e.primary_genre_id_before, e.primary_genre_id_after, e.primary_changed)
 }
 
 // === Private Functions ===
