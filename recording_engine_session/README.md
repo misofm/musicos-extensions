@@ -1,11 +1,10 @@
 # `recording_engine_session`
 
 `recording_engine_session` attaches one Miso Engine Session V1 document and
-its ordered stem references to a musicos `Recording`. The dynamic-field value
-and all existing constructors, views, and cap-gated mutation APIs are
-unchanged: session and stems are replaced atomically, stems must contain
-32-byte digests in strict lexicographic order, and encrypted blobs are
-rejected. There is no finite stem-count cap.
+its ordered stem references to a musicos `Recording`. Session and stems are
+represented by bare Walrus blob IDs and are replaced atomically. Stems must
+contain 32-byte digests in strict lexicographic order. There is no finite
+stem-count cap.
 
 ## Mutation events
 
@@ -68,16 +67,15 @@ For `n` stems, BCS sizes are:
 
 ## Entry points
 
-- `new_stem` creates a digest/blob pair and rejects invalid or encrypted data.
-- `new` creates a session and rejects encrypted sessions or unsorted stems.
+- `new_stem` creates a digest/blob-ID pair and rejects invalid digests.
+- `new` creates a session from a blob ID and rejects unsorted stems.
 - `set_engine_session` inserts or replaces the session through the recording's
   `RecordingAdminCap` type parameter.
 - `unset_engine_session` removes the session if present; repeated absent
   calls do nothing.
-- `has_engine_session`, `engine_session`, `data`, `stems`, `stem_digest`, and
-  `stem_data` are permissionless views.
+- `has_engine_session`, `engine_session`, `blob_id`, `stems`, `stem_digest`, and
+  `stem_blob_id` are permissionless views.
 
 ## Dependencies
 
 - `musicos` supplies the generic `Recording` and `RecordingAdminCap`.
-- `ori` supplies `WalrusBlob` and confidentiality metadata.

@@ -18,7 +18,6 @@ module recording_master::recording_master_e2e_tests;
 use musicos::recording::{Self, Recording, RecordingAdminCap};
 use musicos::test_helpers;
 use audio::audio::{Self, Audio};
-use ori::{confidentiality, data};
 use recording_master::recording_master as master_ext;
 use std::unit_test::{assert_eq, destroy};
 use sui::event;
@@ -61,10 +60,10 @@ fun full_lifecycle_on_published_and_shared_recording() {
     master_ext::set_master(
         &mut rec,
         &cap,
-        new_audio(data::new_blob(111, confidentiality::new_unencrypted())),
+        new_audio(111),
     );
     assert!(master_ext::has_master(&rec));
-    assert_eq!(master_ext::master(&rec).data().blob_id(), 111);
+    assert_eq!(master_ext::master(&rec).blob_id(), 111);
     assert_audio_metadata(master_ext::master(&rec));
 
     let events = event::events_by_type<master_ext::MasterSetEvent>();
@@ -72,31 +71,28 @@ fun full_lifecycle_on_published_and_shared_recording() {
     let (id, master) = master_ext::set_event_fields(&events[0]);
     assert_audio_metadata(&master);
     assert_eq!(id, rec_id);
-    assert_eq!(*master.data(), data::new_blob(111, confidentiality::new_unencrypted()));
+    assert_eq!(master.blob_id(), 111);
     test_scenario::return_shared(rec);
 
     // --- Tx 3 (STRANGER, owns no cap): the master is publicly readable ---
     ts.next_tx(STRANGER);
     let rec = ts.take_shared<Recording<REC, COMP>>();
     assert!(master_ext::has_master(&rec));
-    assert_eq!(master_ext::master(&rec).data().blob_id(), 111);
+    assert_eq!(master_ext::master(&rec).blob_id(), 111);
     assert_audio_metadata(master_ext::master(&rec));
-    assert!(!master_ext::master(&rec).data().blob_confidentiality().is_encrypted());
     test_scenario::return_shared(rec);
 
-    // --- Tx 4 (ADMIN): replace with an encrypted master — the old value
+    // --- Tx 4 (ADMIN): replace with a new master — the old value
     // must not survive the swap ---
     ts.next_tx(ADMIN);
     let mut rec = ts.take_shared<Recording<REC, COMP>>();
     master_ext::set_master(
         &mut rec,
         &cap,
-        new_audio(data::new_blob(222, confidentiality::new_encrypted(b"dek"))),
+        new_audio(222),
     );
-    assert!(master_ext::master(&rec).data().blob_confidentiality().is_encrypted());
-    assert_eq!(master_ext::master(&rec).data().blob_id(), 222);
+    assert_eq!(master_ext::master(&rec).blob_id(), 222);
     assert_audio_metadata(master_ext::master(&rec));
-    assert_eq!(*master_ext::master(&rec).data().blob_confidentiality().sealed_dek(), b"dek");
 
     // `next_tx` resets the recorded event log — a fresh single-element feed,
     // exactly as a real indexer would see one transaction's events at a time.
@@ -105,14 +101,13 @@ fun full_lifecycle_on_published_and_shared_recording() {
     let (id, master) = master_ext::set_event_fields(&events[0]);
     assert_audio_metadata(&master);
     assert_eq!(id, rec_id);
-    assert_eq!(*master.data(), data::new_blob(222, confidentiality::new_encrypted(b"dek")));
+    assert_eq!(master.blob_id(), 222);
     test_scenario::return_shared(rec);
 
     // --- Tx 5 (PAYER, owns no cap): the replacement is visible to anyone ---
     ts.next_tx(PAYER);
     let rec = ts.take_shared<Recording<REC, COMP>>();
-    assert!(master_ext::master(&rec).data().blob_confidentiality().is_encrypted());
-    assert_eq!(master_ext::master(&rec).data().blob_id(), 222);
+    assert_eq!(master_ext::master(&rec).blob_id(), 222);
     assert_audio_metadata(master_ext::master(&rec));
     test_scenario::return_shared(rec);
 
@@ -129,16 +124,16 @@ fun full_lifecycle_on_published_and_shared_recording() {
     master_ext::set_master(
         &mut rec,
         &cap,
-        new_audio(data::new_blob(333, confidentiality::new_unencrypted())),
+        new_audio(333),
     );
-    assert_eq!(master_ext::master(&rec).data().blob_id(), 333);
+    assert_eq!(master_ext::master(&rec).blob_id(), 333);
     assert_audio_metadata(master_ext::master(&rec));
     test_scenario::return_shared(rec);
 
     // --- Tx 7 (STRANGER): the re-attached master is visible too ---
     ts.next_tx(STRANGER);
     let rec = ts.take_shared<Recording<REC, COMP>>();
-    assert_eq!(master_ext::master(&rec).data().blob_id(), 333);
+    assert_eq!(master_ext::master(&rec).blob_id(), 333);
     assert_audio_metadata(master_ext::master(&rec));
     test_scenario::return_shared(rec);
 
@@ -167,8 +162,8 @@ fun master_aborts_when_absent_on_shared_recording() {
 }
 
 /// Distinct metadata for each fixture catches stale fields when replacing a master.
-fun new_audio(blob: data::WalrusBlob): Audio {
-    let alternate = blob.blob_id() % 2 == 0;
+fun new_audio(blob_id: u256): Audio {
+    let alternate = blob_id % 2 == 0;
     audio::new(
         if (alternate) "wav" else "flac",
         if (alternate) 1 else 2,
@@ -176,12 +171,12 @@ fun new_audio(blob: data::WalrusBlob): Audio {
         if (alternate) 44100 else 48000,
         if (alternate) 88200 else 48000,
         if (alternate) vector::tabulate!(32, |_| 0x22u8) else vector::tabulate!(32, |_| 0x11u8),
-        blob,
+        blob_id,
     )
 }
 
 fun assert_audio_metadata(master: &Audio) {
-    let alternate = master.data().blob_id() % 2 == 0;
+    let alternate = master.blob_id() % 2 == 0;
     assert_eq!(*master.format(), if (alternate) "wav" else "flac");
     assert_eq!(master.channels(), if (alternate) 1 else 2);
     assert_eq!(master.bit_depth(), if (alternate) 16 else 24);

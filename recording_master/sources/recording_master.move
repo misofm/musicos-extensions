@@ -29,7 +29,7 @@ public struct MasterUnsetEvent has copy, drop {
     recording_id: ID,
 }
 
-/// Sets or replaces the entire master, including audio and encryption metadata.
+/// Sets or replaces the entire master, including all audio metadata and its blob ID.
 public fun set_master<RecordingShare, CompositionShare>(
     self: &mut Recording<RecordingShare, CompositionShare>,
     cap: &RecordingAdminCap<RecordingShare>,

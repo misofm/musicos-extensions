@@ -28,17 +28,11 @@ use_environment = "mainnet"
 manifest_digest = "43EF3B938D7EEE22C9657EB418DA5C9E9984D02D725538A82E7D3268322F9EA5"
 deps = { bps = "bps", share = "share", std = "MoveStdlib", sui = "Sui" }
 
-[pinned.mainnet.ori]
-source = { git = "https://github.com/unconfirmedlabs/ori.git", subdir = "move", rev = "367ed5fe92a8b62da02c1116537cf08d111e0789" }
-use_environment = "mainnet"
-manifest_digest = "E41BBD67BE8940D26C79D78B028477EF5B33BA217A1282C78ACB344CF8A5ECF6"
-deps = { std = "MoveStdlib", sui = "Sui" }
-
 [pinned.mainnet.recording_engine_session]
 source = { root = true }
 use_environment = "mainnet"
-manifest_digest = "1D97386B55F55CED48B5B56672F5A51FA4F05BDE271F63534631F22B88F814B6"
-deps = { musicos = "musicos", ori = "ori", std = "MoveStdlib", sui = "Sui" }
+manifest_digest = "304C8A9E08F2F139FA708F52A111928D47BE38527FDCCCE4A9BB3C42BC3D6E67"
+deps = { musicos = "musicos", std = "MoveStdlib", sui = "Sui" }
 
 [pinned.mainnet.share]
 source = { git = "https://github.com/misofm/share.git", subdir = ".", rev = "780bf701e9eada38564e618dee4daaed806d27d3" }
@@ -70,17 +64,11 @@ use_environment = "testnet"
 manifest_digest = "6746D45CC0E1EB869033BB4778064980963001D5C9C151F74A7A7D1DDEAE0163"
 deps = { bps = "bps", share = "share", std = "MoveStdlib", sui = "Sui" }
 
-[pinned.testnet.ori]
-source = { git = "https://github.com/unconfirmedlabs/ori.git", subdir = "move", rev = "367ed5fe92a8b62da02c1116537cf08d111e0789" }
-use_environment = "testnet"
-manifest_digest = "5745706258F61D6CE210904B3E6AE87A73CE9D31A6F93BE4718C442529332A87"
-deps = { std = "MoveStdlib", sui = "Sui" }
-
 [pinned.testnet.recording_engine_session]
 source = { root = true }
 use_environment = "testnet"
-manifest_digest = "F068C5E555EFE850C71EEEB95D888D646F3B1CED6DC567BE303D840E8B16C458"
-deps = { musicos = "musicos", ori = "ori", std = "MoveStdlib", sui = "Sui" }
+manifest_digest = "DE2C824CA841A7D4CE6030E814274BA4C32D06B5B6ABDF0723C5F959311E59BD"
+deps = { musicos = "musicos", std = "MoveStdlib", sui = "Sui" }
 
 [pinned.testnet.share]
 source = { git = "https://github.com/misofm/share.git", subdir = ".", rev = "780bf701e9eada38564e618dee4daaed806d27d3" }
