@@ -29,7 +29,7 @@ manifest_digest = "E41BBD67BE8940D26C79D78B028477EF5B33BA217A1282C78ACB344CF8A5E
 deps = { std = "MoveStdlib", sui = "Sui" }
 
 [pinned.mainnet.musicos]
-source = { git = "https://github.com/misofm/musicos.git", subdir = ".", rev = "e56c4cbc0d9673f6422e365364b128d0813341ac" }
+source = { git = "https://github.com/misofm/musicos.git", subdir = ".", rev = "a8dfc74f2f234e79574821f096c8463aec19411e" }
 use_environment = "mainnet"
 manifest_digest = "43EF3B938D7EEE22C9657EB418DA5C9E9984D02D725538A82E7D3268322F9EA5"
 deps = { bps = "bps", share = "share", std = "MoveStdlib", sui = "Sui" }
@@ -37,7 +37,7 @@ deps = { bps = "bps", share = "share", std = "MoveStdlib", sui = "Sui" }
 [pinned.mainnet.recording_language]
 source = { root = true }
 use_environment = "mainnet"
-manifest_digest = "B58FEB5CE41DAF4F677AB6CEE5EBD329E1C3793FB2F3A914ED5AEAF65B160A4C"
+manifest_digest = "10475B11FCA043285F8555BC6ED4DBEFB28F70BB6D9DC8CED2B7498CF7D6D0EA"
 deps = { language_code = "language_code", musicos = "musicos", std = "MoveStdlib", sui = "Sui" }
 
 [pinned.mainnet.share]
@@ -71,7 +71,7 @@ manifest_digest = "5745706258F61D6CE210904B3E6AE87A73CE9D31A6F93BE4718C442529332
 deps = { std = "MoveStdlib", sui = "Sui" }
 
 [pinned.testnet.musicos]
-source = { git = "https://github.com/misofm/musicos.git", subdir = ".", rev = "e56c4cbc0d9673f6422e365364b128d0813341ac" }
+source = { git = "https://github.com/misofm/musicos.git", subdir = ".", rev = "a8dfc74f2f234e79574821f096c8463aec19411e" }
 use_environment = "testnet"
 manifest_digest = "6746D45CC0E1EB869033BB4778064980963001D5C9C151F74A7A7D1DDEAE0163"
 deps = { bps = "bps", share = "share", std = "MoveStdlib", sui = "Sui" }
@@ -79,7 +79,7 @@ deps = { bps = "bps", share = "share", std = "MoveStdlib", sui = "Sui" }
 [pinned.testnet.recording_language]
 source = { root = true }
 use_environment = "testnet"
-manifest_digest = "C6552E22A1107BE5D179FDEDC6F888932F132F8A50BE67D9D504A2ECA2B33C17"
+manifest_digest = "9A6905721228B58611CCB31F5E803C93B2DC598FF725B57508C98AD8A41EB939"
 deps = { language_code = "language_code", musicos = "musicos", std = "MoveStdlib", sui = "Sui" }
 
 [pinned.testnet.share]
