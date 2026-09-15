@@ -62,13 +62,9 @@ fun add_credit_attaches_and_reads_back() {
     assert_eq!(credits::credits(&comp).length(), 1);
     let added = event::events_by_type<credits::CompositionCreditAddedEvent<CompositionShare>>();
     assert_eq!(added.length(), 1);
-    let (_, _, first_party, first_name, first_kinds, first_custom_names, first_before, first_after,
-        first_index, first_record_before, first_record_after) =
-        credits::added_event_fields(&added[0]);
+    let (_, _, first_party, first_kinds, first_before, first_after, first_index, first_record_before, first_record_after) = credits::added_event_fields(&added[0]);
     assert_eq!(first_party, object::id(&p1).to_address());
-    assert_eq!(first_name, b"Alice");
     assert_eq!(first_kinds, vector[2u8]);
-    assert_eq!(first_custom_names, vector[b""]);
     assert_eq!(first_before, 0);
     assert_eq!(first_after, 1);
     assert_eq!(first_index, 0);
@@ -88,13 +84,9 @@ fun add_credit_attaches_and_reads_back() {
     assert_eq!(credits::credits(&comp).length(), 2);
     let added = event::events_by_type<credits::CompositionCreditAddedEvent<CompositionShare>>();
     assert_eq!(added.length(), 2);
-    let (_, _, second_party, second_name, second_kinds, second_custom_names, second_before,
-        second_after, second_index, second_record_before, second_record_after) =
-        credits::added_event_fields(&added[1]);
+    let (_, _, second_party, second_kinds, second_before, second_after, second_index, second_record_before, second_record_after) = credits::added_event_fields(&added[1]);
     assert_eq!(second_party, object::id(&p2).to_address());
-    assert_eq!(second_name, b"Bob");
     assert_eq!(second_kinds, vector[6u8]);
-    assert_eq!(second_custom_names, vector[b"Composer"]);
     assert_eq!(second_before, 1);
     assert_eq!(second_after, 2);
     assert_eq!(second_index, 1);
@@ -178,12 +170,9 @@ fun remove_credit_round_trip() {
     assert_eq!(credits::credits(&comp).length(), 2);
     let removed = event::events_by_type<credits::CompositionCreditRemovedEvent<CompositionShare>>();
     assert_eq!(removed.length(), 1);
-    let (_, _, event_party, event_name, event_kinds, event_custom_names, before, after, index,
-        record_before, record_after) = credits::removed_event_fields(&removed[0]);
+    let (_, _, event_party, event_kinds, before, after, index, record_before, record_after) = credits::removed_event_fields(&removed[0]);
     assert_eq!(event_party, object::id(&p2).to_address());
-    assert_eq!(event_name, b"Bob");
     assert_eq!(event_kinds, vector[3u8]);
-    assert_eq!(event_custom_names, vector[b""]);
     assert_eq!(before, 3);
     assert_eq!(after, 2);
     assert_eq!(index, 1);
@@ -196,17 +185,14 @@ fun remove_credit_round_trip() {
     assert_eq!(credits::credits(&comp).length(), 0);
     let removed = event::events_by_type<credits::CompositionCreditRemovedEvent<CompositionShare>>();
     assert_eq!(removed.length(), 3);
-    let (_, _, _, _, _, _, before, after, index, record_before, record_after) =
-        credits::removed_event_fields(&removed[1]);
+    let (_, _, _, _, before, after, index, record_before, record_after) = credits::removed_event_fields(&removed[1]);
     assert_eq!(before, 2);
     assert_eq!(after, 1);
     assert_eq!(index, 0);
     assert!(record_before);
     assert!(record_after);
-    let (_, _, event_party, event_name, event_kinds, _, before, after, index, record_before,
-        record_after) = credits::removed_event_fields(&removed[2]);
+    let (_, _, event_party, event_kinds, before, after, index, record_before, record_after) = credits::removed_event_fields(&removed[2]);
     assert_eq!(event_party, object::id(&p3).to_address());
-    assert_eq!(event_name, b"Cara");
     assert_eq!(event_kinds, vector[4u8]);
     assert_eq!(before, 1);
     assert_eq!(after, 0);
@@ -224,12 +210,9 @@ fun remove_credit_round_trip() {
     );
     assert_eq!(credits::credits(&comp).length(), 1);
     let added = event::events_by_type<credits::CompositionCreditAddedEvent<CompositionShare>>();
-    let (_, _, event_party, event_name, event_kinds, event_custom_names, before, after, index,
-        record_before, record_after) = credits::added_event_fields(&added[3]);
+    let (_, _, event_party, event_kinds, before, after, index, record_before, record_after) = credits::added_event_fields(&added[3]);
     assert_eq!(event_party, object::id(&p2).to_address());
-    assert_eq!(event_name, b"Bob Again");
     assert_eq!(event_kinds, vector[5u8]);
-    assert_eq!(event_custom_names, vector[b""]);
     assert_eq!(before, 0);
     assert_eq!(after, 1);
     assert_eq!(index, 0);
@@ -286,26 +269,11 @@ fun add_credit_emits_full_record() {
 
     let events = event::events_by_type<credits::CompositionCreditAddedEvent<CompositionShare>>();
     assert_eq!(events.length(), 1);
-    let (
-        event_composition_id,
-        event_cap_id,
-        event_party_id,
-        event_display_name,
-        event_role_kinds,
-        event_custom_names,
-        event_count_before,
-        event_count_after,
-        event_index,
-        event_record_before,
-        event_record_after,
-    ) =
-        credits::added_event_fields(&events[0]);
+    let (event_composition_id, event_cap_id, event_party_id, event_role_kinds, event_count_before, event_count_after, event_index, event_record_before, event_record_after) = credits::added_event_fields(&events[0]);
     assert_eq!(event_composition_id, composition_id.to_address());
     assert_eq!(event_cap_id, object::id(&cap).to_address());
     assert_eq!(event_party_id, party_id.to_address());
-    assert_eq!(event_display_name, b"Alice");
     assert_eq!(event_role_kinds, vector[0u8, 1u8, 2u8, 6u8, 5u8]);
-    assert_eq!(event_custom_names, vector[b"", b"", b"", b"Composer", b""]);
     assert_eq!(event_count_before, 0);
     assert_eq!(event_count_after, 1);
     assert_eq!(event_index, 0);
@@ -342,7 +310,7 @@ fun add_credit_emits_full_record() {
         ),
     );
     let max_events = event::events_by_type<credits::CompositionCreditAddedEvent<CompositionShare>>();
-    assert_eq!(bcs::to_bytes(&max_events[1]).length(), 836);
+    assert_eq!(bcs::to_bytes(&max_events[1]).length(), 128);
 
     destroy(comp); destroy(cap); destroy(p); destroy(pc);
     destroy(other_comp); destroy(other_cap); destroy(other_party); destroy(other_party_cap);
@@ -363,26 +331,11 @@ fun remove_credit_emits_full_record() {
 
     let events = event::events_by_type<credits::CompositionCreditRemovedEvent<CompositionShare>>();
     assert_eq!(events.length(), 1);
-    let (
-        event_composition_id,
-        event_cap_id,
-        event_party_id,
-        event_display_name,
-        event_role_kinds,
-        event_custom_names,
-        event_count_before,
-        event_count_after,
-        event_index,
-        event_record_before,
-        event_record_after,
-    ) =
-        credits::removed_event_fields(&events[0]);
+    let (event_composition_id, event_cap_id, event_party_id, event_role_kinds, event_count_before, event_count_after, event_index, event_record_before, event_record_after) = credits::removed_event_fields(&events[0]);
     assert_eq!(event_composition_id, composition_id.to_address());
     assert_eq!(event_cap_id, object::id(&cap).to_address());
     assert_eq!(event_party_id, party_id.to_address());
-    assert_eq!(event_display_name, b"Alice");
     assert_eq!(event_role_kinds, vector[2u8]);
-    assert_eq!(event_custom_names, vector[b""]);
     assert_eq!(event_count_before, 1);
     assert_eq!(event_count_after, 0);
     assert_eq!(event_index, 0);

@@ -83,8 +83,7 @@ fun album_link_set_replace_clear_is_independent_per_platform() {
 
     let set_events = event::events_by_type<links::ReleaseDspLinkSetEvent>();
     assert_eq!(set_events.length(), 2);
-    let (event_release_id, event_admin_cap_id, event_platform, event_track_count, field_existed_before, field_exists_after, previous_present, previous_fields, current_present, current_fields) =
-        links::release_link_set_event_fields(&set_events[0]);
+    let (event_release_id, event_admin_cap_id, event_platform, event_track_count, field_existed_before, field_exists_after, previous_present, current_present) = links::release_link_set_event_fields(&set_events[0]);
     assert_eq!(event_release_id, release_id);
     assert_eq!(event_admin_cap_id, admin_cap_id);
     assert_eq!(event_platform, spotify);
@@ -92,9 +91,7 @@ fun album_link_set_replace_clear_is_independent_per_platform() {
     assert!(!field_existed_before);
     assert!(field_exists_after);
     assert!(!previous_present);
-    assert_eq!(previous_fields, vector[]);
     assert!(current_present);
-    assert_eq!(current_fields, vector[b"3xTbtTM3BSRIGxzWSMaEpc"]);
 
     // An equal full-value replacement writes but is silent.
     links::set_release_link(&mut rel, &cap, links::new_spotify(b"3xTbtTM3BSRIGxzWSMaEpc".to_string()));
@@ -110,8 +107,7 @@ fun album_link_set_replace_clear_is_independent_per_platform() {
 
     let set_events = event::events_by_type<links::ReleaseDspLinkSetEvent>();
     assert_eq!(set_events.length(), 3);
-    let (event_release_id, event_admin_cap_id, event_platform, event_track_count, field_existed_before, field_exists_after, previous_present, previous_fields, current_present, current_fields) =
-        links::release_link_set_event_fields(&set_events[2]);
+    let (event_release_id, event_admin_cap_id, event_platform, event_track_count, field_existed_before, field_exists_after, previous_present, current_present) = links::release_link_set_event_fields(&set_events[2]);
     assert_eq!(event_release_id, release_id);
     assert_eq!(event_admin_cap_id, admin_cap_id);
     assert_eq!(event_platform, spotify);
@@ -119,9 +115,7 @@ fun album_link_set_replace_clear_is_independent_per_platform() {
     assert!(field_existed_before);
     assert!(field_exists_after);
     assert!(previous_present);
-    assert_eq!(previous_fields, vector[b"3xTbtTM3BSRIGxzWSMaEpc"]);
     assert!(current_present);
-    assert_eq!(current_fields, vector[b"6rqhFgbbKwnb9MLmUQDhG6"]);
 
     // Clearing Spotify leaves Tidal untouched.
     links::clear_release_link(&mut rel, &cap, spotify);
@@ -130,8 +124,7 @@ fun album_link_set_replace_clear_is_independent_per_platform() {
 
     let cleared_events = event::events_by_type<links::ReleaseDspLinkClearedEvent>();
     assert_eq!(cleared_events.length(), 1);
-    let (event_release_id, event_admin_cap_id, event_platform, event_track_count, field_existed_before, field_exists_after, previous_present, previous_fields, current_present, current_fields) =
-        links::release_link_cleared_event_fields(&cleared_events[0]);
+    let (event_release_id, event_admin_cap_id, event_platform, event_track_count, field_existed_before, field_exists_after, previous_present, current_present) = links::release_link_cleared_event_fields(&cleared_events[0]);
     assert_eq!(event_release_id, release_id);
     assert_eq!(event_admin_cap_id, admin_cap_id);
     assert_eq!(event_platform, spotify);
@@ -139,9 +132,7 @@ fun album_link_set_replace_clear_is_independent_per_platform() {
     assert!(field_existed_before);
     assert!(!field_exists_after);
     assert!(previous_present);
-    assert_eq!(previous_fields, vector[b"6rqhFgbbKwnb9MLmUQDhG6"]);
     assert!(!current_present);
-    assert_eq!(current_fields, vector[]);
 
     links::clear_release_link(&mut rel, &cap, spotify);
     assert_eq!(event::events_by_type<links::ReleaseDspLinkClearedEvent>().length(), 1);
@@ -628,10 +619,7 @@ fun clear_track_links_emits_one_bulk_clear() {
     let (mut rel, cap) = mk_release(ctx);
     let release_id = object::id(&rel).to_address();
     let admin_cap_id = object::id(&cap).to_address();
-    let recording_id_0 = track::recording_id(&rel.tracks()[0]).to_address();
-    let recording_id_2 = track::recording_id(&rel.tracks()[2]).to_address();
-    let composition_id_0 = track::composition_id(&rel.tracks()[0]).to_address();
-    let composition_id_2 = track::composition_id(&rel.tracks()[2]).to_address();
+
     let deezer = links::platform_deezer();
 
     links::set_track_link(&mut rel, &cap, 0, links::new_deezer(b"10".to_string()));
@@ -641,8 +629,7 @@ fun clear_track_links_emits_one_bulk_clear() {
 
     let events = event::events_by_type<links::ReleaseTrackDspLinksClearedEvent>();
     assert_eq!(events.length(), 1);
-    let (event_release_id, event_admin_cap_id, event_platform, event_track_count, existed_before, exists_after, removed_count, indices, recording_ids, composition_ids, fields, album_present, album_fields) =
-        links::track_links_cleared_event_fields(&events[0]);
+    let (event_release_id, event_admin_cap_id, event_platform, event_track_count, existed_before, exists_after, removed_count, album_present) = links::track_links_cleared_event_fields(&events[0]);
     assert_eq!(event_release_id, release_id);
     assert_eq!(event_admin_cap_id, admin_cap_id);
     assert_eq!(event_platform, deezer);
@@ -650,12 +637,7 @@ fun clear_track_links_emits_one_bulk_clear() {
     assert!(existed_before);
     assert!(!exists_after);
     assert_eq!(removed_count, 2);
-    assert_eq!(indices, vector[0, 2]);
-    assert_eq!(recording_ids, vector[recording_id_0, recording_id_2]);
-    assert_eq!(composition_ids, vector[composition_id_0, composition_id_2]);
-    assert_eq!(fields, vector[vector[b"10"], vector[b"12"]]);
     assert!(!album_present);
-    assert_eq!(album_fields, vector[]);
 
     // The array is gone: previously-set slots read none, and a second clear is
     // a silent no-op.

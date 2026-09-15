@@ -32,15 +32,13 @@ public struct ExtensionKey(LanguageCode) has copy, drop, store;
 
 // === Events ===
 
-/// Complete compressed before/after snapshots for event-only indexing.
-/// Presence is explicit because opaque payloads may be empty.
+/// Compact change notifications; content remains in the dynamic field.
+/// See EVENT_PAYLOADS.md for retained context and BCS bounds.
 public struct CompositionLyricsSetEvent<phantom CompositionShare> has copy, drop {
     composition_id: address,
     composition_admin_cap_id: address,
     language: vector<u8>,
     lyrics_existed_before: bool,
-    lyrics_before: vector<u8>,
-    lyrics_after: vector<u8>,
 }
 
 /// Emitted only when an existing language entry is removed.
@@ -48,7 +46,6 @@ public struct CompositionLyricsClearedEvent<phantom CompositionShare> has copy, 
     composition_id: address,
     composition_admin_cap_id: address,
     language: vector<u8>,
-    lyrics_before: vector<u8>,
 }
 
 // === Public Functions ===
@@ -69,16 +66,14 @@ public fun set_lyrics<CompositionShare>(
     assert!(lyrics.length() <= MAX_LYRICS_LENGTH, EMaxLyricsLengthExceeded);
     let key = ExtensionKey(language);
     let lyrics_existed_before = df::exists(uid, key);
-    let lyrics_after = lyrics;
-    let (lyrics_before, lyrics_changed) = if (lyrics_existed_before) {
+    let lyrics_changed = if (lyrics_existed_before) {
         let stored: &mut vector<u8> = df::borrow_mut(uid, key);
         let lyrics_changed = *stored != lyrics;
-        let previous = *stored;
         *stored = lyrics;
-        (previous, lyrics_changed)
+        lyrics_changed
     } else {
         df::add(uid, key, lyrics);
-        (vector[], true)
+        true
     };
     if (lyrics_changed) {
         emit(CompositionLyricsSetEvent<CompositionShare> {
@@ -86,8 +81,6 @@ public fun set_lyrics<CompositionShare>(
             composition_admin_cap_id,
             language: *language.code().as_bytes(),
             lyrics_existed_before,
-            lyrics_before,
-            lyrics_after,
         });
     };
 }
@@ -103,12 +96,11 @@ public fun clear_lyrics<CompositionShare>(
     let uid = self.uid_mut(cap);
     let key = ExtensionKey(language);
     if (df::exists(uid, key)) {
-        let lyrics_before: vector<u8> = df::remove(uid, key);
+        let _: vector<u8> = df::remove(uid, key);
         emit(CompositionLyricsClearedEvent<CompositionShare> {
             composition_id,
             composition_admin_cap_id,
             language: *language.code().as_bytes(),
-            lyrics_before,
         });
     }
 }
@@ -139,14 +131,13 @@ public fun max_lyrics_length(): u64 { MAX_LYRICS_LENGTH }
 #[test_only]
 public fun set_event_fields<CompositionShare>(
     e: &CompositionLyricsSetEvent<CompositionShare>,
-): (address, address, vector<u8>, bool, vector<u8>, vector<u8>) {
-    (e.composition_id, e.composition_admin_cap_id, e.language,
-        e.lyrics_existed_before, e.lyrics_before, e.lyrics_after)
+): (address, address, vector<u8>, bool) {
+    (e.composition_id, e.composition_admin_cap_id, e.language, e.lyrics_existed_before)
 }
 
 #[test_only]
 public fun clear_event_fields<CompositionShare>(
     e: &CompositionLyricsClearedEvent<CompositionShare>,
-): (address, address, vector<u8>, vector<u8>) {
-    (e.composition_id, e.composition_admin_cap_id, e.language, e.lyrics_before)
+): (address, address, vector<u8>) {
+    (e.composition_id, e.composition_admin_cap_id, e.language)
 }

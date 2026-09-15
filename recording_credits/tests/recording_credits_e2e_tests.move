@@ -38,10 +38,10 @@ fun expected_credit_added(
     composition_id: address,
     admin_cap_id: address,
     party_id: address,
-    display_name: vector<u8>,
+    _display_name: vector<u8>,
     role_kinds: vector<u8>,
-    role_names: vector<vector<u8>>,
-    role_instruments: vector<vector<u8>>,
+    _role_names: vector<vector<u8>>,
+    _role_instruments: vector<vector<u8>>,
     role_levels: vector<u8>,
     credit_index: u64,
     credit_count_before: u64,
@@ -53,10 +53,7 @@ fun expected_credit_added(
     bytes.append(bcs::to_bytes(&composition_id));
     bytes.append(bcs::to_bytes(&admin_cap_id));
     bytes.append(bcs::to_bytes(&party_id));
-    bytes.append(bcs::to_bytes(&display_name));
     bytes.append(bcs::to_bytes(&role_kinds));
-    bytes.append(bcs::to_bytes(&role_names));
-    bytes.append(bcs::to_bytes(&role_instruments));
     bytes.append(bcs::to_bytes(&role_levels));
     bytes.append(bcs::to_bytes(&credit_index));
     bytes.append(bcs::to_bytes(&credit_count_before));
@@ -70,10 +67,10 @@ fun expected_credit_removed(
     composition_id: address,
     admin_cap_id: address,
     party_id: address,
-    display_name: vector<u8>,
+    _display_name: vector<u8>,
     role_kinds: vector<u8>,
-    role_names: vector<vector<u8>>,
-    role_instruments: vector<vector<u8>>,
+    _role_names: vector<vector<u8>>,
+    _role_instruments: vector<vector<u8>>,
     role_levels: vector<u8>,
     credit_index: u64,
     credit_count_before: u64,
@@ -86,10 +83,10 @@ fun expected_credit_removed(
         composition_id,
         admin_cap_id,
         party_id,
-        display_name,
+        _display_name,
         role_kinds,
-        role_names,
-        role_instruments,
+        _role_names,
+        _role_instruments,
         role_levels,
         credit_index,
         credit_count_before,
@@ -107,7 +104,7 @@ fun expected_artist_added(
     composition_id: address,
     admin_cap_id: address,
     party_id: address,
-    display_name: vector<u8>,
+    _display_name: vector<u8>,
     artist_index: u64,
     artist_count_before: u64,
     artist_count_after: u64,
@@ -118,7 +115,6 @@ fun expected_artist_added(
     bytes.append(bcs::to_bytes(&composition_id));
     bytes.append(bcs::to_bytes(&admin_cap_id));
     bytes.append(bcs::to_bytes(&party_id));
-    bytes.append(bcs::to_bytes(&display_name));
     bytes.append(bcs::to_bytes(&artist_index));
     bytes.append(bcs::to_bytes(&artist_count_before));
     bytes.append(bcs::to_bytes(&artist_count_after));
@@ -131,7 +127,7 @@ fun expected_artist_removed(
     composition_id: address,
     admin_cap_id: address,
     party_id: address,
-    display_name: vector<u8>,
+    _display_name: vector<u8>,
     artist_index: u64,
     artist_count_before: u64,
     artist_count_after: u64,
@@ -143,7 +139,7 @@ fun expected_artist_removed(
         composition_id,
         admin_cap_id,
         party_id,
-        display_name,
+        _display_name,
         artist_index,
         artist_count_before,
         artist_count_after,

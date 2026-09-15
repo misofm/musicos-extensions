@@ -263,7 +263,7 @@ fun sessions_are_isolated_per_recording() {
 }
 
 #[test]
-fun set_event_carries_recording_session_and_stems() {
+fun set_event_carries_recording_session_and_stem_count() {
     let ctx = &mut tx_context::dummy();
     let composition_id = test_helpers::fake_id(ctx);
     let (mut recording, cap) = new_recording_with_composition(ctx, composition_id);
@@ -279,9 +279,7 @@ fun set_event_carries_recording_session_and_stems() {
 
     let events = event::events_by_type<session::EngineSessionSetEvent<REC, COMP>>();
     assert_eq!(events.length(), 1);
-    let (event_recording_id, event_composition_id, event_admin_cap_id, had_previous,
-        value_changed, previous_blob_id, previous_stem_count, event_blob_id, stem_count,
-        stem_digests, stem_blob_ids) = session::set_event_fields(&events[0]);
+    let (event_recording_id, event_composition_id, event_admin_cap_id, had_previous, value_changed, previous_blob_id, previous_stem_count, event_blob_id, stem_count) = session::set_event_fields(&events[0]);
     assert_eq!(event_recording_id, recording_id.to_address());
     assert_eq!(event_composition_id, composition_id.to_address());
     assert_eq!(event_admin_cap_id, admin_cap_id.to_address());
@@ -291,8 +289,6 @@ fun set_event_carries_recording_session_and_stems() {
     assert_eq!(previous_stem_count, 0);
     assert_eq!(event_blob_id, 7);
     assert_eq!(stem_count, 1);
-    assert_eq!(stem_digests, vector[stem_digest]);
-    assert_eq!(stem_blob_ids, vector[44]);
 
     destroy(recording);
     destroy(cap);
@@ -315,16 +311,12 @@ fun unset_event_is_emitted_only_after_removal() {
 
     let events = event::events_by_type<session::EngineSessionUnsetEvent<REC, COMP>>();
     assert_eq!(events.length(), 1);
-    let (event_recording_id, event_composition_id, event_admin_cap_id, removed_blob_id,
-        removed_stem_count, removed_digests, removed_blob_ids) =
-        session::unset_event_fields(&events[0]);
+    let (event_recording_id, event_composition_id, event_admin_cap_id, removed_blob_id, removed_stem_count) = session::unset_event_fields(&events[0]);
     assert_eq!(event_recording_id, recording_id.to_address());
     assert_eq!(event_composition_id, recording::composition_id(&recording).to_address());
     assert_eq!(event_admin_cap_id, object::id(&cap).to_address());
     assert_eq!(removed_blob_id, 5);
     assert_eq!(removed_stem_count, 0);
-    assert_eq!(removed_digests, vector[]);
-    assert_eq!(removed_blob_ids, vector[]);
 
     destroy(recording);
     destroy(cap);
@@ -361,9 +353,7 @@ fun set_events_report_insert_equal_and_each_component_change() {
     );
     let events = event::events_by_type<session::EngineSessionSetEvent<REC, COMP>>();
     assert_eq!(events.length(), 1);
-    let (event_recording_id, event_composition_id, event_admin_cap_id, had_previous,
-        value_changed, previous_blob_id, previous_stem_count, current_blob_id, stem_count,
-        stem_digests, stem_blob_ids) = session::set_event_fields(&events[0]);
+    let (event_recording_id, event_composition_id, event_admin_cap_id, had_previous, value_changed, previous_blob_id, previous_stem_count, current_blob_id, stem_count) = session::set_event_fields(&events[0]);
     assert_eq!(event_recording_id, recording_id);
     assert_eq!(event_composition_id, composition_id.to_address());
     assert_eq!(event_admin_cap_id, admin_cap_id);
@@ -373,10 +363,8 @@ fun set_events_report_insert_equal_and_each_component_change() {
     assert_eq!(previous_stem_count, 0);
     assert_eq!(current_blob_id, 10);
     assert_eq!(stem_count, 1);
-    assert_eq!(stem_digests, vector[first_digest]);
-    assert_eq!(stem_blob_ids, vector[20]);
 
-    assert_eq!(session::set_event_bcs(&events[0]).length(), 245);
+    assert_eq!(session::set_event_bcs(&events[0]).length(), 178);
 
     destroy(recording);
     destroy(cap);
@@ -410,33 +398,24 @@ fun set_events_report_changes_to_blob_digest_and_stem_blob() {
     );
     let events = event::events_by_type<session::EngineSessionSetEvent<REC, COMP>>();
     assert_eq!(events.length(), 4);
-    let (_, _, _, had_previous, value_changed, previous_blob_id, previous_stem_count,
-        current_blob_id, _, stem_digests, stem_blob_ids) = session::set_event_fields(&events[1]);
+    let (_, _, _, had_previous, value_changed, previous_blob_id, previous_stem_count, current_blob_id, _) = session::set_event_fields(&events[1]);
     assert!(had_previous);
     assert!(value_changed);
     assert_eq!(previous_blob_id, 10);
     assert_eq!(previous_stem_count, 1);
     assert_eq!(current_blob_id, 11);
-    assert_eq!(stem_digests, vector[first_digest]);
-    assert_eq!(stem_blob_ids, vector[20]);
-    let (_, _, _, had_previous, value_changed, previous_blob_id, previous_stem_count,
-        current_blob_id, _, stem_digests, stem_blob_ids) = session::set_event_fields(&events[2]);
+    let (_, _, _, had_previous, value_changed, previous_blob_id, previous_stem_count, current_blob_id, _) = session::set_event_fields(&events[2]);
     assert!(had_previous);
     assert!(value_changed);
     assert_eq!(previous_blob_id, 11);
     assert_eq!(previous_stem_count, 1);
     assert_eq!(current_blob_id, 11);
-    assert_eq!(stem_digests, vector[second_digest]);
-    assert_eq!(stem_blob_ids, vector[20]);
-    let (_, _, _, had_previous, value_changed, previous_blob_id, previous_stem_count,
-        current_blob_id, _, stem_digests, stem_blob_ids) = session::set_event_fields(&events[3]);
+    let (_, _, _, had_previous, value_changed, previous_blob_id, previous_stem_count, current_blob_id, _) = session::set_event_fields(&events[3]);
     assert!(had_previous);
     assert!(value_changed);
     assert_eq!(previous_blob_id, 11);
     assert_eq!(previous_stem_count, 1);
     assert_eq!(current_blob_id, 11);
-    assert_eq!(stem_digests, vector[second_digest]);
-    assert_eq!(stem_blob_ids, vector[21]);
     destroy(recording);
     destroy(cap);
 }
@@ -459,12 +438,9 @@ fun same_stem_blob_id_is_preserved_for_repeated_sources() {
         ),
     );
     let events = event::events_by_type<session::EngineSessionSetEvent<REC, COMP>>();
-    let (_, _, _, _, _, _, _, blob, count, digests, blob_ids) =
-        session::set_event_fields(&events[0]);
+    let (_, _, _, _, _, _, _, blob, count) = session::set_event_fields(&events[0]);
     assert_eq!(blob, 9);
     assert_eq!(count, 2);
-    assert_eq!(digests, vector[first_digest, second_digest]);
-    assert_eq!(blob_ids, vector[99, 99]);
     assert_eq!(session::stems(session::engine_session(&recording)).length(), 2);
     destroy(recording);
     destroy(cap);
@@ -495,11 +471,9 @@ fun unset_event_snapshots_the_latest_value() {
     session::unset_engine_session(&mut recording, &cap);
     assert!(!session::has_engine_session(&recording));
     let events = event::events_by_type<session::EngineSessionUnsetEvent<REC, COMP>>();
-    let (_, _, _, blob, count, digests, blob_ids) = session::unset_event_fields(&events[0]);
+    let (_, _, _, blob, count) = session::unset_event_fields(&events[0]);
     assert_eq!(blob, 200);
     assert_eq!(count, 2);
-    assert_eq!(digests, vector[first_digest, second_digest]);
-    assert_eq!(blob_ids, vector[10, 20]);
     destroy(recording);
     destroy(cap);
 }
@@ -519,11 +493,9 @@ fun zero_and_maximum_u256_blob_ids_are_event_exact() {
         session::new(plain_blob(MAX_U256), vector[session::new_stem(digest(1, 0), plain_blob(MAX_U256))]),
     );
     let events = event::events_by_type<session::EngineSessionSetEvent<REC, COMP>>();
-    let (_, _, _, _, _, previous_blob_id, _, current_blob_id, _, _, blob_ids) =
-        session::set_event_fields(&events[1]);
+    let (_, _, _, _, _, previous_blob_id, _, current_blob_id, _) = session::set_event_fields(&events[1]);
     assert_eq!(previous_blob_id, 0);
     assert_eq!(current_blob_id, MAX_U256);
-    assert_eq!(blob_ids, vector[MAX_U256]);
     destroy(recording);
     destroy(cap);
 }
@@ -550,7 +522,7 @@ fun same_share_foreign_cap_is_observationally_accepted() {
     session::set_engine_session(&mut recording, &foreign_cap, new_session(55));
     assert_eq!(blob_id(session::engine_session(&recording)), 55);
     let events = event::events_by_type<session::EngineSessionSetEvent<REC, COMP>>();
-    let (_, _, admin_cap_id, _, _, _, _, _, _, _, _) = session::set_event_fields(&events[0]);
+    let (_, _, admin_cap_id, _, _, _, _, _, _) = session::set_event_fields(&events[0]);
     assert_eq!(admin_cap_id, foreign_cap_id);
     destroy(recording);
     destroy(own_cap);
@@ -579,22 +551,19 @@ fun independent_phantom_dimensions_have_independent_event_streams() {
 
     assert_eq!(event::events_by_type<session::EngineSessionSetEvent<REC, COMP>>().length(), 1);
     let rec_comp_events = event::events_by_type<session::EngineSessionSetEvent<REC, COMP>>();
-    let (_, _, _, _, _, _, _, rec_comp_blob, _, _, _) =
-        session::set_event_fields(&rec_comp_events[0]);
+    let (_, _, _, _, _, _, _, rec_comp_blob, _) = session::set_event_fields(&rec_comp_events[0]);
     assert_eq!(rec_comp_blob, 1);
 
     let other_rec_comp_events =
         event::events_by_type<session::EngineSessionSetEvent<OTHER_REC, COMP>>();
     assert_eq!(other_rec_comp_events.length(), 1);
-    let (_, _, _, _, _, _, _, other_rec_comp_blob, _, _, _) =
-        session::set_event_fields(&other_rec_comp_events[0]);
+    let (_, _, _, _, _, _, _, other_rec_comp_blob, _) = session::set_event_fields(&other_rec_comp_events[0]);
     assert_eq!(other_rec_comp_blob, 2);
 
     assert_eq!(event::events_by_type<session::EngineSessionSetEvent<REC, OTHER_COMP>>().length(), 1);
     let other_comp_events =
         event::events_by_type<session::EngineSessionSetEvent<REC, OTHER_COMP>>();
-    let (_, _, _, _, _, _, _, other_comp_blob, _, _, _) =
-        session::set_event_fields(&other_comp_events[0]);
+    let (_, _, _, _, _, _, _, other_comp_blob, _) = session::set_event_fields(&other_comp_events[0]);
     assert_eq!(other_comp_blob, 3);
     assert_eq!(
         event::events_by_type<session::EngineSessionSetEvent<OTHER_REC, OTHER_COMP>>().length(),
@@ -611,22 +580,19 @@ fun independent_phantom_dimensions_have_independent_event_streams() {
     let rec_comp_unset_events =
         event::events_by_type<session::EngineSessionUnsetEvent<REC, COMP>>();
     assert_eq!(rec_comp_unset_events.length(), 1);
-    let (_, _, _, rec_comp_removed_blob, _, _, _) =
-        session::unset_event_fields(&rec_comp_unset_events[0]);
+    let (_, _, _, rec_comp_removed_blob, _) = session::unset_event_fields(&rec_comp_unset_events[0]);
     assert_eq!(rec_comp_removed_blob, 1);
 
     let other_rec_comp_unset_events =
         event::events_by_type<session::EngineSessionUnsetEvent<OTHER_REC, COMP>>();
     assert_eq!(other_rec_comp_unset_events.length(), 1);
-    let (_, _, _, other_rec_comp_removed_blob, _, _, _) =
-        session::unset_event_fields(&other_rec_comp_unset_events[0]);
+    let (_, _, _, other_rec_comp_removed_blob, _) = session::unset_event_fields(&other_rec_comp_unset_events[0]);
     assert_eq!(other_rec_comp_removed_blob, 2);
 
     let other_comp_unset_events =
         event::events_by_type<session::EngineSessionUnsetEvent<REC, OTHER_COMP>>();
     assert_eq!(other_comp_unset_events.length(), 1);
-    let (_, _, _, other_comp_removed_blob, _, _, _) =
-        session::unset_event_fields(&other_comp_unset_events[0]);
+    let (_, _, _, other_comp_removed_blob, _) = session::unset_event_fields(&other_comp_unset_events[0]);
     assert_eq!(other_comp_removed_blob, 3);
     assert_eq!(
         event::events_by_type<session::EngineSessionUnsetEvent<OTHER_REC, OTHER_COMP>>().length(),
@@ -642,7 +608,7 @@ fun independent_phantom_dimensions_have_independent_event_streams() {
 }
 
 #[test]
-fun bcs_sizes_match_zero_one_and_large_stem_vectors() {
+fun event_size_is_independent_of_zero_one_and_large_stem_vectors() {
     let ctx = &mut tx_context::dummy();
     let (mut r0, c0) = new_recording(ctx);
     let (mut r1, c1) = new_recording(ctx);
@@ -653,20 +619,20 @@ fun bcs_sizes_match_zero_one_and_large_stem_vectors() {
     session::set_engine_session(&mut r127, &c127, session_with_stems(127));
     session::set_engine_session(&mut r128, &c128, session_with_stems(128));
     let set_events = event::events_by_type<session::EngineSessionSetEvent<REC, COMP>>();
-    assert_eq!(session::set_event_bcs(&set_events[0]).length(), 180);
-    assert_eq!(session::set_event_bcs(&set_events[1]).length(), 245);
-    assert_eq!(session::set_event_bcs(&set_events[2]).length(), 8435);
-    assert_eq!(session::set_event_bcs(&set_events[3]).length(), 8502);
+    assert_eq!(session::set_event_bcs(&set_events[0]).length(), 178);
+    assert_eq!(session::set_event_bcs(&set_events[1]).length(), 178);
+    assert_eq!(session::set_event_bcs(&set_events[2]).length(), 178);
+    assert_eq!(session::set_event_bcs(&set_events[3]).length(), 178);
 
     session::unset_engine_session(&mut r0, &c0);
     session::unset_engine_session(&mut r1, &c1);
     session::unset_engine_session(&mut r127, &c127);
     session::unset_engine_session(&mut r128, &c128);
     let unset_events = event::events_by_type<session::EngineSessionUnsetEvent<REC, COMP>>();
-    assert_eq!(session::unset_event_bcs(&unset_events[0]).length(), 138);
-    assert_eq!(session::unset_event_bcs(&unset_events[1]).length(), 203);
-    assert_eq!(session::unset_event_bcs(&unset_events[2]).length(), 8393);
-    assert_eq!(session::unset_event_bcs(&unset_events[3]).length(), 8460);
+    assert_eq!(session::unset_event_bcs(&unset_events[0]).length(), 136);
+    assert_eq!(session::unset_event_bcs(&unset_events[1]).length(), 136);
+    assert_eq!(session::unset_event_bcs(&unset_events[2]).length(), 136);
+    assert_eq!(session::unset_event_bcs(&unset_events[3]).length(), 136);
     destroy(r0); destroy(c0); destroy(r1); destroy(c1);
     destroy(r127); destroy(c127); destroy(r128); destroy(c128);
 }

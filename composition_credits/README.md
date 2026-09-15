@@ -8,15 +8,9 @@ Writing credits are display-oriented and vary across platforms, so they live in 
 
 Invariants enforced on write: each credit must carry 1-5 roles (`MAX_ROLES_PER_CREDIT`); a `Party` may hold at most one credit; and a composition may hold at most 50 credits (`MAX_CREDITS`). `composition_party_role` is a closed enum — variants can only be constructed via the `new_*_role` functions and read via `name()` — with a length-validated `Custom(String)` escape hatch (max 100 bytes, non-empty) for roles outside the canonical vocabulary.
 
-Each mutation emits a typed `CompositionCreditAddedEvent<CompositionShare>` or
-`CompositionCreditRemovedEvent<CompositionShare>`. Events carry the composition,
-supplied admin-cap, and party addresses; display-name bytes; ordered role tags
-(`Adapter=0`, `Arranger=1`, `Composer=2`, `Lyricist=3`, `Songwriter=4`,
-`Translator=5`, `Custom=6`); parallel custom-name slots (empty for canonical
-roles); before/after credit counts; the insertion-order index; and dynamic-field
-existence before/after. A custom role named `Composer` therefore remains distinct
-from the canonical `Composer` tag. Removing a credit retains the empty dynamic
-field record, so its event reports the record as existing both before and after.
+## Events
+
+Added/removed events retain composition/admin-cap/party IDs, ordered compact role kinds (at most five), credit index/counts, and field lifecycle flags. Both are at most 128 BCS bytes. Display names and custom role labels stay in storage. The `Custom` tag remains distinct from canonical tags; the exact custom label requires reading the credit while present.
 
 ## Entry points
 

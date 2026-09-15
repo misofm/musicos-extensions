@@ -66,14 +66,12 @@ public struct ReleaseCredits has store {
 
 // === Events ===
 
-/// Emitted when a credit is added for a party on the release. The bounded
-/// primitive snapshot lets an indexer upsert its row without re-reading the
-/// credits dynamic field.
+/// Compact change notifications; content remains in the dynamic field.
+/// See EVENT_PAYLOADS.md for retained context and BCS bounds.
 public struct ReleaseCreditAddedEvent has copy, drop {
     release_id: address,
     release_admin_cap_id: address,
     party_id: address,
-    display_name: vector<u8>,
     role_kind: u8,
     credit_count_before: u64,
     credit_count_after: u64,
@@ -88,7 +86,6 @@ public struct ReleaseCreditRemovedEvent has copy, drop {
     release_id: address,
     release_admin_cap_id: address,
     party_id: address,
-    display_name: vector<u8>,
     role_kind: u8,
     credit_count_before: u64,
     credit_count_after: u64,
@@ -117,7 +114,7 @@ public fun add_credit(
     let party_key = object::id(party);
     let uid = self.uid_mut(cap);
     let credits_record_existed_before = df::exists(uid, ExtensionKey());
-    let (display_name, role_kind) = snapshot_credit(&credit);
+    let role_kind = snapshot_credit(&credit);
     let mut credit_count_before = 0;
     let mut credit_count_after = 0;
     let mut credit_index = 0;
@@ -138,7 +135,6 @@ public fun add_credit(
         release_id,
         release_admin_cap_id,
         party_id,
-        display_name,
         role_kind,
         credit_count_before,
         credit_count_after,
@@ -163,7 +159,7 @@ public fun remove_credit(self: &mut Release, cap: &ReleaseAdminCap, party_id: ID
         let credit_count_after = rc.credits.length();
         (credit_count_before, credit_count_after, credit_index, removed_credit)
     };
-    let (display_name, role_kind) = snapshot_credit(&credit);
+    let role_kind = snapshot_credit(&credit);
     // Removing the final entry retains the empty dynamic-field record.
     let credits_record_existed_before = true;
     let credits_record_exists_after = df::exists(uid, ExtensionKey());
@@ -172,7 +168,6 @@ public fun remove_credit(self: &mut Release, cap: &ReleaseAdminCap, party_id: ID
         release_id,
         release_admin_cap_id,
         party_id: party_address,
-        display_name,
         role_kind,
         credit_count_before,
         credit_count_after,
@@ -219,50 +214,26 @@ fun borrow_mut_or_init(uid: &mut UID): &mut ReleaseCredits {
     df::borrow_mut(uid, ExtensionKey())
 }
 
-/// Returns the lossless primitive snapshot used by both mutation events. The
-/// display name comes from `Credit`, not from the Party object, and the role
-/// kind is the stable release-role code.
-fun snapshot_credit(credit: &Credit<ReleasePartyRole>): (vector<u8>, u8) {
-    let display_name = *credit.display_name().as_bytes();
+/// Returns the stable release-role code used by both mutation events.
+/// Display names remain in the stored credit.
+fun snapshot_credit(credit: &Credit<ReleasePartyRole>): u8 {
     let roles = credit.roles();
     let role_kind = release_party_role::event_kind(&roles[0]);
-    (display_name, role_kind)
+    role_kind
 }
 
 // === Test Functions ===
 
 #[test_only]
 public fun added_event_fields(e: &ReleaseCreditAddedEvent):
-    (address, address, address, vector<u8>, u8, u64, u64, u64, bool, bool) {
-    (
-        e.release_id,
-        e.release_admin_cap_id,
-        e.party_id,
-        e.display_name,
-        e.role_kind,
-        e.credit_count_before,
-        e.credit_count_after,
-        e.credit_index,
-        e.credits_record_existed_before,
-        e.credits_record_exists_after,
-    )
+    (address, address, address, u8, u64, u64, u64, bool, bool) {
+    (e.release_id, e.release_admin_cap_id, e.party_id, e.role_kind, e.credit_count_before, e.credit_count_after, e.credit_index, e.credits_record_existed_before, e.credits_record_exists_after)
 }
 
 #[test_only]
 public fun removed_event_fields(e: &ReleaseCreditRemovedEvent):
-    (address, address, address, vector<u8>, u8, u64, u64, u64, bool, bool) {
-    (
-        e.release_id,
-        e.release_admin_cap_id,
-        e.party_id,
-        e.display_name,
-        e.role_kind,
-        e.credit_count_before,
-        e.credit_count_after,
-        e.credit_index,
-        e.credits_record_existed_before,
-        e.credits_record_exists_after,
-    )
+    (address, address, address, u8, u64, u64, u64, bool, bool) {
+    (e.release_id, e.release_admin_cap_id, e.party_id, e.role_kind, e.credit_count_before, e.credit_count_after, e.credit_index, e.credits_record_existed_before, e.credits_record_exists_after)
 }
 
 #[test_only]

@@ -107,7 +107,7 @@ fun project_added_event(
     event: &rg::ReleaseGenreAddedEvent,
     release_id: address,
     cap_id: address,
-    expected_name: vector<u8>,
+    _expected_name: vector<u8>,
     expected_exists: &mut bool,
     expected_state: &mut vector<address>,
 ) {
@@ -115,10 +115,10 @@ fun project_added_event(
     assert_eq!(bytes.peel_address(), release_id);
     assert_eq!(bytes.peel_address(), cap_id);
     let genre_id = bytes.peel_address();
-    let genre_name = bytes.peel_vec_u8();
     let genre_index = bytes.peel_u64();
-    let genres_before = bytes.peel_vec_address();
-    let genres_after = bytes.peel_vec_address();
+    let genres_before = *expected_state;
+    let mut genres_after = genres_before;
+    genres_after.push_back(genre_id);
     let genre_count_before = bytes.peel_u64();
     let genre_count_after = bytes.peel_u64();
     let field_existed_before = bytes.peel_bool();
@@ -128,7 +128,6 @@ fun project_added_event(
     let primary_genre_id_before = bytes.peel_address();
     let primary_genre_id_after = bytes.peel_address();
     let primary_changed = bytes.peel_bool();
-    assert_eq!(genre_name, expected_name);
     assert_eq!(genres_before, *expected_state);
     assert_eq!(field_existed_before, *expected_exists);
     assert_eq!(genre_index, genres_before.length());
@@ -161,8 +160,9 @@ fun project_removed_event(
     assert_eq!(bytes.peel_address(), cap_id);
     let genre_id = bytes.peel_address();
     let genre_index = bytes.peel_u64();
-    let genres_before = bytes.peel_vec_address();
-    let genres_after = bytes.peel_vec_address();
+    let genres_before = *expected_state;
+    let mut genres_after = genres_before;
+    genres_after.remove(genre_index);
     let genre_count_before = bytes.peel_u64();
     let genre_count_after = bytes.peel_u64();
     let field_existed_before = bytes.peel_bool();
@@ -207,7 +207,7 @@ fun project_cleared_event(
     let clear_cause = bytes.peel_u8();
     let trigger_genre_id = bytes.peel_address();
     let genres_before = bytes.peel_vec_address();
-    let genres_after = bytes.peel_vec_address();
+    let genres_after: vector<address> = vector[];
     let genre_count_before = bytes.peel_u64();
     let genre_count_after = bytes.peel_u64();
     let field_existed_before = bytes.peel_bool();
@@ -424,11 +424,9 @@ fun max_event_payloads_and_final_pair_are_bounded() {
         &mut replay_exists,
         &mut replay_state,
     );
-    let (_, _, _, long_name, _, _, _, _, _, _, _, _, _, _, _, _) =
-        rg::genre_added_event_fields(&added[5]);
-    assert_eq!(long_name.length(), 64);
+    let (_, _, _, _, _, _, _, _, _, _, _, _, _) = rg::genre_added_event_fields(&added[5]);
     // 192 + name bytes + 32 * (five previous + six current addresses).
-    assert_eq!(bcs::to_bytes(&added[5]).length(), 608);
+    assert_eq!(bcs::to_bytes(&added[5]).length(), 189);
     assert_replay_view(&rel, replay_exists, &replay_state);
 
     // Removing from the six-item list exercises the maximum Removed payload
@@ -448,7 +446,7 @@ fun max_event_payloads_and_final_pair_are_bounded() {
         &removed[0], release_id, cap_id, first_id.to_address(), after_remove,
         &mut replay_exists, &mut replay_state,
     );
-    assert_eq!(bcs::to_bytes(&removed[0]).length(), 543);
+    assert_eq!(bcs::to_bytes(&removed[0]).length(), 189);
     rg::add_genre(&mut rel, &cap, &genres[0]);
     let added = event::events_by_type<rg::ReleaseGenreAddedEvent>();
     assert_eq!(added.length(), 7);
@@ -464,7 +462,7 @@ fun max_event_payloads_and_final_pair_are_bounded() {
         &cleared[0], release_id, cap_id, 0, @0x0, &mut replay_exists, &mut replay_state,
     );
     // 184 + 32 * (six previous + zero current addresses).
-    assert_eq!(bcs::to_bytes(&cleared[0]).length(), 376);
+    assert_eq!(bcs::to_bytes(&cleared[0]).length(), 375);
     assert_replay_view(&rel, replay_exists, &replay_state);
 
     genres.destroy!(|genre| ts::return_immutable(genre));
@@ -490,7 +488,7 @@ fun max_event_payloads_and_final_pair_are_bounded() {
         &removed[0], release_id, cap_id, first_id.to_address(), vector[],
         &mut replay_exists, &mut replay_state,
     );
-    assert_eq!(bcs::to_bytes(&removed[0]).length(), 223);
+    assert_eq!(bcs::to_bytes(&removed[0]).length(), 189);
     let cleared = event::events_by_type<rg::ReleaseGenresClearedEvent>();
     assert_eq!(cleared.length(), 0);
     assert_replay_view(&rel, replay_exists, &replay_state);
@@ -521,10 +519,8 @@ fun two_releases_share_monomorphic_event_streams() {
     rg::add_genre(&mut rel_b, &cap_b, &b);
     let added = event::events_by_type<rg::ReleaseGenreAddedEvent>();
     assert_eq!(added.length(), 2);
-    let (first_release, _, first_genre, _, _, _, _, _, _, _, _, _, _, _, _, _) =
-        rg::genre_added_event_fields(&added[0]);
-    let (second_release, _, second_genre, _, _, _, _, _, _, _, _, _, _, _, _, _) =
-        rg::genre_added_event_fields(&added[1]);
+    let (first_release, _, first_genre, _, _, _, _, _, _, _, _, _, _) = rg::genre_added_event_fields(&added[0]);
+    let (second_release, _, second_genre, _, _, _, _, _, _, _, _, _, _) = rg::genre_added_event_fields(&added[1]);
     assert_eq!(first_release, rel_a_id);
     assert_eq!(first_genre, a_id.to_address());
     assert_eq!(second_release, rel_b_id);
@@ -534,10 +530,8 @@ fun two_releases_share_monomorphic_event_streams() {
     rg::clear_genres(&mut rel_b, &cap_b);
     let cleared = event::events_by_type<rg::ReleaseGenresClearedEvent>();
     assert_eq!(cleared.length(), 2);
-    let (first_clear_release, _, _, _, _, _, _, _, _, _, _, _, _, _, _) =
-        rg::genres_cleared_event_fields(&cleared[0]);
-    let (second_clear_release, _, _, _, _, _, _, _, _, _, _, _, _, _, _) =
-        rg::genres_cleared_event_fields(&cleared[1]);
+    let (first_clear_release, _, _, _, _, _, _, _, _, _, _, _, _, _) = rg::genres_cleared_event_fields(&cleared[0]);
+    let (second_clear_release, _, _, _, _, _, _, _, _, _, _, _, _, _) = rg::genres_cleared_event_fields(&cleared[1]);
     assert_eq!(first_clear_release, rel_a_id);
     assert_eq!(second_clear_release, rel_b_id);
     assert!(rg::genres(&rel_a).is_empty());
@@ -571,8 +565,7 @@ fun first_add_genre_establishes_the_primary() {
 
     let events = event::events_by_type<rg::ReleaseGenreAddedEvent>();
     assert_eq!(events.length(), 1);
-    let (event_release_id, _, event_genre_id, _, _, _, _, _, _, _, _, _, _, _, _, _) =
-        rg::genre_added_event_fields(&events[0]);
+    let (event_release_id, _, event_genre_id, _, _, _, _, _, _, _, _, _, _) = rg::genre_added_event_fields(&events[0]);
     assert_eq!(event_release_id, release_id.to_address());
     assert_eq!(event_genre_id, genre_id.to_address());
 
@@ -740,8 +733,7 @@ fun removing_the_primary_promotes_the_next() {
 
     let removed_events = event::events_by_type<rg::ReleaseGenreRemovedEvent>();
     assert_eq!(removed_events.length(), 1);
-    let (event_release_id, _, event_genre_id, _, _, _, _, _, _, _, _, _, _, _, _) =
-        rg::genre_removed_event_fields(&removed_events[0]);
+    let (event_release_id, _, event_genre_id, _, _, _, _, _, _, _, _, _, _) = rg::genre_removed_event_fields(&removed_events[0]);
     assert_eq!(event_release_id, release_id.to_address());
     assert_eq!(event_genre_id, a_id.to_address());
 
@@ -868,8 +860,7 @@ fun clear_genres_removes_the_whole_list() {
 
     let cleared_events = event::events_by_type<rg::ReleaseGenresClearedEvent>();
     assert_eq!(cleared_events.length(), 1);
-    let (cleared_release_id, _, _, _, _, _, _, _, _, _, _, _, _, _, _) =
-        rg::genres_cleared_event_fields(&cleared_events[0]);
+    let (cleared_release_id, _, _, _, _, _, _, _, _, _, _, _, _, _) = rg::genres_cleared_event_fields(&cleared_events[0]);
     assert_eq!(cleared_release_id, release_id.to_address());
 
     ts::return_immutable(a);

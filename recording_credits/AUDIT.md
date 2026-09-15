@@ -1,3 +1,5 @@
+> Historical audit below predates the 2026-09-15 payload revision. Current event contracts and size bounds are documented in [EVENT_PAYLOADS.md](../EVENT_PAYLOADS.md). Storage, authority, and mutation behavior remain unchanged.
+
 # Security review — `recording_credits`
 
 Reviewed 2026-09-11 for immutable publication. Verdict: no exploitable

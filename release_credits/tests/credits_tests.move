@@ -245,12 +245,10 @@ fun add_credit_emits_the_full_record() {
     let events = event::events_by_type<credits::ReleaseCreditAddedEvent>();
     assert_eq!(events.length(), 2);
 
-    let (release_id, cap_id, party_id, display_name, role_kind, count_before, count_after,
-        credit_index, record_before, record_after) = credits::added_event_fields(&events[0]);
+    let (release_id, cap_id, party_id, role_kind, count_before, count_after, credit_index, record_before, record_after) = credits::added_event_fields(&events[0]);
     assert_eq!(release_id, rel_id.to_address());
     assert_eq!(cap_id, object::id(&cap).to_address());
     assert_eq!(party_id, object::id(&p1).to_address());
-    assert_eq!(display_name, b"Alice");
     assert_eq!(role_kind, 0);
     assert_eq!(count_before, 0);
     assert_eq!(count_after, 1);
@@ -258,12 +256,10 @@ fun add_credit_emits_the_full_record() {
     assert!(!record_before);
     assert!(record_after);
 
-    let (release_id, cap_id, party_id, display_name, role_kind, count_before, count_after,
-        credit_index, record_before, record_after) = credits::added_event_fields(&events[1]);
+    let (release_id, cap_id, party_id, role_kind, count_before, count_after, credit_index, record_before, record_after) = credits::added_event_fields(&events[1]);
     assert_eq!(release_id, rel_id.to_address());
     assert_eq!(cap_id, object::id(&cap).to_address());
     assert_eq!(party_id, object::id(&p2).to_address());
-    assert_eq!(display_name, b"Bob");
     assert_eq!(role_kind, 1);
     assert_eq!(count_before, 1);
     assert_eq!(count_after, 2);
@@ -293,13 +289,11 @@ fun remove_credit_emits_the_removed_record() {
 
     let events = event::events_by_type<credits::ReleaseCreditRemovedEvent>();
     assert_eq!(events.length(), 1);
-    assert_eq!(credits::removed_event_bcs(&events[0]).length(), 129);
-    let (release_id, cap_id, party_id, display_name, role_kind, count_before, count_after,
-        credit_index, record_before, record_after) = credits::removed_event_fields(&events[0]);
+    assert_eq!(credits::removed_event_bcs(&events[0]).length(), 123);
+    let (release_id, cap_id, party_id, role_kind, count_before, count_after, credit_index, record_before, record_after) = credits::removed_event_fields(&events[0]);
     assert_eq!(release_id, rel_id.to_address());
     assert_eq!(cap_id, object::id(&cap).to_address());
     assert_eq!(party_id, pid.to_address());
-    assert_eq!(display_name, b"Alice");
     assert_eq!(role_kind, 0);
     assert_eq!(count_before, 1);
     assert_eq!(count_after, 0);
@@ -332,11 +326,9 @@ fun event_uses_credit_display_name_and_role_kind() {
     );
 
     let events = event::events_by_type<credits::ReleaseCreditAddedEvent>();
-    let (_, cap_id, party_id, display_name, role_kind, before, after, index, existed, exists) =
-        credits::added_event_fields(&events[0]);
+    let (_, cap_id, party_id, role_kind, before, after, index, existed, exists) = credits::added_event_fields(&events[0]);
     assert_eq!(cap_id, object::id(&cap).to_address());
     assert_eq!(party_id, object::id(&party).to_address());
-    assert_eq!(display_name, b"BillingDisplayName");
     assert_eq!(role_kind, 1);
     assert_eq!(before, 0);
     assert_eq!(after, 1);
@@ -364,10 +356,8 @@ fun remove_reports_stable_vecmap_index_and_readd_appends() {
     assert_eq!(credits::credits(&rel).get_idx(&object::id(&p1)), 0);
     assert_eq!(credits::credits(&rel).get_idx(&object::id(&p3)), 1);
     let removed = event::events_by_type<credits::ReleaseCreditRemovedEvent>();
-    let (_, _, removed_party, removed_name, removed_kind, before, after, index, _, _) =
-        credits::removed_event_fields(&removed[0]);
+    let (_, _, removed_party, removed_kind, before, after, index, _, _) = credits::removed_event_fields(&removed[0]);
     assert_eq!(removed_party, object::id(&p2).to_address());
-    assert_eq!(removed_name, b"Two");
     assert_eq!(removed_kind, 1);
     assert_eq!(before, 3);
     assert_eq!(after, 2);
@@ -381,9 +371,7 @@ fun remove_reports_stable_vecmap_index_and_readd_appends() {
     );
     assert_eq!(credits::credits(&rel).get_idx(&object::id(&p2)), 2);
     let added = event::events_by_type<credits::ReleaseCreditAddedEvent>();
-    let (_, _, _, name, kind, before, after, index, existed, exists) =
-        credits::added_event_fields(&added[3]);
-    assert_eq!(name, b"Two Readded");
+    let (_, _, _, kind, before, after, index, existed, exists) = credits::added_event_fields(&added[3]);
     assert_eq!(kind, 1);
     assert_eq!(before, 2);
     assert_eq!(after, 3);
@@ -407,7 +395,7 @@ fun final_remove_retains_record_and_readd_reports_initialized() {
     assert!(credits::has_credits(&rel));
     assert_eq!(credits::credits(&rel).length(), 0);
     let removed = event::events_by_type<credits::ReleaseCreditRemovedEvent>();
-    let (_, _, _, _, _, before, after, index, existed, exists) = credits::removed_event_fields(&removed[0]);
+    let (_, _, _, _, before, after, index, existed, exists) = credits::removed_event_fields(&removed[0]);
     assert_eq!(before, 1);
     assert_eq!(after, 0);
     assert_eq!(index, 0);
@@ -416,8 +404,7 @@ fun final_remove_retains_record_and_readd_reports_initialized() {
 
     credits::add_credit(&mut rel, &cap, &party, credit::new(b"Second".to_string(), vector[rpr::new_featured_role()]));
     let added = event::events_by_type<credits::ReleaseCreditAddedEvent>();
-    let (_, _, _, name, kind, before, after, index, existed, exists) = credits::added_event_fields(&added[1]);
-    assert_eq!(name, b"Second");
+    let (_, _, _, kind, before, after, index, existed, exists) = credits::added_event_fields(&added[1]);
     assert_eq!(kind, 1);
     assert_eq!(before, 0);
     assert_eq!(after, 1);
@@ -440,9 +427,9 @@ fun event_bcs_length_matches_uleb_boundaries() {
     credits::add_credit(&mut rel, &cap, &p2, credit::new(name_of_length(127), vector[rpr::new_primary_role()]));
     credits::add_credit(&mut rel, &cap, &p3, credit::new(name_of_length(128), vector[rpr::new_primary_role()]));
     let added = event::events_by_type<credits::ReleaseCreditAddedEvent>();
-    assert_eq!(credits::added_event_bcs(&added[0]).length(), 125);
-    assert_eq!(credits::added_event_bcs(&added[1]).length(), 251);
-    assert_eq!(credits::added_event_bcs(&added[2]).length(), 253);
+    assert_eq!(credits::added_event_bcs(&added[0]).length(), 123);
+    assert_eq!(credits::added_event_bcs(&added[1]).length(), 123);
+    assert_eq!(credits::added_event_bcs(&added[2]).length(), 123);
 
     destroy(rel); destroy(cap); destroy(p1); destroy(p1c); destroy(p2); destroy(p2c);
     destroy(p3); destroy(p3c);
@@ -456,9 +443,8 @@ fun event_bcs_supports_maximum_credit_display_name() {
     let (party, party_cap) = mk_party(b"Party", ts.ctx());
     credits::add_credit(&mut rel, &cap, &party, credit::new(name_of_length(200), vector[rpr::new_featured_role()]));
     let added = event::events_by_type<credits::ReleaseCreditAddedEvent>();
-    assert_eq!(credits::added_event_bcs(&added[0]).length(), 325);
-    let (_, _, _, display_name, role_kind, _, _, _, _, _) = credits::added_event_fields(&added[0]);
-    assert_eq!(display_name.length(), 200);
+    assert_eq!(credits::added_event_bcs(&added[0]).length(), 123);
+    let (_, _, _, role_kind, _, _, _, _, _) = credits::added_event_fields(&added[0]);
     assert_eq!(role_kind, 1);
     destroy(rel); destroy(cap); destroy(party); destroy(party_cap);
     ts.end();

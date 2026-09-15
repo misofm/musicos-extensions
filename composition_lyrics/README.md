@@ -54,13 +54,9 @@ Reads are permissionless.
 
 ## Events
 
-`CompositionLyricsSetEvent<CompositionShare>` carries composition and admin-cap
-addresses, primitive language-code bytes, prior presence, and exact compressed
-before/after bytes. `CompositionLyricsClearedEvent<CompositionShare>` carries
-the same identity fields and the removed bytes. Explicit prior presence
-distinguishes absence from an empty payload. These snapshots follow the other
-extensions' event-only indexing pattern; they also duplicate compressed data
-in event history and should be included in storage estimates.
+Set carries composition/admin-cap IDs, the two-byte ISO language key, and prior presence (68 BCS bytes). Clear carries the same IDs and language key (67 bytes). Compressed lyrics stay in the dynamic field. Empty lyrics remain distinct from absence; equal replacement and absent clear remain silent.
+
+See [the repository payload inventory](../EVENT_PAYLOADS.md) for byte bounds and retained context.
 
 ## Development
 

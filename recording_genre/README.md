@@ -56,83 +56,9 @@ permissionless.
 
 ## Events
 
-All events are phantom-typed as
-`<RecordingShare, CompositionShare>`, use actual primitive addresses, and are
-emitted only after the corresponding dynamic-field write succeeds. Their BCS
-fields are declared in this exact order.
+Added/removed events retain recording/composition/admin-cap/genre IDs, changed index, before/after counts, field lifecycle flags, and primary-genre identity/flags (221 BCS bytes). Consumers replay ordered relationships using the changed ID/index. Clear retains the removed ordered ID list (at most six) and its existing cause/count/primary metadata (at most 407 bytes). Redundant display name and full before/after list copies are omitted.
 
-`RecordingGenreAddedEvent`:
-
-```text
-recording_id: address
-composition_id: address
-admin_cap_id: address
-genre_id: address
-genre_name: vector<u8>
-genre_index: u64
-genres_before: vector<address>
-genres_after: vector<address>
-genre_count_before: u64
-genre_count_after: u64
-field_existed_before: bool
-field_exists_after: bool
-had_primary_before: bool
-has_primary_after: bool
-primary_genre_id_before: address
-primary_genre_id_after: address
-primary_changed: bool
-```
-
-`RecordingGenreRemovedEvent` has the same fields except `genre_name`, in this
-order: `recording_id`, `composition_id`, `admin_cap_id`, `genre_id`,
-`genre_index`, `genres_before`, `genres_after`, `genre_count_before`,
-`genre_count_after`, `field_existed_before`, `field_exists_after`,
-`had_primary_before`, `has_primary_after`, `primary_genre_id_before`,
-`primary_genre_id_after`, `primary_changed`.
-
-`RecordingGenresClearedEvent`:
-
-```text
-recording_id: address
-composition_id: address
-admin_cap_id: address
-clear_cause: u8
-trigger_genre_id: address
-genres_before: vector<address>
-genres_after: vector<address>
-genre_count_before: u64
-genre_count_after: u64
-field_existed_before: bool
-field_exists_after: bool
-had_primary_before: bool
-has_primary_after: bool
-primary_genre_id_before: address
-primary_genre_id_after: address
-primary_changed: bool
-```
-
-`clear_cause = 0` is explicit `clear_genres` with `trigger_genre_id = @0x0`.
-The legacy `clear_cause = 1` shape remains in the event type for wire
-compatibility, but final removal no longer emits that companion event. The
-last removal emits one `Removed` event after deleting the field, with
-`field_existed_before = true`, `field_exists_after = false`, and snapshots
-`[A] -> []`. An absent explicit clear is silent. `primary_changed` is true
-exactly when primary presence or primary id changes.
-
-## Event bounds
-
-For `b` and `a` snapshot lengths and an `n`-byte raw genre name:
-
-- Added is `224 + n + 32(b + a)` bytes; its maximum is 640 bytes at `n = 64`,
-  `b = 5`, `a = 6`.
-- Removed is `223 + 32(b + a)` bytes; its maximum is 575 bytes for a six-item
-  list removing one entry.
-- Cleared is `216 + 32(b + a)` bytes; its maximum is 408 bytes for a six-item
-  list cleared to empty.
-
-The final-removal event is 255 bytes for Removed (`b = 1`, `a = 0`). These are
-event-payload bounds; the full snapshots intentionally add serialization and
-transaction gas, so clients should budget for the list size and name length.
+See [the repository payload inventory](../EVENT_PAYLOADS.md) for byte bounds and retained context.
 
 ## Errors
 
@@ -145,10 +71,10 @@ transaction gas, so clients should budget for the list size and name length.
 ## Dependencies
 
 - [`musicos`](https://github.com/misofm/musicos) at
-  `4cb3c926b1f9bb5103f3f7194e4e1e34b6c87840` — `Recording` and
+  `eafd01ab1f57ed84f9660beb142d34c98fa9fd04` — `Recording` and
   `RecordingAdminCap`.
 - [`genre`](https://github.com/misofm/genre) at
-  `cddf9491426723e2c468cebf40fb4231d9fb0d5a` — the canonical shared genre
+  `268d4bc45eecdaf7b75dc443e4974b9469912513` — the canonical shared genre
   vocabulary.
 
 Both are exact Git pins; this manifest has no local-path dependencies.
@@ -166,9 +92,9 @@ Both are exact Git pins; this manifest has no local-path dependencies.
   and `party_genre` use, so recording genres join cleanly against release and
   party metadata.
 - **Events are replayable transitions.** The Added, Removed, and Cleared
-  payloads carry ordered primitive snapshots, counts, field lifecycle flags,
+  payloads carry changed IDs and indices, counts, field lifecycle flags,
   and primary metadata. Consumers can replay them directly or re-read
-  `genres()` after any event; Added also carries the raw canonical name.
+  `genres()` after any event; genre names are resolved from their IDs.
 - **Primary is index 0, and it is protocol state here** — unlike `party_genre`,
   which has no ranking concept at all, index 0 of `genres()` is a first-class,
   cap-written fact, not a client convention over insertion order.

@@ -107,12 +107,10 @@ fun genre_lifecycle_on_published_shared_release() {
     // Full event payloads, pinned against the real (post-publish) release id.
     let added_events = event::events_by_type<rg::ReleaseGenreAddedEvent>();
     assert_eq!(added_events.length(), 2);
-    let (a0_release_id, _, a0_genre_id, _, _, _, _, _, _, _, _, _, _, _, _, _) =
-        rg::genre_added_event_fields(&added_events[0]);
+    let (a0_release_id, _, a0_genre_id, _, _, _, _, _, _, _, _, _, _) = rg::genre_added_event_fields(&added_events[0]);
     assert_eq!(a0_release_id, release_id.to_address());
     assert_eq!(a0_genre_id, electronic_id.to_address());
-    let (a1_release_id, _, a1_genre_id, _, _, _, _, _, _, _, _, _, _, _, _, _) =
-        rg::genre_added_event_fields(&added_events[1]);
+    let (a1_release_id, _, a1_genre_id, _, _, _, _, _, _, _, _, _, _) = rg::genre_added_event_fields(&added_events[1]);
     assert_eq!(a1_release_id, release_id.to_address());
     assert_eq!(a1_genre_id, hiphop_id.to_address());
 
@@ -134,8 +132,7 @@ fun genre_lifecycle_on_published_shared_release() {
     assert!(rg::genres(&rel).is_empty());
     let cleared_events = event::events_by_type<rg::ReleaseGenresClearedEvent>();
     assert_eq!(cleared_events.length(), 1);
-    let (cleared_release_id, _, _, _, _, _, _, _, _, _, _, _, _, _, _) =
-        rg::genres_cleared_event_fields(&cleared_events[0]);
+    let (cleared_release_id, _, _, _, _, _, _, _, _, _, _, _, _, _) = rg::genres_cleared_event_fields(&cleared_events[0]);
     assert_eq!(cleared_release_id, release_id.to_address());
 
     ts::return_shared(rel);

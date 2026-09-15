@@ -68,9 +68,7 @@ fun lifecycle_works_on_a_published_shared_recording() {
 
     let set_events = event::events_by_type<session::EngineSessionSetEvent<REC, COMP>>();
     assert_eq!(set_events.length(), 1);
-    let (event_recording_id, event_composition_id, event_admin_cap_id, had_previous,
-        value_changed, previous_blob_id, previous_stem_count, event_blob_id, stem_count,
-        stem_digests, stem_blob_ids) = session::set_event_fields(&set_events[0]);
+    let (event_recording_id, event_composition_id, event_admin_cap_id, had_previous, value_changed, previous_blob_id, previous_stem_count, event_blob_id, stem_count) = session::set_event_fields(&set_events[0]);
     assert_eq!(event_recording_id, recording_id.to_address());
     assert_eq!(event_composition_id, composition_id.to_address());
     assert_eq!(event_admin_cap_id, object::id(&cap).to_address());
@@ -80,8 +78,6 @@ fun lifecycle_works_on_a_published_shared_recording() {
     assert_eq!(previous_stem_count, 0);
     assert_eq!(event_blob_id, 111);
     assert_eq!(stem_count, 1);
-    assert_eq!(stem_digests.length(), 1);
-    assert_eq!(stem_blob_ids, vector[112]);
     test_scenario::return_shared(recording);
 
     // Views are permissionless; only writes require the recording's cap.
@@ -100,16 +96,12 @@ fun lifecycle_works_on_a_published_shared_recording() {
 
     let unset_events = event::events_by_type<session::EngineSessionUnsetEvent<REC, COMP>>();
     assert_eq!(unset_events.length(), 1);
-    let (event_recording_id, event_composition_id, event_admin_cap_id, removed_blob_id,
-        removed_stem_count, removed_digests, removed_blob_ids) =
-        session::unset_event_fields(&unset_events[0]);
+    let (event_recording_id, event_composition_id, event_admin_cap_id, removed_blob_id, removed_stem_count) = session::unset_event_fields(&unset_events[0]);
     assert_eq!(event_recording_id, recording_id.to_address());
     assert_eq!(event_composition_id, composition_id.to_address());
     assert_eq!(event_admin_cap_id, object::id(&cap).to_address());
     assert_eq!(removed_blob_id, 222);
     assert_eq!(removed_stem_count, 1);
-    assert_eq!(removed_digests.length(), 1);
-    assert_eq!(removed_blob_ids, vector[223]);
     test_scenario::return_shared(recording);
 
     destroy(cap);

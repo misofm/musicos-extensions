@@ -52,11 +52,11 @@ fun languages_are_independent_and_events_replay_transitions() {
     assert_eq!(*cl::lyrics(&comp, ja), vector[42]);
     let clears = event::events_by_type<cl::CompositionLyricsClearedEvent<CompositionShare>>();
     assert_eq!(clears.length(), 1);
-    let (event_id, event_cap, event_language, before) = cl::clear_event_fields(&clears[0]);
+    assert_eq!(sui::bcs::to_bytes(&clears[0]).length(), 67);
+    let (event_id, event_cap, event_language) = cl::clear_event_fields(&clears[0]);
     assert_eq!(event_id, id);
     assert_eq!(event_cap, cap_id);
     assert_eq!(event_language, b"en");
-    assert_eq!(before, vector[7]);
 
     cl::set_lyrics(&mut comp, &cap, en, first);
     let sets = event::events_by_type<cl::CompositionLyricsSetEvent<CompositionShare>>();
@@ -78,9 +78,9 @@ fun empty_payload_is_distinct_from_absence() {
     cl::set_lyrics(&mut comp, &cap, en, vector[]);
     let sets = event::events_by_type<cl::CompositionLyricsSetEvent<CompositionShare>>();
     assert_eq!(sets.length(), 1);
-    let (_, _, _, existed, before, after) = cl::set_event_fields(&sets[0]);
+    assert_eq!(sui::bcs::to_bytes(&sets[0]).length(), 68);
+    let (_, _, _, existed) = cl::set_event_fields(&sets[0]);
     assert!(!existed);
-    assert!(before.is_empty() && after.is_empty());
     cl::clear_lyrics(&mut comp, &cap, en);
     assert!(!cl::has_lyrics(&comp, en));
     assert_eq!(event::events_by_type<cl::CompositionLyricsClearedEvent<CompositionShare>>().length(), 1);
@@ -100,14 +100,12 @@ fun maximum_payload_can_be_added_replaced_and_cleared() {
     assert_eq!(*cl::lyrics(&comp, en), data);
     let sets = event::events_by_type<cl::CompositionLyricsSetEvent<CompositionShare>>();
     assert_eq!(sets.length(), 1);
-    let (_, _, _, existed, before, after) = cl::set_event_fields(&sets[0]);
+    assert_eq!(sui::bcs::to_bytes(&sets[0]).length(), 68);
+    let (_, _, _, existed) = cl::set_event_fields(&sets[0]);
     assert!(!existed);
-    assert!(before.is_empty());
-    assert_eq!(after, data);
     cl::clear_lyrics(&mut comp, &cap, en);
     let clears = event::events_by_type<cl::CompositionLyricsClearedEvent<CompositionShare>>();
-    let (_, _, _, before) = cl::clear_event_fields(&clears[0]);
-    assert_eq!(before, data);
+    assert_eq!(sui::bcs::to_bytes(&clears[0]).length(), 67);
     destroy(comp);
     destroy(cap);
 }
@@ -218,15 +216,13 @@ fun assert_set_event(
     cap: address,
     language: vector<u8>,
     existed: bool,
-    before: vector<u8>,
-    after: vector<u8>,
+    _before: vector<u8>,
+    _after: vector<u8>,
 ) {
-    let (actual_id, actual_cap, actual_language, actual_existed, actual_before, actual_after) =
-        cl::set_event_fields(e);
+    assert_eq!(sui::bcs::to_bytes(e).length(), 68);
+    let (actual_id, actual_cap, actual_language, actual_existed) = cl::set_event_fields(e);
     assert_eq!(actual_id, id);
     assert_eq!(actual_cap, cap);
     assert_eq!(actual_language, language);
     assert_eq!(actual_existed, existed);
-    assert_eq!(actual_before, before);
-    assert_eq!(actual_after, after);
 }
