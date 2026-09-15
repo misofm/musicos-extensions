@@ -40,6 +40,7 @@ First-party, platform-neutral metadata extensions.
 | Package | Target | Purpose |
 |---------|--------|---------|
 | [`composition_credits`](./composition_credits) | Composition | Songwriting and publishing attribution keyed by Party ID. |
+| [`composition_lyrics`](./composition_lyrics) | Composition | Zstd-compressed lyrics keyed by ISO 639-1 language code. |
 | [`recording_advisory`](./recording_advisory) | Recording | Explicit, not-explicit, or cleaned advisory classification. |
 | [`recording_credits`](./recording_credits) | Recording | Performance and production credits with primary and featured artist designations. |
 | [`recording_genre`](./recording_genre) | Recording | Ordered genre classification of the master, primary first. |
