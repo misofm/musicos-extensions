@@ -268,9 +268,9 @@ public fun add_genre<RecordingShare, CompositionShare>(
 
 /// Removes a genre by id. If it was the primary, the next genre in the list
 /// becomes primary. Removing the last remaining genre drops the field
-/// entirely and additionally emits `RecordingGenresClearedEvent`. Aborts
-/// `EGenreNotPresent` if the genre is not assigned — including when nothing
-/// is attached at all.
+/// entirely before emitting its final-state `RecordingGenreRemovedEvent`.
+/// Aborts `EGenreNotPresent` if the genre is not assigned — including when
+/// nothing is attached at all.
 public fun remove_genre<RecordingShare, CompositionShare>(
     self: &mut Recording<RecordingShare, CompositionShare>,
     cap: &RecordingAdminCap<RecordingShare>,
@@ -299,6 +299,9 @@ public fun remove_genre<RecordingShare, CompositionShare>(
     let now_empty = after.is_empty();
     let primary_changed = had_primary_before != has_primary_after
         || primary_genre_id_before != primary_genre_id_after;
+    if (now_empty) {
+        let _: vector<ID> = df::remove(uid, ExtensionKey()); // vector<ID> has drop
+    };
     emit(RecordingGenreRemovedEvent<RecordingShare, CompositionShare> {
         recording_id,
         composition_id,
@@ -310,34 +313,13 @@ public fun remove_genre<RecordingShare, CompositionShare>(
         genre_count_before,
         genre_count_after,
         field_existed_before: true,
-        field_exists_after: true,
+        field_exists_after: !now_empty,
         had_primary_before,
         has_primary_after,
         primary_genre_id_before,
         primary_genre_id_after,
         primary_changed,
     });
-    if (now_empty) {
-        let _: vector<ID> = df::remove(uid, ExtensionKey()); // vector<ID> has drop
-        emit(RecordingGenresClearedEvent<RecordingShare, CompositionShare> {
-            recording_id,
-            composition_id,
-            admin_cap_id,
-            clear_cause: 1,
-            trigger_genre_id: genre_address,
-            genres_before: vector[],
-            genres_after: vector[],
-            genre_count_before: 0,
-            genre_count_after: 0,
-            field_existed_before: true,
-            field_exists_after: false,
-            had_primary_before: false,
-            has_primary_after: false,
-            primary_genre_id_before: @0x0,
-            primary_genre_id_after: @0x0,
-            primary_changed: false,
-        });
-    }
 }
 
 /// Removes the recording's entire genre list. A no-op when nothing is

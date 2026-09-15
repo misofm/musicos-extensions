@@ -54,22 +54,18 @@ fun set_read_replace_unset_lifecycle() {
     assert_eq!(previous_rating, 0);
     assert_eq!(rating, 0);
 
-    // Equal replacement still emits once and snapshots the prior value.
+    // Equal replacement still writes the value but is silent.
     adv::set_rating(&mut rec, &cap, adv::explicit());
     let set_events = event::events_by_type<adv::RecordingAdvisoryRatingSetEvent<REC, COMP>>();
-    assert_eq!(set_events.length(), 2);
-    let (_, _, _, had_rating, previous_rating, rating) = adv::set_event_fields(&set_events[1]);
-    assert!(had_rating);
-    assert_eq!(previous_rating, 0);
-    assert_eq!(rating, 0);
+    assert_eq!(set_events.length(), 1);
 
     // Setting again replaces in place — a recording has one rating, not a history.
     adv::set_rating(&mut rec, &cap, adv::cleaned());
     assert!(adv::rating(&rec).is_cleaned());
     assert!(!adv::rating(&rec).is_explicit());
     let set_events = event::events_by_type<adv::RecordingAdvisoryRatingSetEvent<REC, COMP>>();
-    assert_eq!(set_events.length(), 3);
-    let (_, _, _, had_rating, previous_rating, rating) = adv::set_event_fields(&set_events[2]);
+    assert_eq!(set_events.length(), 2);
+    let (_, _, _, had_rating, previous_rating, rating) = adv::set_event_fields(&set_events[1]);
     assert!(had_rating);
     assert_eq!(previous_rating, 0);
     assert_eq!(rating, 2);

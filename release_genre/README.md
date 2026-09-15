@@ -97,13 +97,13 @@ primary_genre_id_after: address
 primary_changed: bool
 ```
 
-`clear_cause = 0` is explicit `clear_genres` and uses `@0x0` as its trigger;
-`clear_cause = 1` is the cascade after removing the last genre and carries the
-removed genre id. The last removal emits `ReleaseGenreRemovedEvent` first,
-with the field still represented as `true -> true` and `[A] -> []`, then
-deletes the field and emits the cause-1 cleared event with `[] -> []` and
-`true -> false`. An absent explicit clear is silent. Added events carry the
-raw `Genre.name()` bytes; IDs and cap IDs are the actual object addresses.
+`clear_cause = 0` is explicit `clear_genres` and uses `@0x0` as its trigger.
+The legacy `clear_cause = 1` shape remains in the event type for wire
+compatibility, but final removal no longer emits that companion event. The
+last removal emits one `ReleaseGenreRemovedEvent` after deleting the field,
+with `field_existed_before = true`, `field_exists_after = false`, and
+`[A] -> []`. An absent explicit clear is silent. Added events carry the raw
+`Genre.name()` bytes; IDs and cap IDs are the actual object addresses.
 
 ## Event bounds
 
@@ -116,9 +116,8 @@ For `b` and `a` snapshot lengths and an `n`-byte raw genre name:
 - Cleared is `184 + 32*(b + a)` bytes, with maximum `376` bytes for six items
   cleared to empty.
 
-The final-removal pair is `223` bytes for Removed (`b = 1`, `a = 0`) plus
-`184` bytes for the cascading Cleared event. These are serialized event bounds;
-the list and name still affect transaction gas.
+The final-removal event is `223` bytes for Removed (`b = 1`, `a = 0`). These are
+serialized event bounds; the list and name still affect transaction gas.
 
 ## Errors
 

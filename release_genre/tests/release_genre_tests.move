@@ -136,7 +136,7 @@ fun project_added_event(
     assert_eq!(genre_count_after, genres_after.length());
     assert_eq!(genres_after.length(), genres_before.length() + 1);
     assert_eq!(genres_after[genre_index], genre_id);
-    assert!(field_exists_after);
+    assert_eq!(field_exists_after, !genres_after.is_empty());
     assert_eq!(had_primary_before, !genres_before.is_empty());
     assert!(has_primary_after);
     assert_eq!(primary_genre_id_before, primary_id(&genres_before));
@@ -181,7 +181,7 @@ fun project_removed_event(
     assert_eq!(genre_count_before, genres_before.length());
     assert_eq!(genre_count_after, genres_after.length());
     assert!(field_existed_before);
-    assert!(field_exists_after);
+    assert_eq!(field_exists_after, !genres_after.is_empty());
     assert!(had_primary_before);
     assert_eq!(has_primary_after, !genres_after.is_empty());
     assert_eq!(primary_genre_id_before, primary_id(&genres_before));
@@ -223,16 +223,7 @@ fun project_cleared_event(
     assert!(genres_after.is_empty());
     assert_eq!(genre_count_before, genres_before.length());
     assert_eq!(genre_count_after, 0);
-    // A final remove emits the companion clear only after the dynamic field
-    // has already been deleted. Its before snapshot is nevertheless the
-    // canonical empty field state (true -> false), whereas an explicit clear
-    // carries the populated field state that existed at call time.
-    if (expected_cause == 1) {
-        assert!(field_existed_before);
-        assert!(genres_before.is_empty());
-    } else {
-        assert_eq!(field_existed_before, *expected_exists);
-    };
+    assert_eq!(field_existed_before, *expected_exists);
     assert!(!field_exists_after);
     assert_eq!(had_primary_before, !genres_before.is_empty());
     assert!(!has_primary_after);
@@ -357,16 +348,7 @@ fun event_replay_tracks_order_and_field_lifecycle() {
     );
     assert_replay_view(&rel, replay_exists, &replay_state);
     let cleared = event::events_by_type<rg::ReleaseGenresClearedEvent>();
-    assert_eq!(cleared.length(), 2);
-    project_cleared_event(
-        &cleared[1],
-        release_id,
-        cap_id,
-        1,
-        c_id.to_address(),
-        &mut replay_exists,
-        &mut replay_state,
-    );
+    assert_eq!(cleared.length(), 1);
     assert_replay_view(&rel, replay_exists, &replay_state);
 
     ts::return_immutable(a);
@@ -510,12 +492,7 @@ fun max_event_payloads_and_final_pair_are_bounded() {
     );
     assert_eq!(bcs::to_bytes(&removed[0]).length(), 223);
     let cleared = event::events_by_type<rg::ReleaseGenresClearedEvent>();
-    assert_eq!(cleared.length(), 1);
-    project_cleared_event(
-        &cleared[0], release_id, cap_id, 1, first_id.to_address(),
-        &mut replay_exists, &mut replay_state,
-    );
-    assert_eq!(bcs::to_bytes(&cleared[0]).length(), 184);
+    assert_eq!(cleared.length(), 0);
     assert_replay_view(&rel, replay_exists, &replay_state);
 
     ts::return_immutable(genre);
@@ -589,7 +566,6 @@ fun first_add_genre_establishes_the_primary() {
     let genre = scenario.take_immutable_by_id<Genre>(genre_id);
     let (mut rel, cap) = mk_release(scenario.ctx());
     let release_id = object::id(&rel);
-
     rg::add_genre(&mut rel, &cap, &genre);
     assert!(rg::genres(&rel) == vector[genre_id]);
 
@@ -818,19 +794,13 @@ fun removing_the_last_genre_drops_the_field() {
     scenario.next_tx(CREATOR);
     let genre = scenario.take_immutable_by_id<Genre>(genre_id);
     let (mut rel, cap) = mk_release(scenario.ctx());
-    let release_id = object::id(&rel);
-
     rg::add_genre(&mut rel, &cap, &genre);
     rg::remove_genre(&mut rel, &cap, genre_id);
 
     assert!(rg::genres(&rel).is_empty());
 
     assert_eq!(event::events_by_type<rg::ReleaseGenreRemovedEvent>().length(), 1);
-    let cleared_events = event::events_by_type<rg::ReleaseGenresClearedEvent>();
-    assert_eq!(cleared_events.length(), 1);
-    let (cleared_release_id, _, _, _, _, _, _, _, _, _, _, _, _, _, _) =
-        rg::genres_cleared_event_fields(&cleared_events[0]);
-    assert_eq!(cleared_release_id, release_id.to_address());
+    assert_eq!(event::events_by_type<rg::ReleaseGenresClearedEvent>().length(), 0);
 
     ts::return_immutable(genre);
     destroy(rel);

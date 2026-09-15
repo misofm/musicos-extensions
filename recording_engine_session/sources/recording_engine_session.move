@@ -191,19 +191,21 @@ public fun set_engine_session<RecordingShare, CompositionShare>(
     } else {
         df::add(uid, ExtensionKey(), session);
     };
-    emit(EngineSessionSetEvent<RecordingShare, CompositionShare> {
-        recording_id,
-        composition_id,
-        admin_cap_id,
-        had_previous,
-        value_changed,
-        previous_session_blob_id,
-        previous_stem_count,
-        session_blob_id,
-        stem_count,
-        stem_digests,
-        stem_blob_ids,
-    });
+    if (value_changed) {
+        emit(EngineSessionSetEvent<RecordingShare, CompositionShare> {
+            recording_id,
+            composition_id,
+            admin_cap_id,
+            had_previous,
+            value_changed,
+            previous_session_blob_id,
+            previous_stem_count,
+            session_blob_id,
+            stem_count,
+            stem_digests,
+            stem_blob_ids,
+        });
+    };
 }
 
 /// Removes the recording's Miso Engine session, if present. Idempotent.

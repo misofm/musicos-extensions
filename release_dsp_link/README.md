@@ -52,9 +52,9 @@ album_fields: vector<vector<u8>>
 `ReleaseTrackDspLinkSetEvent` describes the override written to the slot.
 `ReleaseTrackDspLinkClearedEvent` describes the previous override and the
 empty slot afterward. A single-slot clear leaves the array in place, so its
-field flags are `true -> true` and it emits even when the slot was already
-empty. Clearing an absent array is silent, including for an out-of-range
-index.
+field flags are `true -> true` and it emits only when the slot held a link.
+Clearing an already empty slot still performs the authorized write silently.
+Clearing an absent array is silent, including for an out-of-range index.
 
 Bulk clear appends:
 
@@ -70,8 +70,9 @@ album_fields: vector<vector<u8>>
 
 `removed_*` arrays are parallel and sorted by ascending track index. The
 event has `field_existed_before = true` and `field_exists_after = false`, and
-is emitted once for an existing array even when every slot is empty. An
-absent array emits nothing; bulk clear never emits per-slot clear events.
+is emitted once only when one or more links were removed. An existing but empty
+array is still reclaimed silently. An absent array emits nothing; bulk clear
+never emits per-slot clear events.
 
 ## Raw identifier encoding
 

@@ -55,7 +55,8 @@ public struct ExtensionKey() has copy, drop, store;
 // === Events ===
 
 /// Emitted when a release's kind is set or replaced. How a release is presented
-/// and grouped follows from this, so an indexer needs to hear every assignment.
+/// and grouped follows from this, so an indexer hears each actual value
+/// transition.
 public struct ReleaseKindSetEvent has copy, drop {
     release_id: address,
     release_admin_cap_id: address,
@@ -111,17 +112,19 @@ public fun set_kind(self: &mut Release, cap: &ReleaseAdminCap, kind: String) {
     };
     let kind_record_exists_after = df::exists(uid, ExtensionKey());
     let kind_changed = previous_kind != kind_bytes;
-    emit(ReleaseKindSetEvent {
-        release_id,
-        release_admin_cap_id,
-        kind_record_existed_before,
-        previous_kind,
-        previous_kind_length,
-        kind: kind_bytes,
-        kind_length,
-        kind_record_exists_after,
-        kind_changed,
-    });
+    if (kind_changed) {
+        emit(ReleaseKindSetEvent {
+            release_id,
+            release_admin_cap_id,
+            kind_record_existed_before,
+            previous_kind,
+            previous_kind_length,
+            kind: kind_bytes,
+            kind_length,
+            kind_record_exists_after,
+            kind_changed,
+        });
+    };
 }
 
 /// Removes the kind, if any. Idempotent. Leaves the release having said nothing

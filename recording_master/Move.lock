@@ -17,7 +17,7 @@ manifest_digest = "CD547CB1ACCE0880C835DAED2D8FFCB91D56C833AE5240D3AA5B918398263
 deps = { MoveStdlib = "MoveStdlib" }
 
 [pinned.mainnet.audio]
-source = { git = "https://github.com/misofm/audio.git", subdir = ".", rev = "54d54f6cecdbba39c880c64f2caf8b277d007679" }
+source = { git = "https://github.com/misofm/audio.git", subdir = ".", rev = "35acdf12ca11f5c1d02fe7afd20118913a0d9a0b" }
 use_environment = "mainnet"
 manifest_digest = "C384006492A520ABD3E2A62AB659441D512D76DE2A045F94E46B6DAB0BC0E6A2"
 deps = { ori = "ori", std = "MoveStdlib", sui = "Sui" }
@@ -43,7 +43,7 @@ deps = { std = "MoveStdlib", sui = "Sui" }
 [pinned.mainnet.recording_master]
 source = { root = true }
 use_environment = "mainnet"
-manifest_digest = "83F1A4282EC51498D41987DF653D9DCEDF1B0D00EC2C397DAEF509C884402F1E"
+manifest_digest = "A8DB1A2274BFEE89E96DE076DAB7514E5674C1E53F51BCB144F01BC60037A0EC"
 deps = { audio = "audio", musicos = "musicos", ori = "ori", std = "MoveStdlib", sui = "Sui" }
 
 [pinned.mainnet.share]
@@ -65,7 +65,7 @@ manifest_digest = "7AFB66695545775FBFBB2D3078ADFD084244D5002392E837FDE21D9EA1C6D
 deps = { MoveStdlib = "MoveStdlib" }
 
 [pinned.testnet.audio]
-source = { git = "https://github.com/misofm/audio.git", subdir = ".", rev = "54d54f6cecdbba39c880c64f2caf8b277d007679" }
+source = { git = "https://github.com/misofm/audio.git", subdir = ".", rev = "35acdf12ca11f5c1d02fe7afd20118913a0d9a0b" }
 use_environment = "testnet"
 manifest_digest = "7C4A14C06348625FD571B1CF30D4669A72A67304FD19876F629605F24D752C3D"
 deps = { ori = "ori", std = "MoveStdlib", sui = "Sui" }
@@ -91,7 +91,7 @@ deps = { std = "MoveStdlib", sui = "Sui" }
 [pinned.testnet.recording_master]
 source = { root = true }
 use_environment = "testnet"
-manifest_digest = "D47B817FCF67704678967304FFAEDF1FE7C7A916254C2F45FFF07F2CD605D499"
+manifest_digest = "C7D85C3E3A8336C102423CE75800AA8BFA32B16F3D011B2B8F6E70DD31984B96"
 deps = { audio = "audio", musicos = "musicos", ori = "ori", std = "MoveStdlib", sui = "Sui" }
 
 [pinned.testnet.share]

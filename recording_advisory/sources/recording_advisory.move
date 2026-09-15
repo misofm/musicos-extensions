@@ -100,22 +100,26 @@ public fun set_rating<RecordingShare, CompositionShare>(
     let uid = self.uid_mut(cap);
     let had_rating = df::exists(uid, ExtensionKey());
     let mut previous_rating = 0;
+    let mut rating_changed = true;
     if (had_rating) {
         let previous = *df::borrow(uid, ExtensionKey());
         previous_rating = rating_code(&previous);
+        rating_changed = previous != rating;
         *df::borrow_mut(uid, ExtensionKey()) = rating;
     } else {
         df::add(uid, ExtensionKey(), rating);
     };
     let rating = rating_code(&rating);
-    emit(RecordingAdvisoryRatingSetEvent<RecordingShare, CompositionShare> {
-        recording_id,
-        composition_id,
-        admin_cap_id,
-        had_rating,
-        previous_rating,
-        rating,
-    });
+    if (rating_changed) {
+        emit(RecordingAdvisoryRatingSetEvent<RecordingShare, CompositionShare> {
+            recording_id,
+            composition_id,
+            admin_cap_id,
+            had_rating,
+            previous_rating,
+            rating,
+        });
+    };
 }
 
 /// Removes the rating, if any. Idempotent — the recording is left having said

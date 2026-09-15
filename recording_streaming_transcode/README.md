@@ -14,8 +14,8 @@ recording's `uid_mut` constrained to the matching
 `RecordingAdminCap<RecordingShare>` type, then either assigns the existing
 dynamic field or adds it when absent. This is compile-time type authorization;
 the extension performs no runtime authentication of the cap object's value or
-ID. Replacing an equal Quilt ID still assigns and emits a set
-event. `unset_streaming_transcode(recording, cap)` authorizes first, removes
+ID. Replacing an equal Quilt ID still assigns, but emits a set event only when
+the complete wrapper value changes. `unset_streaming_transcode(recording, cap)` authorizes first, removes
 the attached wrapper, and emits a clear event containing the removed Quilt ID;
 an absent field is an authorized silent no-op. Removing the extension's field
 leaves the embedded `Recording` fields, object identity, and published/shared
@@ -49,7 +49,8 @@ The set event is 161 BCS bytes: three 32-byte addresses, one bool, and two
 32-byte little-endian `u256`s. The clear event is 128 bytes: three addresses
 and one `u256`. `had_transcode` disambiguates a legitimate previous Quilt ID
 of zero from the absent state. The test suite peels every field and requires no
-remainder, including the composed six-event payload total of 900 bytes.
+remainder, including the composed three-set/two-clear payload total of 739
+bytes.
 
 ## Dependencies and checks
 

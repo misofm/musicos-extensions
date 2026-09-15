@@ -265,16 +265,11 @@ fun max_payloads_are_raw_and_have_exact_bcs_sizes() {
     assert_eq!(after, different_bytes);
     assert_eq!(sui::bcs::to_bytes(&sets[1]).length(), 16453);
 
-    // String is copyable; equal replacement still writes and emits a full
-    // before/after snapshot, also at the two-max-vector boundary.
+    // String is copyable; equal replacement still writes but is silent.
     rd::set_description(&mut rel, &cap, different);
     let sets = event::events_by_type<rd::ReleaseDescriptionSetEvent>();
-    assert_eq!(sets.length(), 3);
-    let (_, _, existed, before, after) = rd::set_event_fields(&sets[2]);
-    assert!(existed);
-    assert_eq!(before, different_bytes);
-    assert_eq!(after, different_bytes);
-    assert_eq!(sui::bcs::to_bytes(&sets[2]).length(), 16453);
+    assert_eq!(sets.length(), 2);
+    assert_eq!(*rd::description(&rel).as_bytes(), different_bytes);
 
     rd::clear_description(&mut rel, &cap);
     let clears = event::events_by_type<rd::ReleaseDescriptionClearedEvent>();
@@ -377,8 +372,8 @@ fun event_replay_preserves_whitespace_case_and_utf8() {
 }
 
 /// An indexer can replay every successful transition using only the optional
-/// byte snapshots in the events, including a different replacement and an
-/// equal replacement, and match the stored state after each operation.
+/// byte snapshots in the events, including a different replacement, and match
+/// the stored state after each operation. Equal replacement is silent.
 #[test]
 fun event_only_optional_projector_matches_storage() {
     let ctx = &mut tx_context::dummy();
@@ -397,7 +392,7 @@ fun event_only_optional_projector_matches_storage() {
 
     rd::set_description(&mut rel, &cap, b"A different edit.".to_string());
     let sets = event::events_by_type<rd::ReleaseDescriptionSetEvent>();
-    projection = apply_set_event(projection, &sets[2]);
+    assert_eq!(sets.length(), 2);
     assert_projection_matches_storage(&projection, &rel);
 
     rd::clear_description(&mut rel, &cap);

@@ -87,21 +87,25 @@ public fun set_streaming_transcode<RecordingShare, CompositionShare>(
     let uid = self.uid_mut(cap);
     let had_transcode = df::exists(uid, ExtensionKey());
     let mut previous_quilt_id = 0;
+    let mut value_changed = true;
     if (had_transcode) {
         let previous: &StreamingTranscode = df::borrow(uid, ExtensionKey());
         previous_quilt_id = quilt(previous).quilt_id();
+        value_changed = *previous != transcode;
         *df::borrow_mut(uid, ExtensionKey()) = transcode;
     } else {
         df::add(uid, ExtensionKey(), transcode);
     };
-    emit(RecordingStreamingTranscodeSetEvent<RecordingShare, CompositionShare> {
-        recording_id,
-        composition_id,
-        admin_cap_id,
-        had_transcode,
-        previous_quilt_id,
-        quilt_id,
-    });
+    if (value_changed) {
+        emit(RecordingStreamingTranscodeSetEvent<RecordingShare, CompositionShare> {
+            recording_id,
+            composition_id,
+            admin_cap_id,
+            had_transcode,
+            previous_quilt_id,
+            quilt_id,
+        });
+    };
 }
 
 /// Removes the recording's streaming transcode reference, if present. Idempotent.

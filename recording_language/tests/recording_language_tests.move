@@ -173,8 +173,16 @@ fun set_read_replace_unset_lifecycle() {
         &rec, projected_exists, &projected_languages, projected_instrumental,
     );
 
-    // Equal replacement still emits and projects the same state.
+    // Equal replacement still writes and projects the same state, but is silent.
     rl::set_languages(&mut rec, &cap, vector[lang(b"en"), lang(b"fr")]);
+    let set_events = event::events_by_type<rl::RecordingLanguagesSetEvent<REC, COMP>>();
+    assert_eq!(set_events.length(), 1);
+    assert_projection_matches_view(
+        &rec, projected_exists, &projected_languages, projected_instrumental,
+    );
+
+    // Reordering is a replacement and preserves caller order.
+    rl::set_languages(&mut rec, &cap, vector[lang(b"fr"), lang(b"en")]);
     let set_events = event::events_by_type<rl::RecordingLanguagesSetEvent<REC, COMP>>();
     assert_eq!(set_events.length(), 2);
     project_set_event(
@@ -190,8 +198,8 @@ fun set_read_replace_unset_lifecycle() {
         &rec, projected_exists, &projected_languages, projected_instrumental,
     );
 
-    // Reordering is a replacement and preserves caller order.
-    rl::set_languages(&mut rec, &cap, vector[lang(b"fr"), lang(b"en")]);
+    // Instrumental is an attached empty value, not absence.
+    rl::set_instrumental(&mut rec, &cap);
     let set_events = event::events_by_type<rl::RecordingLanguagesSetEvent<REC, COMP>>();
     assert_eq!(set_events.length(), 3);
     project_set_event(
@@ -207,36 +215,11 @@ fun set_read_replace_unset_lifecycle() {
         &rec, projected_exists, &projected_languages, projected_instrumental,
     );
 
-    // Instrumental is an attached empty value, not absence.
+    // Equal empty replacement is silent while retaining the explicit
+    // instrumental declaration.
     rl::set_instrumental(&mut rec, &cap);
     let set_events = event::events_by_type<rl::RecordingLanguagesSetEvent<REC, COMP>>();
-    assert_eq!(set_events.length(), 4);
-    project_set_event(
-        &mut projected_exists,
-        &mut projected_languages,
-        &mut projected_instrumental,
-        &set_events[3],
-        recording_id,
-        composition_id,
-        admin_cap_id,
-    );
-    assert_projection_matches_view(
-        &rec, projected_exists, &projected_languages, projected_instrumental,
-    );
-
-    // Equal empty replacement also emits.
-    rl::set_instrumental(&mut rec, &cap);
-    let set_events = event::events_by_type<rl::RecordingLanguagesSetEvent<REC, COMP>>();
-    assert_eq!(set_events.length(), 5);
-    project_set_event(
-        &mut projected_exists,
-        &mut projected_languages,
-        &mut projected_instrumental,
-        &set_events[4],
-        recording_id,
-        composition_id,
-        admin_cap_id,
-    );
+    assert_eq!(set_events.length(), 3);
     assert_projection_matches_view(
         &rec, projected_exists, &projected_languages, projected_instrumental,
     );
@@ -272,12 +255,12 @@ fun set_read_replace_unset_lifecycle() {
     // A later set starts a fresh attached state after the clear.
     rl::set_languages(&mut rec, &cap, vector[lang(b"ja")]);
     let set_events = event::events_by_type<rl::RecordingLanguagesSetEvent<REC, COMP>>();
-    assert_eq!(set_events.length(), 6);
+    assert_eq!(set_events.length(), 4);
     project_set_event(
         &mut projected_exists,
         &mut projected_languages,
         &mut projected_instrumental,
-        &set_events[5],
+        &set_events[3],
         recording_id,
         composition_id,
         admin_cap_id,
@@ -420,18 +403,8 @@ fun exactly_max_languages_is_accepted() {
     codes.do!(|c| replacement.push_back(lang(c)));
     rl::set_languages(&mut rec, &cap, replacement);
     let set_events = event::events_by_type<rl::RecordingLanguagesSetEvent<REC, COMP>>();
-    assert_eq!(set_events.length(), 2);
-    let (_, _, _, had_languages, previous_languages, languages, language_count_before,
-        language_count_after, was_instrumental, is_instrumental, _) =
-        rl::set_event_fields(&set_events[1]);
-    assert!(had_languages);
-    assert_eq!(previous_languages, vector[b"en", b"fr", b"es", b"de", b"it", b"ja", b"ko", b"pt", b"ru", b"zh"]);
-    assert_eq!(languages, vector[b"en", b"fr", b"es", b"de", b"it", b"ja", b"ko", b"pt", b"ru", b"zh"]);
-    assert_eq!(language_count_before, 10);
-    assert_eq!(language_count_after, 10);
-    assert!(!was_instrumental);
-    assert!(!is_instrumental);
-    assert_eq!(sui::bcs::to_bytes(&set_events[1]).length(), 185);
+    assert_eq!(set_events.length(), 1);
+    assert_eq!(rl::languages(&rec).length(), 10);
 
     rl::unset_languages(&mut rec, &cap);
     let unset_events = event::events_by_type<rl::RecordingLanguagesClearedEvent<REC, COMP>>();

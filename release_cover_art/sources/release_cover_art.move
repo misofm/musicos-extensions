@@ -191,12 +191,13 @@ public fun set_cover(self: &mut Release, cap: &ReleaseAdminCap, art: CoverArt) {
     let admin_cap_id = object::id(cap).to_address();
     let track_count = self.tracks().length();
     let field_existed_before = df::exists(self.uid(), ExtensionKey());
-    let (previous, current) = {
+    let (previous, current, value_changed) = {
         let record = borrow_mut_or_init(self, cap);
         let previous = record.cover;
+        let value_changed = previous != option::some(art);
         record.cover.swap_or_fill(art);
         let current = record.cover;
-        (previous, current)
+        (previous, current, value_changed)
     };
     let (
         previous_present,
@@ -222,33 +223,35 @@ public fun set_cover(self: &mut Release, cap: &ReleaseAdminCap, art: CoverArt) {
         current_animated_sealed_dek_length,
         current_animated_sealed_dek_digest,
     ) = cover_snapshot(&current);
-    emit(ReleaseCoverArtSetEvent {
-        release_id,
-        admin_cap_id,
-        track_count,
-        field_existed_before,
-        field_exists_after: true,
-        previous_present,
-        previous_still_blob_id,
-        previous_still_is_encrypted,
-        previous_still_sealed_dek_length,
-        previous_still_sealed_dek_digest,
-        previous_has_animated,
-        previous_animated_blob_id,
-        previous_animated_is_encrypted,
-        previous_animated_sealed_dek_length,
-        previous_animated_sealed_dek_digest,
-        current_present,
-        current_still_blob_id,
-        current_still_is_encrypted,
-        current_still_sealed_dek_length,
-        current_still_sealed_dek_digest,
-        current_has_animated,
-        current_animated_blob_id,
-        current_animated_is_encrypted,
-        current_animated_sealed_dek_length,
-        current_animated_sealed_dek_digest,
-    });
+    if (value_changed) {
+        emit(ReleaseCoverArtSetEvent {
+            release_id,
+            admin_cap_id,
+            track_count,
+            field_existed_before,
+            field_exists_after: true,
+            previous_present,
+            previous_still_blob_id,
+            previous_still_is_encrypted,
+            previous_still_sealed_dek_length,
+            previous_still_sealed_dek_digest,
+            previous_has_animated,
+            previous_animated_blob_id,
+            previous_animated_is_encrypted,
+            previous_animated_sealed_dek_length,
+            previous_animated_sealed_dek_digest,
+            current_present,
+            current_still_blob_id,
+            current_still_is_encrypted,
+            current_still_sealed_dek_length,
+            current_still_sealed_dek_digest,
+            current_has_animated,
+            current_animated_blob_id,
+            current_animated_is_encrypted,
+            current_animated_sealed_dek_length,
+            current_animated_sealed_dek_digest,
+        });
+    };
 }
 
 /// Removes the album-level cover. Per-track overrides are untouched. Aborts
@@ -259,12 +262,12 @@ public fun unset_cover(self: &mut Release, cap: &ReleaseAdminCap) {
     let track_count = self.tracks().length();
     let uid = self.uid_mut(cap); // cap gate first, on every path
     assert!(df::exists(uid, ExtensionKey()), ENoCoverArt);
-    let (previous, current) = {
+    let (previous, current, value_changed) = {
         let record = df::borrow_mut<ExtensionKey, ReleaseCoverArt>(uid, ExtensionKey());
         let previous = record.cover;
         record.cover = option::none();
         let current = record.cover;
-        (previous, current)
+        (previous, current, previous != current)
     };
     let (
         previous_present,
@@ -290,33 +293,35 @@ public fun unset_cover(self: &mut Release, cap: &ReleaseAdminCap) {
         current_animated_sealed_dek_length,
         current_animated_sealed_dek_digest,
     ) = cover_snapshot(&current);
-    emit(ReleaseCoverArtUnsetEvent {
-        release_id,
-        admin_cap_id,
-        track_count,
-        field_existed_before: true,
-        field_exists_after: true,
-        previous_present,
-        previous_still_blob_id,
-        previous_still_is_encrypted,
-        previous_still_sealed_dek_length,
-        previous_still_sealed_dek_digest,
-        previous_has_animated,
-        previous_animated_blob_id,
-        previous_animated_is_encrypted,
-        previous_animated_sealed_dek_length,
-        previous_animated_sealed_dek_digest,
-        current_present,
-        current_still_blob_id,
-        current_still_is_encrypted,
-        current_still_sealed_dek_length,
-        current_still_sealed_dek_digest,
-        current_has_animated,
-        current_animated_blob_id,
-        current_animated_is_encrypted,
-        current_animated_sealed_dek_length,
-        current_animated_sealed_dek_digest,
-    });
+    if (value_changed) {
+        emit(ReleaseCoverArtUnsetEvent {
+            release_id,
+            admin_cap_id,
+            track_count,
+            field_existed_before: true,
+            field_exists_after: true,
+            previous_present,
+            previous_still_blob_id,
+            previous_still_is_encrypted,
+            previous_still_sealed_dek_length,
+            previous_still_sealed_dek_digest,
+            previous_has_animated,
+            previous_animated_blob_id,
+            previous_animated_is_encrypted,
+            previous_animated_sealed_dek_length,
+            previous_animated_sealed_dek_digest,
+            current_present,
+            current_still_blob_id,
+            current_still_is_encrypted,
+            current_still_sealed_dek_length,
+            current_still_sealed_dek_digest,
+            current_has_animated,
+            current_animated_blob_id,
+            current_animated_is_encrypted,
+            current_animated_sealed_dek_length,
+            current_animated_sealed_dek_digest,
+        });
+    };
 }
 
 /// Sets (or replaces) the cover override for a specific track (by tracklist
@@ -335,14 +340,15 @@ public fun set_track_cover(
     let selected_track = &self.tracks()[track_index];
     let recording_id = track::recording_id(selected_track).to_address();
     let composition_id = track::composition_id(selected_track).to_address();
-    let (previous, current, album) = {
+    let (previous, current, album, value_changed) = {
         let record = borrow_mut_or_init(self, cap);
         let album = record.cover;
         let slot = record.track_covers.borrow_mut(track_index);
         let previous = *slot;
+        let value_changed = previous != option::some(art);
         slot.swap_or_fill(art);
         let current = *slot;
-        (previous, current, album)
+        (previous, current, album, value_changed)
     };
     let (
         previous_present,
@@ -380,7 +386,8 @@ public fun set_track_cover(
         album_animated_sealed_dek_length,
         album_animated_sealed_dek_digest,
     ) = cover_snapshot(&album);
-    emit(ReleaseTrackCoverArtSetEvent {
+    if (value_changed) {
+        emit(ReleaseTrackCoverArtSetEvent {
         release_id,
         admin_cap_id,
         track_count,
@@ -421,7 +428,8 @@ public fun set_track_cover(
             animated_sealed_dek_length: album_animated_sealed_dek_length,
             animated_sealed_dek_digest: album_animated_sealed_dek_digest,
         },
-    });
+        });
+    };
 }
 
 /// Removes the cover override for a specific track — the track then falls
@@ -438,7 +446,7 @@ public fun unset_track_cover(self: &mut Release, cap: &ReleaseAdminCap, track_in
     let selected_track = &self.tracks()[track_index];
     let recording_id = track::recording_id(selected_track).to_address();
     let composition_id = track::composition_id(selected_track).to_address();
-    let (previous, current, album) = {
+    let (previous, current, album, value_changed) = {
         let uid = self.uid_mut(cap);
         let record = df::borrow_mut<ExtensionKey, ReleaseCoverArt>(uid, ExtensionKey());
         let album = record.cover;
@@ -446,7 +454,7 @@ public fun unset_track_cover(self: &mut Release, cap: &ReleaseAdminCap, track_in
         let previous = *slot;
         *slot = option::none();
         let current = *slot;
-        (previous, current, album)
+        (previous, current, album, previous != current)
     };
     let (
         previous_present,
@@ -484,7 +492,8 @@ public fun unset_track_cover(self: &mut Release, cap: &ReleaseAdminCap, track_in
         album_animated_sealed_dek_length,
         album_animated_sealed_dek_digest,
     ) = cover_snapshot(&album);
-    emit(ReleaseTrackCoverArtUnsetEvent {
+    if (value_changed) {
+        emit(ReleaseTrackCoverArtUnsetEvent {
         release_id,
         admin_cap_id,
         track_count,
@@ -525,7 +534,8 @@ public fun unset_track_cover(self: &mut Release, cap: &ReleaseAdminCap, track_in
             animated_sealed_dek_length: album_animated_sealed_dek_length,
             animated_sealed_dek_digest: album_animated_sealed_dek_digest,
         },
-    });
+        });
+    };
 }
 
 // === View Functions ===

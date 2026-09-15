@@ -112,12 +112,12 @@ primary_changed: bool
 ```
 
 `clear_cause = 0` is explicit `clear_genres` with `trigger_genre_id = @0x0`.
-`clear_cause = 1` is the cascade after removing the last genre, with the
-removed id as `trigger_genre_id`. The last removal emits `Removed` first with
-`field_existed_before = field_exists_after = true` and snapshots `[A] -> []`,
-then emits the cause-1 `Cleared` event after deleting the field. An absent
-explicit clear is silent. `primary_changed` is true exactly when primary
-presence or primary id changes.
+The legacy `clear_cause = 1` shape remains in the event type for wire
+compatibility, but final removal no longer emits that companion event. The
+last removal emits one `Removed` event after deleting the field, with
+`field_existed_before = true`, `field_exists_after = false`, and snapshots
+`[A] -> []`. An absent explicit clear is silent. `primary_changed` is true
+exactly when primary presence or primary id changes.
 
 ## Event bounds
 
@@ -130,10 +130,9 @@ For `b` and `a` snapshot lengths and an `n`-byte raw genre name:
 - Cleared is `216 + 32(b + a)` bytes; its maximum is 408 bytes for a six-item
   list cleared to empty.
 
-The last-removal pair is 255 bytes for Removed (`b = 1`, `a = 0`) plus 216
-bytes for the cascading Cleared event. These are event-payload bounds; the
-full snapshots intentionally add serialization and transaction gas, so clients
-should budget for the list size and name length.
+The final-removal event is 255 bytes for Removed (`b = 1`, `a = 0`). These are
+event-payload bounds; the full snapshots intentionally add serialization and
+transaction gas, so clients should budget for the list size and name length.
 
 ## Errors
 

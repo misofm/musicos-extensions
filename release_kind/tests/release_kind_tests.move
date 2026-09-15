@@ -263,16 +263,10 @@ fun set_read_replace_unset_lifecycle() {
     project_set_event(&mut projected_exists, &mut projected_kind, &set_events[1]);
     assert_projection_matches_view(&rel, projected_exists, projected_kind);
 
-    // Equal replacement is still an assignment and event, but the decoded
-    // change flag is false and the projected state remains identical.
+    // Equal replacement is still an assignment, but is silent.
     rk::set_kind(&mut rel, &cap, b"Extended Play".to_string());
     let set_events = event::events_by_type<rk::ReleaseKindSetEvent>();
-    assert_eq!(set_events.length(), 3);
-    assert_set_payload(
-        &set_events[2], release_id, release_admin_cap_id, true,
-        b"Extended Play", 13, b"Extended Play", 13, true, false,
-    );
-    project_set_event(&mut projected_exists, &mut projected_kind, &set_events[2]);
+    assert_eq!(set_events.length(), 2);
     assert_projection_matches_view(&rel, projected_exists, projected_kind);
 
     rk::unset_kind(&mut rel, &cap);
@@ -295,12 +289,12 @@ fun set_read_replace_unset_lifecycle() {
     // Removing the field permits a fresh set with an empty previous snapshot.
     rk::set_kind(&mut rel, &cap, b"Re-set".to_string());
     let set_events = event::events_by_type<rk::ReleaseKindSetEvent>();
-    assert_eq!(set_events.length(), 4);
+    assert_eq!(set_events.length(), 3);
     assert_set_payload(
-        &set_events[3], release_id, release_admin_cap_id, false, vector[], 0,
+        &set_events[2], release_id, release_admin_cap_id, false, vector[], 0,
         b"Re-set", 6, true, true,
     );
-    project_set_event(&mut projected_exists, &mut projected_kind, &set_events[3]);
+    project_set_event(&mut projected_exists, &mut projected_kind, &set_events[2]);
     assert_projection_matches_view(&rel, projected_exists, projected_kind);
     rk::unset_kind(&mut rel, &cap);
     let unset_events = event::events_by_type<rk::ReleaseKindUnsetEvent>();
@@ -454,14 +448,14 @@ fun equal_replacement_is_an_assignment_but_not_a_change() {
     rk::set_kind(&mut rel, &cap, b"EP".to_string());
 
     let events = event::events_by_type<rk::ReleaseKindSetEvent>();
-    assert_eq!(events.length(), 2);
+    assert_eq!(events.length(), 1);
     assert_set_payload(
-        &events[1], release_id, release_admin_cap_id, true,
-        b"EP", 2, b"EP", 2, true, false,
+        &events[0], release_id, release_admin_cap_id, false,
+        vector[], 0, b"EP", 2, true, true,
     );
     assert_set_bcs(
-        &events[1], release_id, release_admin_cap_id, true,
-        b"EP", 2, b"EP", 2, true, false,
+        &events[0], release_id, release_admin_cap_id, false,
+        vector[], 0, b"EP", 2, true, true,
     );
     assert_eq!(rk::kind(&rel), b"EP".to_string());
 

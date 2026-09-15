@@ -10,7 +10,7 @@ absence means that no language claim has been made.
 
 `set_languages` emits one
 `RecordingLanguagesSetEvent<RecordingShare, CompositionShare>` after the
-dynamic-field write, including equal replacements. Its fields are declared in
+dynamic-field write only when the complete ordered language vector changes. Its fields are declared in
 this exact
 order:
 
@@ -33,7 +33,9 @@ codes, not `LanguageCode` values. On insertion, `had_languages` is false,
 `previous_languages` is empty, the previous count is zero, and
 `was_instrumental` is false. On replacement, the previous vector and all
 transition fields describe the value that was present immediately before the
-write; the current vector is read back after the write.
+write; the current vector is read back after the write. A first attached empty
+vector is an explicit instrumental declaration and emits; an equal existing
+empty vector is silent, just like any other equal replacement.
 
 `unset_languages` emits one
 `RecordingLanguagesClearedEvent<RecordingShare, CompositionShare>` after

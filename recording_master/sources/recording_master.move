@@ -37,12 +37,17 @@ public fun set_master<RecordingShare, CompositionShare>(
 ) {
     let recording_id = object::id(self);
     let uid = self.uid_mut(cap);
+    let mut value_changed = true;
     if (df::exists(uid, ExtensionKey())) {
+        let previous: &Audio = df::borrow(uid, ExtensionKey());
+        value_changed = *previous != master;
         *df::borrow_mut(uid, ExtensionKey()) = master;
     } else {
         df::add(uid, ExtensionKey(), master);
     };
-    emit(MasterSetEvent { recording_id, master });
+    if (value_changed) {
+        emit(MasterSetEvent { recording_id, master });
+    };
 }
 
 /// Removes the master, if any. Idempotent; emits only when a value was removed.

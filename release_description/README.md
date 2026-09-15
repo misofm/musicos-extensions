@@ -10,8 +10,8 @@ bytes are not normalized or hashed.
 - `set_description(&mut Release, &ReleaseAdminCap, String)` validates empty
   input first and the 8192-byte maximum second, then uses the release's
   cap-gated `uid_mut`. It adds or replaces the field, including equal
-  replacement, and emits exactly one `ReleaseDescriptionSetEvent` after the
-  dynamic-field mutation.
+  replacement, and emits one `ReleaseDescriptionSetEvent` after the
+  dynamic-field mutation only when the complete description changes.
 - `clear_description(&mut Release, &ReleaseAdminCap)` authorizes through
   `uid_mut` before checking field existence. An attached value is removed and
   emits one `ReleaseDescriptionClearedEvent`; an absent value is a silent,

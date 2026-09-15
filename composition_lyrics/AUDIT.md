@@ -22,7 +22,7 @@ not an independent security audit or a publication record.
   size, verify a frame, or validate lyrics. Empty/malformed payload acceptance
   is intentional. Client decoding must enforce output and memory limits.
 - Events contain exact compressed snapshots and explicit prior presence. Equal
-  replacements emit; absent clears and views do not emit. Snapshot events add
+  replacements write silently; absent clears and views do not emit. Snapshot events add
   storage in transaction history. No payments, blob renewals, capability custody,
   external dictionary, or network calls occur in the module.
 
@@ -38,7 +38,7 @@ Using `sui 1.78.1-722ac4fcf484` and the generated Testnet lock graph:
 
 Tests exercise published/shared compositions across senders and transactions,
 independent languages, share-type isolation, exact opaque byte preservation,
-event payloads for add/different/equal replacement, clear/re-add, empty versus
+event payloads for add/different replacement, silent equal replacement, clear/re-add, empty versus
 absent entries, missing reads, and 32,768/32,769-byte boundaries. Full-size
 replacement events are exercised as well as full-size storage.
 

@@ -21,7 +21,7 @@ It uses a new module and dynamic-field key; existing fields do not migrate
 automatically. Publish it as a fresh package identity. `Published.toml` retains
 the predecessor's deployment history, not a deployment of this implementation.
 
-`audio` is pinned to commit `54d54f6cecdbba39c880c64f2caf8b277d007679`
+`audio` is pinned to commit `35acdf12ca11f5c1d02fe7afd20118913a0d9a0b`
 from `misofm/audio`, which includes the self-attested V1 API and its immutable
 Testnet publication.
 

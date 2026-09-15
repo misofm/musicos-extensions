@@ -194,12 +194,10 @@ fun set_read_replace_unset_lifecycle() {
     project_set_event(&mut projected_exists, &mut projected_quilt_id, &set_events[1]);
     assert_projection_matches_view(&recording, projected_exists, projected_quilt_id);
 
-    // Equal replacement is still an assignment and event.
+    // Equal replacement still writes the value but is silent.
     transcode::set_streaming_transcode(&mut recording, &cap, new_transcode(222));
     let set_events = event::events_by_type<transcode::RecordingStreamingTranscodeSetEvent<REC, COMP>>();
-    assert_eq!(set_events.length(), 3);
-    assert_set_payload(&set_events[2], recording_id, composition_id, admin_cap_id, true, 222, 222);
-    project_set_event(&mut projected_exists, &mut projected_quilt_id, &set_events[2]);
+    assert_eq!(set_events.length(), 2);
     assert_projection_matches_view(&recording, projected_exists, projected_quilt_id);
 
     transcode::unset_streaming_transcode(&mut recording, &cap);
@@ -219,9 +217,9 @@ fun set_read_replace_unset_lifecycle() {
     // Re-set after removal is a fresh attachment, then clear it again.
     transcode::set_streaming_transcode(&mut recording, &cap, new_transcode(333));
     let set_events = event::events_by_type<transcode::RecordingStreamingTranscodeSetEvent<REC, COMP>>();
-    assert_eq!(set_events.length(), 4);
-    assert_set_payload(&set_events[3], recording_id, composition_id, admin_cap_id, false, 0, 333);
-    project_set_event(&mut projected_exists, &mut projected_quilt_id, &set_events[3]);
+    assert_eq!(set_events.length(), 3);
+    assert_set_payload(&set_events[2], recording_id, composition_id, admin_cap_id, false, 0, 333);
+    project_set_event(&mut projected_exists, &mut projected_quilt_id, &set_events[2]);
     assert_projection_matches_view(&recording, projected_exists, projected_quilt_id);
     transcode::unset_streaming_transcode(&mut recording, &cap);
     assert!(!transcode::has_streaming_transcode(&recording));
@@ -231,22 +229,20 @@ fun set_read_replace_unset_lifecycle() {
     project_clear_event(&mut projected_exists, &mut projected_quilt_id, &clear_events[1]);
     assert_projection_matches_view(&recording, projected_exists, projected_quilt_id);
 
-    // Four 161-byte set events plus two 128-byte clear events compose exactly
-    // 900 bytes of decoded event payloads.
+    // Three 161-byte set events plus two 128-byte clear events compose exactly
+    // 739 bytes of decoded event payloads.
     assert_eq!(transcode::set_event_bcs(&set_events[0]).length(), 161);
     assert_eq!(transcode::set_event_bcs(&set_events[1]).length(), 161);
     assert_eq!(transcode::set_event_bcs(&set_events[2]).length(), 161);
-    assert_eq!(transcode::set_event_bcs(&set_events[3]).length(), 161);
     assert_eq!(transcode::clear_event_bcs(&clear_events[0]).length(), 128);
     assert_eq!(transcode::clear_event_bcs(&clear_events[1]).length(), 128);
     assert_eq!(
         transcode::set_event_bcs(&set_events[0]).length()
             + transcode::set_event_bcs(&set_events[1]).length()
             + transcode::set_event_bcs(&set_events[2]).length()
-            + transcode::set_event_bcs(&set_events[3]).length()
             + transcode::clear_event_bcs(&clear_events[0]).length()
             + transcode::clear_event_bcs(&clear_events[1]).length(),
-        900,
+        739,
     );
 
     destroy(recording);
