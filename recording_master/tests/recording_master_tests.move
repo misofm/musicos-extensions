@@ -14,7 +14,6 @@ module recording_master::recording_master_tests;
 use musicos::recording;
 use musicos::test_helpers;
 use audio::audio::{Self, Audio};
-use ori::{confidentiality, data};
 use recording_master::recording_master as master_ext;
 use std::unit_test::{assert_eq, destroy};
 use sui::event;
@@ -44,19 +43,19 @@ fun set_read_replace_unset_lifecycle() {
     master_ext::set_master(
         &mut rec,
         &cap,
-        new_audio(data::new_blob(111, confidentiality::new_unencrypted())),
+        new_audio(111),
     );
     assert!(master_ext::has_master(&rec));
-    assert_eq!(master_ext::master(&rec).data().blob_id(), 111);
+    assert_eq!(master_ext::master(&rec).blob_id(), 111);
     assert_audio_metadata(master_ext::master(&rec));
 
     // Replacing points at the new blob — a recording has one master, not a list.
     master_ext::set_master(
         &mut rec,
         &cap,
-        new_audio(data::new_blob(222, confidentiality::new_unencrypted())),
+        new_audio(222),
     );
-    assert_eq!(master_ext::master(&rec).data().blob_id(), 222);
+    assert_eq!(master_ext::master(&rec).blob_id(), 222);
     assert_audio_metadata(master_ext::master(&rec));
 
     master_ext::unset_master(&mut rec, &cap);
@@ -65,55 +64,6 @@ fun set_read_replace_unset_lifecycle() {
     // Unset is idempotent.
     master_ext::unset_master(&mut rec, &cap);
     assert!(!master_ext::has_master(&rec));
-
-    destroy(rec);
-    destroy(cap);
-}
-
-/// A sealed master is the expected shape once access control lands, and the
-/// master must carry it unchanged.
-#[test]
-fun encrypted_blob_is_accepted_and_keeps_its_dek() {
-    let ctx = &mut tx_context::dummy();
-    let (mut rec, cap) = new_rec(ctx);
-
-    master_ext::set_master(
-        &mut rec,
-        &cap,
-        new_audio(data::new_blob(333, confidentiality::new_encrypted(b"dek"))),
-    );
-
-    let r = master_ext::master(&rec).data();
-    assert!(r.blob_confidentiality().is_encrypted());
-    assert_eq!(r.blob_id(), 333);
-    assert_eq!(*r.blob_confidentiality().sealed_dek(), b"dek");
-
-    destroy(rec);
-    destroy(cap);
-}
-
-/// Replacing an encrypted master with a plain one must not leave the old
-/// sealed state behind — the whole value is swapped, not merged.
-#[test]
-fun replacing_encrypted_with_plain_clears_encryption() {
-    let ctx = &mut tx_context::dummy();
-    let (mut rec, cap) = new_rec(ctx);
-
-    master_ext::set_master(
-        &mut rec,
-        &cap,
-        new_audio(data::new_blob(1, confidentiality::new_encrypted(b"dek"))),
-    );
-    assert!(master_ext::master(&rec).data().blob_confidentiality().is_encrypted());
-
-    master_ext::set_master(
-        &mut rec,
-        &cap,
-        new_audio(data::new_blob(2, confidentiality::new_unencrypted())),
-    );
-    assert!(!master_ext::master(&rec).data().blob_confidentiality().is_encrypted());
-    assert_eq!(master_ext::master(&rec).data().blob_id(), 2);
-    assert_audio_metadata(master_ext::master(&rec));
 
     destroy(rec);
     destroy(cap);
@@ -128,7 +78,7 @@ fun masters_are_per_recording() {
     master_ext::set_master(
         &mut a,
         &a_cap,
-        new_audio(data::new_blob(9, confidentiality::new_unencrypted())),
+        new_audio(9),
     );
 
     assert!(master_ext::has_master(&a));
@@ -142,7 +92,7 @@ fun set_emits_the_audio_and_recording() {
     let ctx = &mut tx_context::dummy();
     let (mut rec, cap) = new_rec(ctx);
     let rec_id = object::id(&rec);
-    let audio = new_audio(data::new_blob(7, confidentiality::new_unencrypted()));
+    let audio = new_audio(7);
 
     // Audio construction is a pure value operation; attaching it is the
     // canonical source of the master event.
@@ -158,7 +108,7 @@ fun set_emits_the_audio_and_recording() {
     let (id, master) = master_ext::set_event_fields(&events[0]);
     assert_audio_metadata(&master);
     assert_eq!(id, rec_id);
-    assert_eq!(*master.data(), data::new_blob(7, confidentiality::new_unencrypted()));
+    assert_eq!(master.blob_id(), 7);
 
     destroy(rec);
     destroy(cap);
@@ -168,13 +118,13 @@ fun set_emits_the_audio_and_recording() {
 fun equal_master_assignment_is_silent() {
     let ctx = &mut tx_context::dummy();
     let (mut rec, cap) = new_rec(ctx);
-    let audio = new_audio(data::new_blob(17, confidentiality::new_unencrypted()));
+    let audio = new_audio(17);
 
     master_ext::set_master(&mut rec, &cap, audio);
     assert_eq!(event::events_by_type<master_ext::MasterSetEvent>().length(), 1);
     master_ext::set_master(&mut rec, &cap, audio);
     assert_eq!(event::events_by_type<master_ext::MasterSetEvent>().length(), 1);
-    assert_eq!(master_ext::master(&rec).data().blob_id(), 17);
+    assert_eq!(master_ext::master(&rec).blob_id(), 17);
 
     destroy(rec);
     destroy(cap);
@@ -190,11 +140,11 @@ fun same_blob_with_changed_audio_metadata_emits() {
         0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11];
     let first = audio::new(
         b"flac".to_string(), 2, 24, 48000, 48000, digest,
-        data::new_blob(27, confidentiality::new_unencrypted()),
+        27,
     );
     let changed = audio::new(
         b"wav".to_string(), 1, 16, 44100, 88200, vector::tabulate!(32, |_| 0x22u8),
-        data::new_blob(27, confidentiality::new_encrypted(b"dek")),
+        27,
     );
 
     master_ext::set_master(&mut rec, &cap, first);
@@ -203,35 +153,13 @@ fun same_blob_with_changed_audio_metadata_emits() {
     let events = event::events_by_type<master_ext::MasterSetEvent>();
     assert_eq!(events.length(), 2);
     let (_, master) = master_ext::set_event_fields(&events[1]);
-    assert_eq!(master.data().blob_id(), 27);
+    assert_eq!(master.blob_id(), 27);
     assert_eq!(*audio::format(&master), b"wav".to_string());
     assert_eq!(master.channels(), 1);
-    assert!(master.data().blob_confidentiality().is_encrypted());
-
-    destroy(rec);
-    destroy(cap);
-}
-
-/// An encrypted master's sealed DEK is part of the record an indexer
-/// stores, so the event must carry it through unchanged.
-#[test]
-fun set_emits_encrypted_audio_with_its_dek() {
-    let ctx = &mut tx_context::dummy();
-    let (mut rec, cap) = new_rec(ctx);
-
-    master_ext::set_master(
-        &mut rec,
-        &cap,
-        new_audio(data::new_blob(8, confidentiality::new_encrypted(b"dek"))),
-    );
-
-    let events = event::events_by_type<master_ext::MasterSetEvent>();
-    assert_eq!(events.length(), 1);
-    let (_, master) = master_ext::set_event_fields(&events[0]);
-    assert_audio_metadata(&master);
-    assert!(master.data().blob_confidentiality().is_encrypted());
-    assert_eq!(master.data().blob_id(), 8);
-    assert_eq!(*master.data().blob_confidentiality().sealed_dek(), b"dek");
+    assert_eq!(master.bit_depth(), 16);
+    assert_eq!(master.sample_rate_hz(), 44100);
+    assert_eq!(master.samples(), 88200);
+    assert_eq!(*master.pcm_digest(), vector::tabulate!(32, |_| 0x22u8));
 
     destroy(rec);
     destroy(cap);
@@ -250,7 +178,7 @@ fun unset_emits_only_when_something_was_removed() {
     master_ext::set_master(
         &mut rec,
         &cap,
-        new_audio(data::new_blob(5, confidentiality::new_unencrypted())),
+        new_audio(5),
     );
     master_ext::unset_master(&mut rec, &cap);
 
@@ -271,7 +199,7 @@ fun unset_allows_reattaching_master() {
     master_ext::set_master(
         &mut rec,
         &cap,
-        new_audio(data::new_blob(42, confidentiality::new_unencrypted())),
+        new_audio(42),
     );
     master_ext::unset_master(&mut rec, &cap);
 
@@ -281,9 +209,9 @@ fun unset_allows_reattaching_master() {
     master_ext::set_master(
         &mut rec,
         &cap,
-        new_audio(data::new_blob(43, confidentiality::new_unencrypted())),
+        new_audio(43),
     );
-    assert_eq!(master_ext::master(&rec).data().blob_id(), 43);
+    assert_eq!(master_ext::master(&rec).blob_id(), 43);
     assert_audio_metadata(master_ext::master(&rec));
 
     destroy(rec);
@@ -300,8 +228,8 @@ fun master_aborts_when_unset() {
 }
 
 /// Distinct metadata for each fixture catches stale fields when replacing a master.
-fun new_audio(blob: data::WalrusBlob): Audio {
-    let alternate = blob.blob_id() % 2 == 0;
+fun new_audio(blob_id: u256): Audio {
+    let alternate = blob_id % 2 == 0;
     audio::new(
         if (alternate) "wav" else "flac",
         if (alternate) 1 else 2,
@@ -309,12 +237,12 @@ fun new_audio(blob: data::WalrusBlob): Audio {
         if (alternate) 44100 else 48000,
         if (alternate) 88200 else 48000,
         if (alternate) vector::tabulate!(32, |_| 0x22u8) else vector::tabulate!(32, |_| 0x11u8),
-        blob,
+        blob_id,
     )
 }
 
 fun assert_audio_metadata(master: &Audio) {
-    let alternate = master.data().blob_id() % 2 == 0;
+    let alternate = master.blob_id() % 2 == 0;
     assert_eq!(*master.format(), if (alternate) "wav" else "flac");
     assert_eq!(master.channels(), if (alternate) 1 else 2);
     assert_eq!(master.bit_depth(), if (alternate) 16 else 24);

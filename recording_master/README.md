@@ -7,7 +7,7 @@ RecordingAdminCap. `has_master(recording)` and `master(recording): &Audio` are
 permissionless views. Reading an absent master aborts with `ENoMaster`.
 
 `MasterSetEvent` includes the recording ID and the complete `Audio` value,
-including its WalrusBlob and confidentiality metadata. `MasterUnsetEvent` is emitted
+including its bare Walrus blob ID. `MasterUnsetEvent` is emitted
 only when a stored master is removed. Audio has `copy`, `drop`, and `store`: copying it duplicates metadata and a blob
 reference, without duplicating the stored audio bytes.
 
@@ -21,9 +21,8 @@ It uses a new module and dynamic-field key; existing fields do not migrate
 automatically. Publish it as a fresh package identity. `Published.toml` retains
 the predecessor's deployment history, not a deployment of this implementation.
 
-`audio` is pinned to commit `35acdf12ca11f5c1d02fe7afd20118913a0d9a0b`
-from `misofm/audio`, which includes the self-attested V1 API and its immutable
-Testnet publication.
+`audio` is pinned to the exact commit recorded in `Move.toml`; it provides the
+self-attested V1 API with a bare `u256` Walrus blob ID.
 
 Run `sui move build --build-env testnet` and `sui move test --build-env testnet`
 from this directory (Mainnet can also be selected with `--build-env mainnet`).

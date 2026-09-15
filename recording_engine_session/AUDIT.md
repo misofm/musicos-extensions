@@ -1,25 +1,23 @@
 # Security review — `recording_engine_session`
 
-Reviewed 2026-09-11 for rich primitive session mutation events. Verdict: no
-exploitable findings in the reviewed source.
+Reviewed 2026-09-15 for rich primitive session mutation events and bare blob-ID
+references. Verdict: no exploitable findings in the reviewed source.
 
 ## Dependency provenance
 
 `Move.toml` pins `musicos` at
-`4cb3c926b1f9bb5103f3f7194e4e1e34b6c87840` and `ori` at
-`367ed5fe92a8b62da02c1116537cf08d111e0789`. The Testnet and Mainnet lock
-graphs resolve one copy of each dependency and pin every Git source to an exact
-40-character commit.
+`e56c4cbc0d9673f6422e365364b128d0813341ac`. The Testnet and Mainnet lock
+graphs pin the Git source to an exact 40-character commit.
 
 ## Threat model and findings
 
 Only the matching `RecordingAdminCap` type can set, replace, or unset the
-module-keyed engine session reference. The stored `EngineSession` wraps one
-`ori::data::WalrusBlob` for the Session V1 document plus a vector of `Stem`
-values, each pairing a 32-byte canonical PCM digest with its own unencrypted
-`WalrusBlob`. Constructors reject encrypted blobs, digests that are not exactly
-32 bytes, and stem vectors that are not in strictly increasing digest order
-(which also rejects duplicates), so a stored value has one canonical form.
+module-keyed engine session reference. The stored `EngineSession` carries one
+bare blob ID for the Session V1 document plus a vector of `Stem` values, each
+pairing a 32-byte canonical PCM digest with its own blob ID. Constructors reject
+digests that are not exactly 32 bytes and stem vectors that are not in strictly
+increasing digest order (which also rejects duplicates), so a stored value has
+one canonical form.
 Session and stems are one value and replace atomically. The module stores one
 session per Recording, leaves unrelated dynamic fields untouched, and emits
 the recording, composition, and admin-cap addresses. A set event carries only
@@ -40,8 +38,9 @@ wrong audio.
 ## Evidence
 
 With Sui `1.79.0`, strict warnings-as-errors builds and tests pass for Testnet
-and Mainnet: 27/27 tests. Coverage includes complete primitive snapshots for
+and Mainnet: 25/25 tests. Coverage includes complete primitive snapshots for
 insert, equal replacement, session/stem digest/blob changes, latest-value
 unset, zero and maximum `u256`, repeated stem blob IDs, independent phantom
-event streams, type-only cap behavior, constructor/guard precedence, and the
-0/1/127/128 stem BCS boundaries. Production-module coverage is 100.00%.
+event streams, type-only cap behavior, constructor validation precedence, and the
+0/1/127/128 stem BCS boundaries. Constructor validation precedence is covered;
+production-module coverage is 100.00%.

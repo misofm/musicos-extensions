@@ -6,7 +6,6 @@ module recording_engine_session::recording_engine_session_e2e_tests;
 
 use musicos::recording::{Self, Recording, RecordingAdminCap};
 use musicos::test_helpers;
-use ori::{confidentiality, data};
 use recording_engine_session::recording_engine_session as session;
 use std::unit_test::{assert_eq, destroy};
 use sui::event;
@@ -18,8 +17,8 @@ public struct COMP {}
 const ADMIN: address = @0xAD;
 const READER: address = @0x51;
 
-fun plain_blob(blob_id: u256): data::WalrusBlob {
-    data::new_blob(blob_id, confidentiality::new_unencrypted())
+fun plain_blob(blob_id: u256): u256 {
+    blob_id
 }
 
 /// One session blob plus a single stem whose digest is all zeroes.
@@ -37,7 +36,7 @@ fun new_session(blob_id: u256): session::EngineSession {
 }
 
 fun blob_id(value: &session::EngineSession): u256 {
-    session::data(value).blob_id()
+    session::blob_id(value)
 }
 
 fun publish_and_share_recording(scenario: &mut Scenario): (RecordingAdminCap<REC>, ID) {
@@ -63,7 +62,7 @@ fun lifecycle_works_on_a_published_shared_recording() {
     session::set_engine_session(&mut recording, &cap, new_session(111));
     assert_eq!(blob_id(session::engine_session(&recording)), 111);
     assert_eq!(
-        session::stem_data(&session::stems(session::engine_session(&recording))[0]).blob_id(),
+        session::stem_blob_id(&session::stems(session::engine_session(&recording))[0]),
         112,
     );
 

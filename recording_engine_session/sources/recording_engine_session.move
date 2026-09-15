@@ -7,8 +7,8 @@
 /// The Session V1 document references each source by the SHA-256 digest of its
 /// canonical PCM (engine `STEM_IDENTITY_V1`) and carries no locator. Walrus
 /// serves blobs by blob ID. `EngineSession` therefore records, next to the
-/// session blob, one `Stem` per source pairing that digest with the standalone
-/// Walrus blob holding its FLAC delivery object. A client reads one value and
+/// session blob ID, one `Stem` per source pairing that digest with the blob ID
+/// holding its FLAC delivery object. A client reads one value and
 /// can resolve every source the session names.
 ///
 /// Session and stems are one value and are replaced together: adding a source
@@ -16,8 +16,7 @@
 /// `set_engine_session`. Stems are sorted by digest and unique, so the value has
 /// exactly one canonical form for a given session.
 ///
-/// Every referenced blob is unencrypted; the constructors reject encrypted
-/// confidentiality. This extension asserts only which blobs the recording
+/// Every reference is a bare blob ID. This extension asserts only which blobs the recording
 /// administrator chose. It does not prove storage availability, document
 /// validity, that a stem decodes to its digest, or that the digests match the
 /// document's sources. Publication tooling must perform those checks before
@@ -25,7 +24,6 @@
 module recording_engine_session::recording_engine_session;
 
 use musicos::recording::{Self, Recording, RecordingAdminCap};
-use ori::data::WalrusBlob;
 use sui::bcs;
 use sui::dynamic_field as df;
 use sui::event::emit;
@@ -36,15 +34,6 @@ use sui::event::emit;
 const DIGEST_LENGTH: u64 = 32;
 
 // === Errors ===
-
-/// The supplied Miso Engine session file is encrypted.
-#[error]
-const EEncryptedEngineSession: vector<u8> =
-    b"A Miso Engine session file must be unencrypted";
-
-/// The supplied stem blob is encrypted.
-#[error]
-const EEncryptedStem: vector<u8> = b"A stem blob must be unencrypted";
 
 /// A stem digest is not exactly 32 bytes.
 #[error]
@@ -73,16 +62,16 @@ public struct Stem has copy, drop, store {
     /// `content` identity in the Session V1 document without its `sha256:`
     /// prefix.
     digest: vector<u8>,
-    /// Unencrypted standalone Walrus blob holding the stem's FLAC delivery
-    /// object, which decodes to the PCM the digest commits to.
-    data: WalrusBlob,
+    /// Standalone Walrus blob ID holding the stem's FLAC delivery object,
+    /// which decodes to the PCM the digest commits to.
+    blob_id: u256,
 }
 
 /// A Miso Engine session: the canonical Session V1 document and its stems.
 public struct EngineSession has copy, drop, store {
-    /// Unencrypted standalone Walrus blob holding the canonical Session V1
-    /// JSON document, byte for byte as the engine emitted it.
-    data: WalrusBlob,
+    /// Standalone Walrus blob ID holding the canonical Session V1 JSON
+    /// document, byte for byte as the engine emitted it.
+    blob_id: u256,
     /// Every stem the document's sources reference, sorted by digest, unique.
     stems: vector<Stem>,
 }
@@ -122,31 +111,29 @@ public struct EngineSessionUnsetEvent<phantom RecordingShare, phantom Compositio
 
 // === Public Functions ===
 
-/// Creates a stem reference from a 32-byte PCM digest and an unencrypted blob.
-public fun new_stem(digest: vector<u8>, data: WalrusBlob): Stem {
+/// Creates a stem reference from a 32-byte PCM digest and a blob ID.
+public fun new_stem(digest: vector<u8>, blob_id: u256): Stem {
     assert!(digest.length() == DIGEST_LENGTH, EInvalidStemDigest);
-    assert!(!data.blob_confidentiality().is_encrypted(), EEncryptedStem);
-    Stem { digest, data }
+    Stem { digest, blob_id }
 }
 
-/// Creates an engine session from an unencrypted session blob and its stems.
+/// Creates an engine session from a session blob ID and its stems.
 ///
 /// `stems` must be in strictly increasing digest order, which also forbids
 /// duplicates. An empty vector is valid: a Session V1 document may declare no
 /// sources.
-public fun new(data: WalrusBlob, stems: vector<Stem>): EngineSession {
-    assert!(!data.blob_confidentiality().is_encrypted(), EEncryptedEngineSession);
+public fun new(blob_id: u256, stems: vector<Stem>): EngineSession {
     let mut i = 1;
     while (i < stems.length()) {
         assert!(digest_lt(&stems[i - 1].digest, &stems[i].digest), EUnsortedStems);
         i = i + 1;
     };
-    EngineSession { data, stems }
+    EngineSession { blob_id, stems }
 }
 
-/// Returns the unencrypted Walrus blob containing the Session V1 document.
-public fun data(self: &EngineSession): &WalrusBlob {
-    &self.data
+/// Returns the Walrus blob ID containing the Session V1 document.
+public fun blob_id(self: &EngineSession): u256 {
+    self.blob_id
 }
 
 /// Returns the session's stems, sorted by digest.
@@ -159,9 +146,9 @@ public fun stem_digest(self: &Stem): &vector<u8> {
     &self.digest
 }
 
-/// Returns the unencrypted Walrus blob holding a stem's FLAC delivery object.
-public fun stem_data(self: &Stem): &WalrusBlob {
-    &self.data
+/// Returns the Walrus blob ID holding a stem's FLAC delivery object.
+public fun stem_blob_id(self: &Stem): u256 {
+    self.blob_id
 }
 
 /// Sets or replaces the recording's Miso Engine session.
@@ -178,7 +165,7 @@ public fun set_engine_session<RecordingShare, CompositionShare>(
     let (previous_session_blob_id, previous_stem_count, value_changed) = if (had_previous) {
         let previous: &EngineSession = df::borrow(uid, ExtensionKey());
         (
-            previous.data.blob_id(),
+            previous.blob_id,
             previous.stems.length(),
             *previous != session,
         )
@@ -269,14 +256,14 @@ fun digest_lt(a: &vector<u8>, b: &vector<u8>): bool {
 fun event_snapshot(
     session: &EngineSession,
 ): (u256, u64, vector<vector<u8>>, vector<u256>) {
-    let session_blob_id = session.data.blob_id();
+    let session_blob_id = session.blob_id;
     let stem_count = session.stems.length();
     let mut stem_digests = vector[];
     let mut stem_blob_ids = vector[];
     let mut i = 0;
     while (i < stem_count) {
         stem_digests.push_back(session.stems[i].digest);
-        stem_blob_ids.push_back(session.stems[i].data.blob_id());
+        stem_blob_ids.push_back(session.stems[i].blob_id);
         i = i + 1;
     };
     (session_blob_id, stem_count, stem_digests, stem_blob_ids)

@@ -6,6 +6,5 @@ authors = ["Miso Labs, Inc. (build@miso.network)"]
 
 [dependencies]
 musicos = { git = "https://github.com/misofm/musicos.git", rev = "e56c4cbc0d9673f6422e365364b128d0813341ac" }
-ori = { git = "https://github.com/unconfirmedlabs/ori.git", subdir = "move", rev = "367ed5fe92a8b62da02c1116537cf08d111e0789" }
 
-audio = { git = "https://github.com/misofm/audio.git", rev = "35acdf12ca11f5c1d02fe7afd20118913a0d9a0b" }
+audio = { git = "https://github.com/misofm/audio.git", rev = "e80913bd84bd4c6a030dafaed2cff4cfb5d8600b" }

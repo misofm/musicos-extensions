@@ -6,7 +6,6 @@ module recording_engine_session::recording_engine_session_tests;
 
 use musicos::recording;
 use musicos::test_helpers;
-use ori::{confidentiality, data};
 use recording_engine_session::recording_engine_session as session;
 use std::unit_test::{assert_eq, destroy};
 use sui::event;
@@ -37,8 +36,8 @@ fun new_recording_with_composition(
     recording::new_for_testing<REC, COMP>(composition_id, ctx)
 }
 
-fun plain_blob(blob_id: u256): data::WalrusBlob {
-    data::new_blob(blob_id, confidentiality::new_unencrypted())
+fun plain_blob(blob_id: u256): u256 {
+    blob_id
 }
 
 /// A 32-byte digest whose first byte is `lead` and whose last byte is `tail`.
@@ -88,7 +87,7 @@ fun new_session(blob_id: u256): session::EngineSession {
 }
 
 fun blob_id(value: &session::EngineSession): u256 {
-    session::data(value).blob_id()
+    session::blob_id(value)
 }
 
 #[test]
@@ -135,11 +134,11 @@ fun stems_are_stored_in_digest_order_with_their_blobs() {
     let stored = session::stems(session::engine_session(&recording));
     assert_eq!(stored.length(), 3);
     assert_eq!(*session::stem_digest(&stored[0]), digest(1, 0));
-    assert_eq!(session::stem_data(&stored[0]).blob_id(), 10);
+    assert_eq!(session::stem_blob_id(&stored[0]), 10);
     assert_eq!(*session::stem_digest(&stored[1]), digest(1, 1));
-    assert_eq!(session::stem_data(&stored[1]).blob_id(), 11);
+    assert_eq!(session::stem_blob_id(&stored[1]), 11);
     assert_eq!(*session::stem_digest(&stored[2]), digest(2, 0));
-    assert_eq!(session::stem_data(&stored[2]).blob_id(), 20);
+    assert_eq!(session::stem_blob_id(&stored[2]), 20);
 
     destroy(recording);
     destroy(cap);
@@ -170,7 +169,7 @@ fun replacing_a_session_replaces_its_stems_atomically() {
     let current = session::engine_session(&recording);
     assert_eq!(blob_id(current), 2);
     assert_eq!(session::stems(current).length(), 2);
-    assert_eq!(session::stem_data(&session::stems(current)[1]).blob_id(), 30);
+    assert_eq!(session::stem_blob_id(&session::stems(current)[1]), 30);
 
     destroy(recording);
     destroy(cap);
@@ -191,27 +190,12 @@ fun complete_u256_blob_id_domain_is_preserved() {
     );
     let stored = session::engine_session(&recording);
     assert_eq!(blob_id(stored), MAX_U256);
-    assert_eq!(session::stem_data(&session::stems(stored)[0]).blob_id(), MAX_U256);
+    assert_eq!(session::stem_blob_id(&session::stems(stored)[0]), MAX_U256);
 
     destroy(recording);
     destroy(cap);
 }
 
-#[test, expected_failure(abort_code = session::EEncryptedEngineSession)]
-fun encrypted_session_blob_is_rejected() {
-    let _ = session::new(
-        data::new_blob(333, confidentiality::new_encrypted(b"sealed-dek")),
-        vector[],
-    );
-}
-
-#[test, expected_failure(abort_code = session::EEncryptedStem)]
-fun encrypted_stem_blob_is_rejected() {
-    let _ = session::new_stem(
-        digest(0, 0),
-        data::new_blob(333, confidentiality::new_encrypted(b"sealed-dek")),
-    );
-}
 
 #[test, expected_failure(abort_code = session::EInvalidStemDigest)]
 fun short_stem_digest_is_rejected() {
@@ -549,10 +533,10 @@ fun constructors_and_views_are_silent() {
     let stem_digest = digest(3, 4);
     let stem = session::new_stem(stem_digest, plain_blob(8));
     let value = session::new(plain_blob(7), vector[stem]);
-    assert_eq!(session::data(&value).blob_id(), 7);
+    assert_eq!(session::blob_id(&value), 7);
     assert_eq!(session::stems(&value).length(), 1);
     assert_eq!(*session::stem_digest(&session::stems(&value)[0]), stem_digest);
-    assert_eq!(session::stem_data(&session::stems(&value)[0]).blob_id(), 8);
+    assert_eq!(session::stem_blob_id(&session::stems(&value)[0]), 8);
     assert_eq!(event::events_by_type<session::EngineSessionSetEvent<REC, COMP>>().length(), 0);
     assert_eq!(event::events_by_type<session::EngineSessionUnsetEvent<REC, COMP>>().length(), 0);
 }
@@ -688,17 +672,14 @@ fun bcs_sizes_match_zero_one_and_large_stem_vectors() {
 }
 
 #[test, expected_failure(abort_code = session::EInvalidStemDigest)]
-fun invalid_digest_precedes_encrypted_stem_guard() {
-    let _ = session::new_stem(
-        b"short",
-        data::new_blob(1, confidentiality::new_encrypted(b"dek")),
-    );
+fun invalid_stem_digest_is_rejected_before_session_use() {
+    let _ = session::new_stem(b"short", plain_blob(1));
 }
 
-#[test, expected_failure(abort_code = session::EEncryptedEngineSession)]
-fun encrypted_session_precedes_unsorted_stem_guard() {
+#[test, expected_failure(abort_code = session::EUnsortedStems)]
+fun unsorted_session_stems_are_rejected() {
     let _ = session::new(
-        data::new_blob(1, confidentiality::new_encrypted(b"dek")),
+        plain_blob(1),
         vector[
             session::new_stem(digest(2, 0), plain_blob(2)),
             session::new_stem(digest(1, 0), plain_blob(1)),
