@@ -43,7 +43,7 @@ fun credits_lifecycle_against_a_published_shared_release() {
     let (artist_party, artist_cap) =
         party::new(party::new_individual_kind(), b"Alice".to_string(), &clock, ts.ctx());
     let artist_id = object::id(&artist_party);
-    artist_party.share(&artist_cap);
+    artist_party.share(&artist_cap, ts.ctx());
     clock.destroy_for_testing();
 
     // === Tx 3 (FEATURED_ARTIST): registers and shares their own party ===
@@ -52,7 +52,7 @@ fun credits_lifecycle_against_a_published_shared_release() {
     let (feat_party, feat_cap) =
         party::new(party::new_individual_kind(), b"Bob".to_string(), &clock, ts.ctx());
     let feat_id = object::id(&feat_party);
-    feat_party.share(&feat_cap);
+    feat_party.share(&feat_cap, ts.ctx());
     clock.destroy_for_testing();
 
     // === Tx 4 (LABEL): credits both parties on the now-published, shared release ===
