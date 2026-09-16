@@ -18,6 +18,7 @@ use cover_art::cover_art as cover;
 use musicos::release::{Self, Release, ReleaseAdminCap};
 use musicos::test_helpers;
 use musicos::track::{Self, Track};
+use release_cover_art::cover_art_fixtures as fixtures;
 use release_cover_art::release_cover_art;
 use std::unit_test::{assert_eq, destroy};
 use sui::event;
@@ -65,7 +66,7 @@ fun setup_published_release(ts: &mut Scenario): ReleaseAdminCap {
 /// The flagship path: ADMIN publishes the release, attaches an album cover
 /// and a track override, a disinterested READER resolves the effective
 /// cover for every track, and ADMIN then clears the override and the album
-/// cover — all against the shared object, across five transactions, with
+/// cover — all against the shared object, across four transactions, with
 /// exact event payload assertions at each write.
 #[test]
 fun cover_art_lifecycle_against_published_shared_release() {
@@ -78,7 +79,7 @@ fun cover_art_lifecycle_against_published_shared_release() {
     let rel_id = object::id(&rel).to_address();
     assert!(!release_cover_art::has_cover_art(&rel));
 
-    let album_art = cover::new_for_testing();
+    let album_art = fixtures::plain(100);
     release_cover_art::set_cover(&mut rel, &rel_cap, album_art);
     assert!(release_cover_art::has_cover_art(&rel));
     assert_eq!(*release_cover_art::cover(&rel), option::some(album_art));
@@ -93,7 +94,7 @@ fun cover_art_lifecycle_against_published_shared_release() {
     assert!(!event_field_before);
     assert!(event_field_after);
 
-    let track1_art = cover::new_for_testing();
+    let track1_art = fixtures::plain(200);
     release_cover_art::set_track_cover(&mut rel, &rel_cap, 1, track1_art);
 
     let track_set_events = event::events_by_type<release_cover_art::ReleaseTrackCoverArtSetEvent>();

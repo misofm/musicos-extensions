@@ -36,3 +36,20 @@ transitive `ori` package to the manifest. The exercised tests cover the
 published/shared Release flow, wrong-cap attempts, album and track lifecycle,
 bounds, fallback, canonical absent/plaintext/animated snapshots, BCS field
 decoding, and event cardinality.
+
+## Regression coverage update — 2026-09-16
+
+The unit and shared-object precedence tests now use distinct album and track
+covers and assert exact resolved values. The unit lifecycle also checks that
+replacing or removing the album preserves its track override, and that removing
+the override restores the current album cover. Both tests fail when the resolver
+is deliberately changed to prefer the album over an existing track override.
+
+The v1 fixtures use distinct plaintext blob references through production `ori`
+constructors, available via a test-mode dependency at the existing transitive
+revision `367ed5fe92a8b62da02c1116537cf08d111e0789`. Encryption-specific test
+additions are outside the v1 scope.
+
+With Sui 1.79.0, strict lint/warnings-as-errors tests pass 20/20 for both Testnet
+and Mainnet. The deliberate precedence mutation fails exactly the two corrected
+tests; the other 18 pass. Production Move source is unchanged.

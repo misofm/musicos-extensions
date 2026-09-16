@@ -8,3 +8,4 @@ authors = ["Miso Labs, Inc. (build@miso.network)"]
 cover_art = { git = "https://github.com/misofm/cover-art.git", rev = "73bc4f9e7b20e7bf1cdd54f6b7393defd549ddb2" }
 musicos = { git = "https://github.com/misofm/musicos.git", rev = "eafd01ab1f57ed84f9660beb142d34c98fa9fd04" }
 per_track = { git = "https://github.com/misofm/per-track.git", rev = "8bbade350d5870c8528c8ddfcad37679f7588ed5" }
+ori = { git = "https://github.com/unconfirmedlabs/ori.git", rev = "367ed5fe92a8b62da02c1116537cf08d111e0789", subdir = "move", modes = ["test"] }
