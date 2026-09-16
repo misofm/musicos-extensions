@@ -17,6 +17,7 @@ use cover_art::cover_art as cover;
 use musicos::release::{Release, ReleaseAdminCap};
 use musicos::test_helpers;
 use musicos::track;
+use release_cover_art::cover_art_fixtures as fixtures;
 use release_cover_art::release_cover_art;
 use std::unit_test::{assert_eq, destroy};
 use sui::bcs::{Self, BCS};
@@ -149,23 +150,41 @@ fun track_cover_override_resolves_over_album() {
     let mut ts = test_scenario::begin(A);
     let (mut rel, cap) = mk_release(ts.ctx());
 
-    release_cover_art::set_cover(&mut rel, &cap, cover::new_for_testing());
+    let album = fixtures::plain(100);
+    let override = fixtures::plain(200);
+    let replacement = fixtures::plain(300);
+    release_cover_art::set_cover(&mut rel, &cap, album);
 
     // No override yet: every track resolves to the album cover.
-    assert!(release_cover_art::track_cover(&rel, 0).is_some());
-    assert!(release_cover_art::track_cover(&rel, 2).is_some());
+    assert_eq!(release_cover_art::track_cover(&rel, 0), option::some(album));
+    assert_eq!(release_cover_art::track_cover(&rel, 2), option::some(album));
 
     // Set an override on track 1.
-    release_cover_art::set_track_cover(&mut rel, &cap, 1, cover::new_for_testing());
-    assert!(release_cover_art::track_cover(&rel, 1).is_some());
+    release_cover_art::set_track_cover(&mut rel, &cap, 1, override);
+    assert_eq!(release_cover_art::track_cover(&rel, 0), option::some(album));
+    assert_eq!(release_cover_art::track_cover(&rel, 1), option::some(override));
+    assert_eq!(release_cover_art::track_cover(&rel, 2), option::some(album));
+
+    // Replacing or clearing the album must preserve the independent override.
+    release_cover_art::set_cover(&mut rel, &cap, replacement);
+    assert_eq!(release_cover_art::track_cover(&rel, 0), option::some(replacement));
+    assert_eq!(release_cover_art::track_cover(&rel, 1), option::some(override));
+    assert_eq!(release_cover_art::track_cover(&rel, 2), option::some(replacement));
+    release_cover_art::unset_cover(&mut rel, &cap);
+    assert_eq!(release_cover_art::track_cover(&rel, 0), option::none());
+    assert_eq!(release_cover_art::track_cover(&rel, 1), option::some(override));
+    assert_eq!(release_cover_art::track_cover(&rel, 2), option::none());
+    release_cover_art::set_cover(&mut rel, &cap, replacement);
 
     // Clear it; track 1 falls back to the album cover.
     release_cover_art::unset_track_cover(&mut rel, &cap, 1);
-    assert!(release_cover_art::track_cover(&rel, 1).is_some());
+    assert_eq!(release_cover_art::track_cover(&rel, 1), option::some(replacement));
 
     // With the album cover unset and no override, a track resolves to none.
     release_cover_art::unset_cover(&mut rel, &cap);
-    assert!(release_cover_art::track_cover(&rel, 0).is_none());
+    assert_eq!(release_cover_art::track_cover(&rel, 0), option::none());
+    assert_eq!(release_cover_art::track_cover(&rel, 1), option::none());
+    assert_eq!(release_cover_art::track_cover(&rel, 2), option::none());
 
     destroy(rel);
     destroy(cap);
