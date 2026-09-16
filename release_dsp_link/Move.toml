@@ -5,5 +5,5 @@ license = "Apache 2.0"
 authors = ["Miso Labs, Inc. (build@miso.network)"]
 
 [dependencies]
-musicos = { git = "https://github.com/misofm/musicos.git", rev = "eafd01ab1f57ed84f9660beb142d34c98fa9fd04" }
-per_track = { git = "https://github.com/misofm/per-track.git", rev = "8bbade350d5870c8528c8ddfcad37679f7588ed5" }
+musicos = { git = "https://github.com/misofm/musicos.git", rev = "f7a2be77ecc4429a1c5ff70800490b1946b1defb" }
+per_track = { git = "https://github.com/misofm/per-track.git", rev = "cce620bf3dcd73de5e8c6e1baf09ec988c365e6e" }
