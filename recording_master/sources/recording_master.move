@@ -18,14 +18,16 @@ const ENoMaster: u64 = 1;
 /// Dynamic-field key — one master per recording.
 public struct ExtensionKey() has copy, drop, store;
 
-/// Emitted when a master is set or replaced, carrying the complete audio value.
-public struct MasterSetEvent has copy, drop {
+/// Emitted when a master is set or replaced, carrying the recording's authentic
+/// share-type identity and the complete audio value.
+public struct MasterSetEvent<phantom RecordingShare, phantom CompositionShare> has copy, drop {
     recording_id: ID,
     master: Audio,
 }
 
-/// Emitted when an existing master is removed.
-public struct MasterUnsetEvent has copy, drop {
+/// Emitted when an existing master is removed, carrying the recording's
+/// authentic share-type identity.
+public struct MasterUnsetEvent<phantom RecordingShare, phantom CompositionShare> has copy, drop {
     recording_id: ID,
 }
 
@@ -46,7 +48,7 @@ public fun set_master<RecordingShare, CompositionShare>(
         df::add(uid, ExtensionKey(), master);
     };
     if (value_changed) {
-        emit(MasterSetEvent { recording_id, master });
+        emit(MasterSetEvent<RecordingShare, CompositionShare> { recording_id, master });
     };
 }
 
@@ -59,7 +61,7 @@ public fun unset_master<RecordingShare, CompositionShare>(
     let uid = self.uid_mut(cap);
     if (df::exists(uid, ExtensionKey())) {
         let _: Audio = df::remove(uid, ExtensionKey());
-        emit(MasterUnsetEvent { recording_id });
+        emit(MasterUnsetEvent<RecordingShare, CompositionShare> { recording_id });
     }
 }
 
@@ -79,9 +81,15 @@ public fun master<RecordingShare, CompositionShare>(
 }
 
 #[test_only]
-public fun set_event_fields(e: &MasterSetEvent): (ID, Audio) {
+public fun set_event_fields<RecordingShare, CompositionShare>(
+    e: &MasterSetEvent<RecordingShare, CompositionShare>,
+): (ID, Audio) {
     (e.recording_id, e.master)
 }
 
 #[test_only]
-public fun unset_event_recording_id(e: &MasterUnsetEvent): ID { e.recording_id }
+public fun unset_event_recording_id<RecordingShare, CompositionShare>(
+    e: &MasterUnsetEvent<RecordingShare, CompositionShare>,
+): ID {
+    e.recording_id
+}

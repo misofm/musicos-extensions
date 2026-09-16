@@ -66,7 +66,7 @@ fun full_lifecycle_on_published_and_shared_recording() {
     assert_eq!(master_ext::master(&rec).blob_id(), 111);
     assert_audio_metadata(master_ext::master(&rec));
 
-    let events = event::events_by_type<master_ext::MasterSetEvent>();
+    let events = event::events_by_type<master_ext::MasterSetEvent<REC, COMP>>();
     assert_eq!(events.length(), 1);
     let (id, master) = master_ext::set_event_fields(&events[0]);
     assert_audio_metadata(&master);
@@ -96,7 +96,7 @@ fun full_lifecycle_on_published_and_shared_recording() {
 
     // `next_tx` resets the recorded event log — a fresh single-element feed,
     // exactly as a real indexer would see one transaction's events at a time.
-    let events = event::events_by_type<master_ext::MasterSetEvent>();
+    let events = event::events_by_type<master_ext::MasterSetEvent<REC, COMP>>();
     assert_eq!(events.length(), 1);
     let (id, master) = master_ext::set_event_fields(&events[0]);
     assert_audio_metadata(&master);
@@ -117,7 +117,7 @@ fun full_lifecycle_on_published_and_shared_recording() {
     master_ext::unset_master(&mut rec, &cap);
     assert!(!master_ext::has_master(&rec));
 
-    let unset_events = event::events_by_type<master_ext::MasterUnsetEvent>();
+    let unset_events = event::events_by_type<master_ext::MasterUnsetEvent<REC, COMP>>();
     assert_eq!(unset_events.length(), 1);
     assert_eq!(master_ext::unset_event_recording_id(&unset_events[0]), rec_id);
 

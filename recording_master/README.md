@@ -6,9 +6,13 @@ Recording. `set_master(recording, cap, audio)` sets or replaces the entire value
 RecordingAdminCap. `has_master(recording)` and `master(recording): &Audio` are
 permissionless views. Reading an absent master aborts with `ENoMaster`.
 
-`MasterSetEvent` includes the recording ID and the complete `Audio` value,
-including its bare Walrus blob ID. `MasterUnsetEvent` is emitted
-only when a stored master is removed. Audio has `copy`, `drop`, and `store`: copying it duplicates metadata and a blob
+`MasterSetEvent<RecordingShare, CompositionShare>` includes the recording ID and
+the complete `Audio` value, including its bare Walrus blob ID.
+`MasterUnsetEvent<RecordingShare, CompositionShare>` is emitted only when a
+stored master is removed. The phantom parameters come directly from the
+mutated `Recording`, so the event type carries authentic recording identity
+without duplicating singleton type names in its payload. Audio has `copy`,
+`drop`, and `store`: copying it duplicates metadata and a blob
 reference, without duplicating the stored audio bytes.
 
 The PCM digest uses unkeyed BLAKE3 with the default 32-byte output, as specified

@@ -88,6 +88,30 @@ fun masters_are_per_recording() {
 }
 
 #[test]
+fun master_events_are_partitioned_by_recording_share_types() {
+    let ctx = &mut tx_context::dummy();
+    let (mut a, a_cap) = new_rec(ctx);
+    let (mut b, b_cap) = recording::new_for_testing<OTHER_REC, COMP>(
+        test_helpers::fake_id(ctx),
+        ctx,
+    );
+
+    master_ext::set_master(&mut a, &a_cap, new_audio(9));
+    master_ext::set_master(&mut b, &b_cap, new_audio(10));
+
+    let a_events = event::events_by_type<master_ext::MasterSetEvent<REC, COMP>>();
+    let b_events = event::events_by_type<master_ext::MasterSetEvent<OTHER_REC, COMP>>();
+    assert_eq!(a_events.length(), 1);
+    assert_eq!(b_events.length(), 1);
+    let (a_id, _) = master_ext::set_event_fields(&a_events[0]);
+    let (b_id, _) = master_ext::set_event_fields(&b_events[0]);
+    assert_eq!(a_id, object::id(&a));
+    assert_eq!(b_id, object::id(&b));
+
+    destroy(a); destroy(a_cap); destroy(b); destroy(b_cap);
+}
+
+#[test]
 fun set_emits_the_audio_and_recording() {
     let ctx = &mut tx_context::dummy();
     let (mut rec, cap) = new_rec(ctx);
@@ -103,7 +127,7 @@ fun set_emits_the_audio_and_recording() {
 
     // The event is the indexer's whole feed: it must carry the audio
     // itself, not just a pointer back to the object.
-    let events = event::events_by_type<master_ext::MasterSetEvent>();
+    let events = event::events_by_type<master_ext::MasterSetEvent<REC, COMP>>();
     assert_eq!(events.length(), 1);
     let (id, master) = master_ext::set_event_fields(&events[0]);
     assert_audio_metadata(&master);
@@ -121,9 +145,9 @@ fun equal_master_assignment_is_silent() {
     let audio = new_audio(17);
 
     master_ext::set_master(&mut rec, &cap, audio);
-    assert_eq!(event::events_by_type<master_ext::MasterSetEvent>().length(), 1);
+    assert_eq!(event::events_by_type<master_ext::MasterSetEvent<REC, COMP>>().length(), 1);
     master_ext::set_master(&mut rec, &cap, audio);
-    assert_eq!(event::events_by_type<master_ext::MasterSetEvent>().length(), 1);
+    assert_eq!(event::events_by_type<master_ext::MasterSetEvent<REC, COMP>>().length(), 1);
     assert_eq!(master_ext::master(&rec).blob_id(), 17);
 
     destroy(rec);
@@ -148,9 +172,9 @@ fun same_blob_with_changed_audio_metadata_emits() {
     );
 
     master_ext::set_master(&mut rec, &cap, first);
-    assert_eq!(event::events_by_type<master_ext::MasterSetEvent>().length(), 1);
+    assert_eq!(event::events_by_type<master_ext::MasterSetEvent<REC, COMP>>().length(), 1);
     master_ext::set_master(&mut rec, &cap, changed);
-    let events = event::events_by_type<master_ext::MasterSetEvent>();
+    let events = event::events_by_type<master_ext::MasterSetEvent<REC, COMP>>();
     assert_eq!(events.length(), 2);
     let (_, master) = master_ext::set_event_fields(&events[1]);
     assert_eq!(master.blob_id(), 27);
@@ -173,7 +197,7 @@ fun unset_emits_only_when_something_was_removed() {
 
     // Nothing attached — a no-op must stay silent.
     master_ext::unset_master(&mut rec, &cap);
-    assert_eq!(event::events_by_type<master_ext::MasterUnsetEvent>().length(), 0);
+    assert_eq!(event::events_by_type<master_ext::MasterUnsetEvent<REC, COMP>>().length(), 0);
 
     master_ext::set_master(
         &mut rec,
@@ -182,7 +206,7 @@ fun unset_emits_only_when_something_was_removed() {
     );
     master_ext::unset_master(&mut rec, &cap);
 
-    let events = event::events_by_type<master_ext::MasterUnsetEvent>();
+    let events = event::events_by_type<master_ext::MasterUnsetEvent<REC, COMP>>();
     assert_eq!(events.length(), 1);
     assert_eq!(master_ext::unset_event_recording_id(&events[0]), rec_id);
 
