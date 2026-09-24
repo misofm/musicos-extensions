@@ -78,3 +78,6 @@ time (`EC04007`, invalid `cap` argument).
 
 Validation is local; no Mainnet build against a published dependency graph,
 live gas measurement, or deployment was performed.
+
+Event `composition_id` fields are typed `ID` rather than `address`, and emit
+sites pass the object id directly; BCS layout and sizes are unchanged.

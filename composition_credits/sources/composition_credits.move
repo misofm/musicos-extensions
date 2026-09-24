@@ -61,15 +61,15 @@ public struct CompositionCredits has store {
 /// Emitted when a party is credited, with the roles as stored; the display
 /// name stays in storage.
 public struct CompositionCreditAddedEvent<phantom CompositionShare> has copy, drop {
-    composition_id: address,
-    party_id: address,
+    composition_id: ID,
+    party_id: ID,
     roles: vector<CompositionPartyRole>,
 }
 
 /// Emitted when a party's credit is removed.
 public struct CompositionCreditRemovedEvent<phantom CompositionShare> has copy, drop {
-    composition_id: address,
-    party_id: address,
+    composition_id: ID,
+    party_id: ID,
 }
 
 // === Public Functions ===
@@ -86,7 +86,7 @@ public fun add_credit<CompositionShare>(
 ) {
     assert!(credit.roles().length() <= MAX_ROLES_PER_CREDIT, EExceedsMaxRoles);
 
-    let composition_id = object::id(self).to_address();
+    let composition_id = object::id(self);
     let party_id = object::id(party);
     let roles = *credit.roles();
     let cc = borrow_mut_or_init(self.uid_mut(cap));
@@ -94,11 +94,7 @@ public fun add_credit<CompositionShare>(
     assert!(!cc.credits.contains(&party_id), EPartyAlreadyCredited);
     cc.credits.insert(party_id, credit);
 
-    emit(CompositionCreditAddedEvent<CompositionShare> {
-        composition_id,
-        party_id: party_id.to_address(),
-        roles,
-    });
+    emit(CompositionCreditAddedEvent<CompositionShare> { composition_id, party_id, roles });
 }
 
 /// Removes a party's credit. Aborts when no record is attached or the party
@@ -108,15 +104,12 @@ public fun remove_credit<CompositionShare>(
     cap: &CompositionAdminCap<CompositionShare>,
     party_id: ID,
 ) {
-    let composition_id = object::id(self).to_address();
+    let composition_id = object::id(self);
     let cc = borrow_mut(self.uid_mut(cap));
     assert!(cc.credits.contains(&party_id), EPartyNotCredited);
     let (_, _) = cc.credits.remove(&party_id);
 
-    emit(CompositionCreditRemovedEvent<CompositionShare> {
-        composition_id,
-        party_id: party_id.to_address(),
-    });
+    emit(CompositionCreditRemovedEvent<CompositionShare> { composition_id, party_id });
 }
 
 // === View Functions ===
@@ -157,13 +150,13 @@ fun borrow_mut_or_init(uid: &mut UID): &mut CompositionCredits {
 #[test_only]
 public fun added_event_fields<CompositionShare>(
     e: &CompositionCreditAddedEvent<CompositionShare>,
-): (address, address, vector<CompositionPartyRole>) {
+): (ID, ID, vector<CompositionPartyRole>) {
     (e.composition_id, e.party_id, e.roles)
 }
 
 #[test_only]
 public fun removed_event_fields<CompositionShare>(
     e: &CompositionCreditRemovedEvent<CompositionShare>,
-): (address, address) {
+): (ID, ID) {
     (e.composition_id, e.party_id)
 }

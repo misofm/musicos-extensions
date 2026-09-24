@@ -45,13 +45,13 @@ public struct ExtensionKey() has copy, drop, store;
 /// Emitted when a release's description is set or replaced with a different
 /// value.
 public struct ReleaseDescriptionSetEvent has copy, drop {
-    release_id: address,
+    release_id: ID,
     description: String,
 }
 
 /// Emitted when an attached description is removed.
 public struct ReleaseDescriptionClearedEvent has copy, drop {
-    release_id: address,
+    release_id: ID,
 }
 
 // === Public Functions ===
@@ -65,7 +65,7 @@ public fun set_description(self: &mut Release, cap: &ReleaseAdminCap, descriptio
     assert!(!description.is_empty(), EEmptyDescription);
     assert!(description.length() <= MAX_DESCRIPTION_LENGTH, EDescriptionTooLong);
 
-    let release_id = object::id(self).to_address();
+    let release_id = object::id(self);
     let uid = self.uid_mut(cap);
     if (df::exists(uid, ExtensionKey())) {
         let stored: &mut String = df::borrow_mut(uid, ExtensionKey());
@@ -80,7 +80,7 @@ public fun set_description(self: &mut Release, cap: &ReleaseAdminCap, descriptio
 /// Removes the description, if any. Authorizes first; an absent description
 /// is a silent no-op.
 public fun clear_description(self: &mut Release, cap: &ReleaseAdminCap) {
-    let release_id = object::id(self).to_address();
+    let release_id = object::id(self);
     let uid = self.uid_mut(cap);
     if (df::exists(uid, ExtensionKey())) {
         let _: String = df::remove(uid, ExtensionKey());
@@ -105,11 +105,11 @@ public fun description(self: &Release): &String {
 // === Test Functions ===
 
 #[test_only]
-public fun description_set_event_fields(e: &ReleaseDescriptionSetEvent): (address, String) {
+public fun description_set_event_fields(e: &ReleaseDescriptionSetEvent): (ID, String) {
     (e.release_id, e.description)
 }
 
 #[test_only]
-public fun description_cleared_event_fields(e: &ReleaseDescriptionClearedEvent): address {
+public fun description_cleared_event_fields(e: &ReleaseDescriptionClearedEvent): ID {
     e.release_id
 }

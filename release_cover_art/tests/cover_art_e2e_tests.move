@@ -63,7 +63,7 @@ fun setup_published_release(ts: &mut Scenario): ReleaseAdminCap {
 /// Event fields, compared one at a time.
 fun assert_set_event(
     e: &ReleaseCoverArtSetEvent,
-    release_id: address,
+    release_id: ID,
     still_blob_id: u256,
     animated_blob_id: Option<u256>,
 ) {
@@ -75,7 +75,7 @@ fun assert_set_event(
 
 fun assert_track_set_event(
     e: &ReleaseTrackCoverArtSetEvent,
-    release_id: address,
+    release_id: ID,
     track_index: u64,
     still_blob_id: u256,
     animated_blob_id: Option<u256>,
@@ -90,7 +90,7 @@ fun assert_track_set_event(
 
 fun assert_track_cleared_event(
     e: &ReleaseTrackCoverArtClearedEvent,
-    release_id: address,
+    release_id: ID,
     track_index: u64,
 ) {
     let (event_release_id, event_index) = release_cover_art::track_cleared_event_fields(e);
@@ -106,7 +106,7 @@ fun cover_art_lifecycle_against_published_shared_release() {
     // === Tx 2 (ADMIN): attach the album cover and a track override ===
     ts.next_tx(ADMIN);
     let mut rel = ts.take_shared<Release>();
-    let rel_id = object::id(&rel).to_address();
+    let rel_id = object::id(&rel);
     assert!(!release_cover_art::has_cover_art(&rel));
 
     let album_art = fixtures::plain(100);

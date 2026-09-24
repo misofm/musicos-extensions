@@ -32,7 +32,7 @@ fun credits_lifecycle_against_a_published_shared_release() {
 
     // === Tx 1 (LABEL): create and publish the release — shares it ===
     let (rel, rel_cap) = release::new_for_testing(vector[], ts.ctx());
-    let rel_id = object::id(&rel).to_address();
+    let rel_id = object::id(&rel);
     rel.publish(&rel_cap);
 
     // === Tx 2 (ARTIST): registers and shares their own party ===
@@ -70,11 +70,11 @@ fun credits_lifecycle_against_a_published_shared_release() {
     assert_eq!(events.length(), 2);
     let (event_object, event_party, event_roles) = credits::added_event_fields(&events[0]);
     assert_eq!(event_object, rel_id);
-    assert_eq!(event_party, artist_id.to_address());
+    assert_eq!(event_party, artist_id);
     assert_eq!(event_roles, vector[rpr::new_primary_role()]);
     let (event_object, event_party, event_roles) = credits::added_event_fields(&events[1]);
     assert_eq!(event_object, rel_id);
-    assert_eq!(event_party, feat_id.to_address());
+    assert_eq!(event_party, feat_id);
     assert_eq!(event_roles, vector[rpr::new_featured_role()]);
     assert_eq!(credits::credits(&rel)[&artist_id], alice);
     assert_eq!(credits::credits(&rel)[&feat_id], bob);
@@ -96,7 +96,7 @@ fun credits_lifecycle_against_a_published_shared_release() {
     assert_eq!(removed_events.length(), 1);
     let (event_object, event_party) = credits::removed_event_fields(&removed_events[0]);
     assert_eq!(event_object, rel_id);
-    assert_eq!(event_party, artist_id.to_address());
+    assert_eq!(event_party, artist_id);
 
     test_scenario::return_shared(rel);
 

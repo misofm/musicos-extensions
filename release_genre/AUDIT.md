@@ -96,3 +96,6 @@ wrong caps on add, remove (absent and present) and clear, duplicate and
 capacity bounds, promotion, field reclamation, reorder via clear and re-add,
 per-release isolation, an event-only replay projection, and exact event BCS
 layouts.
+
+Event `release_id`/`genre_id` fields are typed `ID` rather than `address`, and
+emit sites pass object ids directly; BCS layout and sizes are unchanged.

@@ -45,3 +45,6 @@ inclusive 1- and 300-byte bounds, the 301-byte and empty aborts, validation
 before stored-state checks, equal-set silence, absent-clear silence, exact
 event payloads at the minimum, multi-byte UTF-8, and maximum sizes, and
 per-recording isolation of both storage and event streams.
+
+Event `recording_id` fields are typed `ID` rather than `address`, and emit
+sites pass the object id directly; BCS layout and sizes are unchanged.

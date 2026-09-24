@@ -43,13 +43,13 @@ public struct ExtensionKey() has copy, drop, store;
 
 /// Emitted when a release's kind is set or replaced with a different value.
 public struct ReleaseKindSetEvent has copy, drop {
-    release_id: address,
+    release_id: ID,
     kind: String,
 }
 
 /// Emitted when an attached kind is removed.
 public struct ReleaseKindClearedEvent has copy, drop {
-    release_id: address,
+    release_id: ID,
 }
 
 // === Public Functions ===
@@ -62,7 +62,7 @@ public fun set_kind(self: &mut Release, cap: &ReleaseAdminCap, kind: String) {
     assert!(!kind.is_empty(), EEmptyKind);
     assert!(kind.length() <= MAX_KIND_LENGTH, EKindTooLong);
 
-    let release_id = object::id(self).to_address();
+    let release_id = object::id(self);
     let uid = self.uid_mut(cap);
     if (df::exists(uid, ExtensionKey())) {
         let stored: &mut String = df::borrow_mut(uid, ExtensionKey());
@@ -77,7 +77,7 @@ public fun set_kind(self: &mut Release, cap: &ReleaseAdminCap, kind: String) {
 /// Removes the kind, if any. Authorizes first; an absent kind is a silent
 /// no-op.
 public fun clear_kind(self: &mut Release, cap: &ReleaseAdminCap) {
-    let release_id = object::id(self).to_address();
+    let release_id = object::id(self);
     let uid = self.uid_mut(cap);
     if (df::exists(uid, ExtensionKey())) {
         let _: String = df::remove(uid, ExtensionKey());
@@ -101,11 +101,11 @@ public fun kind(self: &Release): &String {
 // === Test Functions ===
 
 #[test_only]
-public fun kind_set_event_fields(e: &ReleaseKindSetEvent): (address, String) {
+public fun kind_set_event_fields(e: &ReleaseKindSetEvent): (ID, String) {
     (e.release_id, e.kind)
 }
 
 #[test_only]
-public fun kind_cleared_event_fields(e: &ReleaseKindClearedEvent): address {
+public fun kind_cleared_event_fields(e: &ReleaseKindClearedEvent): ID {
     e.release_id
 }

@@ -53,7 +53,7 @@ fun full_lifecycle_on_published_and_shared_recording() {
     // --- Tx 2 (ADMIN): attach the master to the shared recording ---
     ts.next_tx(ADMIN);
     let mut rec = ts.take_shared<Recording<REC>>();
-    let rec_id = object::id(&rec).to_address();
+    let rec_id = object::id(&rec);
     assert!(!master_ext::has_master(&rec));
 
     master_ext::set_master(&mut rec, &cap, new_audio(111));

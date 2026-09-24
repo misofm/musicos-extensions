@@ -37,8 +37,8 @@ Both events are generic over `RecordingShare` only.
 
 | Event | Fields | BCS bytes |
 |---|---|---|
-| `RecordingVersionSetEvent<RecordingShare>` | `recording_id: address`, `version: String` | `32 + U(n) + n` for `n` bytes: 34 minimum, 334 maximum |
-| `RecordingVersionClearedEvent<RecordingShare>` | `recording_id: address` | 32 |
+| `RecordingVersionSetEvent<RecordingShare>` | `recording_id: ID`, `version: String` | `32 + U(n) + n` for `n` bytes: 34 minimum, 334 maximum |
+| `RecordingVersionClearedEvent<RecordingShare>` | `recording_id: ID` | 32 |
 
 `U(n)` is the ULEB128 length prefix: one byte below 128 bytes, two at the
 300-byte maximum. An equal set and an absent clear emit nothing, so every

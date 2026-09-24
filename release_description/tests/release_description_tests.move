@@ -34,7 +34,7 @@ fun repeated(byte: u8, n: u64): String {
 /// `release_id` (32) then the description as a ULEB128-prefixed byte vector.
 fun assert_set_event(
     event: &rd::ReleaseDescriptionSetEvent,
-    release_id: address,
+    release_id: ID,
     description: &String,
 ) {
     let (event_release_id, event_description) = rd::description_set_event_fields(event);
@@ -42,17 +42,17 @@ fun assert_set_event(
     assert_eq!(event_description, *description);
 
     let mut bytes = bcs::new(bcs::to_bytes(event));
-    assert_eq!(bytes.peel_address(), release_id);
+    assert_eq!(bytes.peel_address().to_id(), release_id);
     assert_eq!(bytes.peel_vec_u8(), *description.as_bytes());
     assert!(bytes.into_remainder_bytes().is_empty());
 }
 
 /// Asserts the cleared event's field and its exact 32-byte BCS layout.
-fun assert_cleared_event(event: &rd::ReleaseDescriptionClearedEvent, release_id: address) {
+fun assert_cleared_event(event: &rd::ReleaseDescriptionClearedEvent, release_id: ID) {
     assert_eq!(rd::description_cleared_event_fields(event), release_id);
 
     let mut bytes = bcs::new(bcs::to_bytes(event));
-    assert_eq!(bytes.peel_address(), release_id);
+    assert_eq!(bytes.peel_address().to_id(), release_id);
     assert!(bytes.into_remainder_bytes().is_empty());
 }
 
@@ -60,7 +60,7 @@ fun assert_cleared_event(event: &rd::ReleaseDescriptionClearedEvent, release_id:
 fun set_read_replace_clear_lifecycle() {
     let ctx = &mut tx_context::dummy();
     let (mut rel, cap) = mk_release(ctx);
-    let release_id = object::id(&rel).to_address();
+    let release_id = object::id(&rel);
     let first = b"Recorded live in one room.".to_string();
     let second = b"Recorded live in one room, in two days.".to_string();
 
@@ -106,7 +106,7 @@ fun set_read_replace_clear_lifecycle() {
 fun prose_is_preserved_verbatim() {
     let ctx = &mut tx_context::dummy();
     let (mut rel, cap) = mk_release(ctx);
-    let release_id = object::id(&rel).to_address();
+    let release_id = object::id(&rel);
     let text = b"  Side A was cut first.\n\nSide B came a year later,  \xc3\xa9t\xc3\xa9 \xe2\x9c\xbf.".to_string();
 
     rd::set_description(&mut rel, &cap, text);
@@ -123,8 +123,8 @@ fun descriptions_are_per_release() {
     let ctx = &mut tx_context::dummy();
     let (mut a, a_cap) = mk_release(ctx);
     let (mut b, b_cap) = mk_release(ctx);
-    let a_id = object::id(&a).to_address();
-    let b_id = object::id(&b).to_address();
+    let a_id = object::id(&a);
+    let b_id = object::id(&b);
     let a_text = b"The first one.".to_string();
     let b_text = b"The second one.".to_string();
 
@@ -154,7 +154,7 @@ fun descriptions_are_per_release() {
 fun exactly_max_length_is_accepted_with_exact_bcs_size() {
     let ctx = &mut tx_context::dummy();
     let (mut rel, cap) = mk_release(ctx);
-    let release_id = object::id(&rel).to_address();
+    let release_id = object::id(&rel);
     let max = repeated(65, 8192);
 
     rd::set_description(&mut rel, &cap, max);
@@ -207,7 +207,7 @@ fun one_multibyte_character_past_the_byte_bound_aborts() {
 fun equal_set_is_a_silent_no_op() {
     let ctx = &mut tx_context::dummy();
     let (mut rel, cap) = mk_release(ctx);
-    let release_id = object::id(&rel).to_address();
+    let release_id = object::id(&rel);
     let text = b"Out of print.".to_string();
 
     rd::set_description(&mut rel, &cap, text);

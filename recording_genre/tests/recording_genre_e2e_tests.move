@@ -77,11 +77,11 @@ fun admin_classifies_a_published_shared_recording_and_a_stranger_reads_it() {
     let added = events_by_type<RecordingGenreAddedEvent<REC>>();
     assert_eq!(added.length(), 2);
     let (added_rec_0, added_genre_0) = rg::added_event_fields(&added[0]);
-    assert_eq!(added_rec_0, rec_id.to_address());
-    assert_eq!(added_genre_0, b.to_address());
+    assert_eq!(added_rec_0, rec_id);
+    assert_eq!(added_genre_0, b);
     let (added_rec_1, added_genre_1) = rg::added_event_fields(&added[1]);
-    assert_eq!(added_rec_1, rec_id.to_address());
-    assert_eq!(added_genre_1, a.to_address());
+    assert_eq!(added_rec_1, rec_id);
+    assert_eq!(added_genre_1, a);
     assert_eq!(to_bytes(&added[1]).length(), 64);
     ts::return_shared(rec);
 
@@ -99,15 +99,15 @@ fun admin_classifies_a_published_shared_recording_and_a_stranger_reads_it() {
     let removed = events_by_type<RecordingGenreRemovedEvent<REC>>();
     assert_eq!(removed.length(), 1);
     let (removed_rec, removed_genre) = rg::removed_event_fields(&removed[0]);
-    assert_eq!(removed_rec, rec_id.to_address());
-    assert_eq!(removed_genre, b.to_address());
+    assert_eq!(removed_rec, rec_id);
+    assert_eq!(removed_genre, b);
     assert_eq!(to_bytes(&removed[0]).length(), 64);
 
     rg::clear_genres(&mut rec, &rec_cap);
     assert!(rg::genres(&rec).is_empty());
     let cleared = events_by_type<RecordingGenresClearedEvent<REC>>();
     assert_eq!(cleared.length(), 1);
-    assert_eq!(rg::cleared_event_fields(&cleared[0]), rec_id.to_address());
+    assert_eq!(rg::cleared_event_fields(&cleared[0]), rec_id);
     assert_eq!(to_bytes(&cleared[0]).length(), 32);
     ts::return_shared(rec);
 

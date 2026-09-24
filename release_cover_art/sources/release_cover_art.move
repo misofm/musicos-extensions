@@ -42,19 +42,19 @@ public struct ReleaseCoverArt has store {
 /// Emitted when the album cover is set to a value it did not already hold.
 /// The blob IDs are the value (cover art is always unencrypted).
 public struct ReleaseCoverArtSetEvent has copy, drop {
-    release_id: address,
+    release_id: ID,
     still_blob_id: u256,
     animated_blob_id: Option<u256>,
 }
 
 /// Emitted when an attached album cover is removed. Overrides are unaffected.
 public struct ReleaseCoverArtClearedEvent has copy, drop {
-    release_id: address,
+    release_id: ID,
 }
 
 /// Emitted when a track's override is set to a value it did not already hold.
 public struct ReleaseTrackCoverArtSetEvent has copy, drop {
-    release_id: address,
+    release_id: ID,
     track_index: u64,
     still_blob_id: u256,
     animated_blob_id: Option<u256>,
@@ -63,7 +63,7 @@ public struct ReleaseTrackCoverArtSetEvent has copy, drop {
 /// Emitted when an attached track override is removed; the track falls back
 /// to the album cover.
 public struct ReleaseTrackCoverArtClearedEvent has copy, drop {
-    release_id: address,
+    release_id: ID,
     track_index: u64,
 }
 
@@ -72,7 +72,7 @@ public struct ReleaseTrackCoverArtClearedEvent has copy, drop {
 /// Sets (or replaces) the album cover, attaching the record on first use.
 /// Setting the value already held neither writes nor emits.
 public fun set_cover(self: &mut Release, cap: &ReleaseAdminCap, art: CoverArt) {
-    let release_id = object::id(self).to_address();
+    let release_id = object::id(self);
     let cover = &mut borrow_mut_or_init(self, cap).cover;
     if (cover.contains(&art)) return;
     cover.swap_or_fill(art);
@@ -83,7 +83,7 @@ public fun set_cover(self: &mut Release, cap: &ReleaseAdminCap, art: CoverArt) {
 /// Removes the album cover, if any. Overrides are untouched. Silent when no
 /// record is attached or the album cover is already absent.
 public fun clear_cover(self: &mut Release, cap: &ReleaseAdminCap) {
-    let release_id = object::id(self).to_address();
+    let release_id = object::id(self);
     let uid = self.uid_mut(cap);
     if (!df::exists(uid, ExtensionKey())) return;
     let record: &mut ReleaseCoverArt = df::borrow_mut(uid, ExtensionKey());
@@ -102,7 +102,7 @@ public fun set_track_cover(
     art: CoverArt,
 ) {
     assert!(track_index < self.tracks().length(), ETrackIndexOutOfBounds);
-    let release_id = object::id(self).to_address();
+    let release_id = object::id(self);
     let slot = borrow_mut_or_init(self, cap).track_covers.borrow_mut(track_index);
     if (slot.contains(&art)) return;
     slot.swap_or_fill(art);
@@ -121,7 +121,7 @@ public fun set_track_cover(
 /// already absent.
 public fun clear_track_cover(self: &mut Release, cap: &ReleaseAdminCap, track_index: u64) {
     assert!(track_index < self.tracks().length(), ETrackIndexOutOfBounds);
-    let release_id = object::id(self).to_address();
+    let release_id = object::id(self);
     let uid = self.uid_mut(cap);
     if (!df::exists(uid, ExtensionKey())) return;
     let record: &mut ReleaseCoverArt = df::borrow_mut(uid, ExtensionKey());
@@ -184,23 +184,23 @@ fun borrow_mut_or_init(self: &mut Release, cap: &ReleaseAdminCap): &mut ReleaseC
 // === Test Functions ===
 
 #[test_only]
-public fun set_event_fields(e: &ReleaseCoverArtSetEvent): (address, u256, Option<u256>) {
+public fun set_event_fields(e: &ReleaseCoverArtSetEvent): (ID, u256, Option<u256>) {
     (e.release_id, e.still_blob_id, e.animated_blob_id)
 }
 
 #[test_only]
-public fun cleared_event_fields(e: &ReleaseCoverArtClearedEvent): address {
+public fun cleared_event_fields(e: &ReleaseCoverArtClearedEvent): ID {
     e.release_id
 }
 
 #[test_only]
 public fun track_set_event_fields(
     e: &ReleaseTrackCoverArtSetEvent,
-): (address, u64, u256, Option<u256>) {
+): (ID, u64, u256, Option<u256>) {
     (e.release_id, e.track_index, e.still_blob_id, e.animated_blob_id)
 }
 
 #[test_only]
-public fun track_cleared_event_fields(e: &ReleaseTrackCoverArtClearedEvent): (address, u64) {
+public fun track_cleared_event_fields(e: &ReleaseTrackCoverArtClearedEvent): (ID, u64) {
     (e.release_id, e.track_index)
 }

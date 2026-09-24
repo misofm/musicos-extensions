@@ -82,42 +82,42 @@ public struct RecordingCredits has store {
 /// Emitted when a party is credited, with the roles as stored (instrument
 /// names and levels included); the display name stays in storage.
 public struct RecordingCreditAddedEvent<phantom RecordingShare> has copy, drop {
-    recording_id: address,
-    party_id: address,
+    recording_id: ID,
+    party_id: ID,
     roles: vector<RecordingPartyRole>,
 }
 
 /// Emitted when a party's credit is removed, after the artist-removed event
 /// for any designation the party held.
 public struct RecordingCreditRemovedEvent<phantom RecordingShare> has copy, drop {
-    recording_id: address,
-    party_id: address,
+    recording_id: ID,
+    party_id: ID,
 }
 
 /// Emitted when a credited party is designated a primary artist.
 public struct RecordingPrimaryArtistAddedEvent<phantom RecordingShare> has copy, drop {
-    recording_id: address,
-    party_id: address,
+    recording_id: ID,
+    party_id: ID,
 }
 
 /// Emitted when a primary artist is un-designated, explicitly or because
 /// their credit is removed (then before `RecordingCreditRemovedEvent`).
 public struct RecordingPrimaryArtistRemovedEvent<phantom RecordingShare> has copy, drop {
-    recording_id: address,
-    party_id: address,
+    recording_id: ID,
+    party_id: ID,
 }
 
 /// Emitted when a credited party is designated a featured artist.
 public struct RecordingFeaturedArtistAddedEvent<phantom RecordingShare> has copy, drop {
-    recording_id: address,
-    party_id: address,
+    recording_id: ID,
+    party_id: ID,
 }
 
 /// Emitted when a featured artist is un-designated, explicitly or because
 /// their credit is removed (then before `RecordingCreditRemovedEvent`).
 public struct RecordingFeaturedArtistRemovedEvent<phantom RecordingShare> has copy, drop {
-    recording_id: address,
-    party_id: address,
+    recording_id: ID,
+    party_id: ID,
 }
 
 // === Public Functions ===
@@ -134,7 +134,7 @@ public fun add_credit<RecordingShare>(
 ) {
     assert!(credit.roles().length() <= MAX_ROLES_PER_CREDIT, EExceedsMaxRoles);
 
-    let recording_id = object::id(self).to_address();
+    let recording_id = object::id(self);
     let party_id = object::id(party);
     let roles = *credit.roles();
     let rc = borrow_mut_or_init(self.uid_mut(cap));
@@ -144,7 +144,7 @@ public fun add_credit<RecordingShare>(
 
     emit(RecordingCreditAddedEvent<RecordingShare> {
         recording_id,
-        party_id: party_id.to_address(),
+        party_id,
         roles,
     });
 }
@@ -160,21 +160,20 @@ public fun remove_credit<RecordingShare>(
     cap: &RecordingAdminCap<RecordingShare>,
     party_id: ID,
 ) {
-    let recording_id = object::id(self).to_address();
-    let party_address = party_id.to_address();
+    let recording_id = object::id(self);
     let rc = borrow_mut(self.uid_mut(cap));
     assert!(rc.credits.contains(&party_id), EPartyNotCredited);
     if (rc.primary_artist_ids.contains(&party_id)) {
         rc.primary_artist_ids.remove(&party_id);
-        emit(RecordingPrimaryArtistRemovedEvent<RecordingShare> { recording_id, party_id: party_address });
+        emit(RecordingPrimaryArtistRemovedEvent<RecordingShare> { recording_id, party_id });
     };
     if (rc.featured_artist_ids.contains(&party_id)) {
         rc.featured_artist_ids.remove(&party_id);
-        emit(RecordingFeaturedArtistRemovedEvent<RecordingShare> { recording_id, party_id: party_address });
+        emit(RecordingFeaturedArtistRemovedEvent<RecordingShare> { recording_id, party_id });
     };
     let (_, _) = rc.credits.remove(&party_id);
 
-    emit(RecordingCreditRemovedEvent<RecordingShare> { recording_id, party_id: party_address });
+    emit(RecordingCreditRemovedEvent<RecordingShare> { recording_id, party_id });
 }
 
 /// Designates a credited party as a primary artist. Aborts if the party is
@@ -184,7 +183,7 @@ public fun add_primary_artist<RecordingShare>(
     cap: &RecordingAdminCap<RecordingShare>,
     party: &Party,
 ) {
-    let recording_id = object::id(self).to_address();
+    let recording_id = object::id(self);
     let party_id = object::id(party);
     let rc = borrow_mut(self.uid_mut(cap));
     assert!(rc.primary_artist_ids.length() < MAX_PRIMARY_ARTISTS, EMaxPrimaryArtistsExceeded);
@@ -195,7 +194,7 @@ public fun add_primary_artist<RecordingShare>(
 
     emit(RecordingPrimaryArtistAddedEvent<RecordingShare> {
         recording_id,
-        party_id: party_id.to_address(),
+        party_id,
     });
 }
 
@@ -206,14 +205,14 @@ public fun remove_primary_artist<RecordingShare>(
     cap: &RecordingAdminCap<RecordingShare>,
     party_id: ID,
 ) {
-    let recording_id = object::id(self).to_address();
+    let recording_id = object::id(self);
     let rc = borrow_mut(self.uid_mut(cap));
     assert!(rc.primary_artist_ids.contains(&party_id), EPartyNotCredited);
     rc.primary_artist_ids.remove(&party_id);
 
     emit(RecordingPrimaryArtistRemovedEvent<RecordingShare> {
         recording_id,
-        party_id: party_id.to_address(),
+        party_id,
     });
 }
 
@@ -224,7 +223,7 @@ public fun add_featured_artist<RecordingShare>(
     cap: &RecordingAdminCap<RecordingShare>,
     party: &Party,
 ) {
-    let recording_id = object::id(self).to_address();
+    let recording_id = object::id(self);
     let party_id = object::id(party);
     let rc = borrow_mut(self.uid_mut(cap));
     assert!(rc.featured_artist_ids.length() < MAX_FEATURED_ARTISTS, EMaxFeaturedArtistsExceeded);
@@ -235,7 +234,7 @@ public fun add_featured_artist<RecordingShare>(
 
     emit(RecordingFeaturedArtistAddedEvent<RecordingShare> {
         recording_id,
-        party_id: party_id.to_address(),
+        party_id,
     });
 }
 
@@ -246,14 +245,14 @@ public fun remove_featured_artist<RecordingShare>(
     cap: &RecordingAdminCap<RecordingShare>,
     party_id: ID,
 ) {
-    let recording_id = object::id(self).to_address();
+    let recording_id = object::id(self);
     let rc = borrow_mut(self.uid_mut(cap));
     assert!(rc.featured_artist_ids.contains(&party_id), EPartyNotCredited);
     rc.featured_artist_ids.remove(&party_id);
 
     emit(RecordingFeaturedArtistRemovedEvent<RecordingShare> {
         recording_id,
-        party_id: party_id.to_address(),
+        party_id,
     });
 }
 
@@ -329,41 +328,41 @@ fun borrow_mut_or_init(uid: &mut UID): &mut RecordingCredits {
 #[test_only]
 public fun credit_added_event_fields<RecordingShare>(
     e: &RecordingCreditAddedEvent<RecordingShare>,
-): (address, address, vector<RecordingPartyRole>) {
+): (ID, ID, vector<RecordingPartyRole>) {
     (e.recording_id, e.party_id, e.roles)
 }
 
 #[test_only]
 public fun credit_removed_event_fields<RecordingShare>(
     e: &RecordingCreditRemovedEvent<RecordingShare>,
-): (address, address) {
+): (ID, ID) {
     (e.recording_id, e.party_id)
 }
 
 #[test_only]
 public fun primary_artist_added_event_fields<RecordingShare>(
     e: &RecordingPrimaryArtistAddedEvent<RecordingShare>,
-): (address, address) {
+): (ID, ID) {
     (e.recording_id, e.party_id)
 }
 
 #[test_only]
 public fun primary_artist_removed_event_fields<RecordingShare>(
     e: &RecordingPrimaryArtistRemovedEvent<RecordingShare>,
-): (address, address) {
+): (ID, ID) {
     (e.recording_id, e.party_id)
 }
 
 #[test_only]
 public fun featured_artist_added_event_fields<RecordingShare>(
     e: &RecordingFeaturedArtistAddedEvent<RecordingShare>,
-): (address, address) {
+): (ID, ID) {
     (e.recording_id, e.party_id)
 }
 
 #[test_only]
 public fun featured_artist_removed_event_fields<RecordingShare>(
     e: &RecordingFeaturedArtistRemovedEvent<RecordingShare>,
-): (address, address) {
+): (ID, ID) {
     (e.recording_id, e.party_id)
 }

@@ -35,7 +35,7 @@ fun new_rec<RecordingShare>(
 fun set_read_replace_clear_lifecycle() {
     let ctx = &mut tx_context::dummy();
     let (mut rec, cap) = new_rec<REC>(ctx);
-    let rec_id = object::id(&rec).to_address();
+    let rec_id = object::id(&rec);
 
     assert!(!adv::has_advisory(&rec));
 
@@ -145,7 +145,7 @@ fun absence_is_not_not_explicit() {
 fun set_events_carry_the_recording_and_the_new_value() {
     let ctx = &mut tx_context::dummy();
     let (mut rec, cap) = new_rec<REC>(ctx);
-    let rec_id = object::id(&rec).to_address();
+    let rec_id = object::id(&rec);
     let sequence = vector[adv::cleaned(), adv::explicit(), adv::not_explicit(), adv::cleaned()];
     let variant_indices = vector[2u8, 0, 1, 2];
 
@@ -170,7 +170,7 @@ fun set_events_carry_the_recording_and_the_new_value() {
 fun cleared_event_carries_only_the_recording() {
     let ctx = &mut tx_context::dummy();
     let (mut rec, cap) = new_rec<REC>(ctx);
-    let rec_id = object::id(&rec).to_address();
+    let rec_id = object::id(&rec);
 
     adv::set_advisory(&mut rec, &cap, adv::explicit());
     adv::clear_advisory(&mut rec, &cap);

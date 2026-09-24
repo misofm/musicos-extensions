@@ -64,9 +64,7 @@ fun full_credit_lifecycle_on_published_shared_recording() {
     let (guest, guest_cap) = party::new(party::new_individual_kind(), b"Guest Party".to_string(), ts.ctx());
     let lead_id = object::id(&lead);
     let guest_id = object::id(&guest);
-    let recording_id = object::id(&rec).to_address();
-    let lead_address = lead_id.to_address();
-    let guest_address = guest_id.to_address();
+    let recording_id = object::id(&rec);
 
     let lead_credit =
         credit::new(b"Lead Display".to_string(), vector[rpr::new_vocalist_role(option::some(rpr::new_lead_role_level()))]);
@@ -88,11 +86,11 @@ fun full_credit_lifecycle_on_published_shared_recording() {
     assert_eq!(added.length(), 2);
     let (event_object, event_party, event_roles) = credits::credit_added_event_fields(&added[0]);
     assert_eq!(event_object, recording_id);
-    assert_eq!(event_party, lead_address);
+    assert_eq!(event_party, lead_id);
     assert_eq!(event_roles, *lead_credit.roles());
     let (event_object, event_party, event_roles) = credits::credit_added_event_fields(&added[1]);
     assert_eq!(event_object, recording_id);
-    assert_eq!(event_party, guest_address);
+    assert_eq!(event_party, guest_id);
     assert_eq!(event_roles, *guest_credit.roles());
     assert_eq!(credits::credits(&rec)[&lead_id], lead_credit);
     assert_eq!(credits::credits(&rec)[&guest_id], guest_credit);
@@ -105,12 +103,12 @@ fun full_credit_lifecycle_on_published_shared_recording() {
     assert_eq!(primary_added.length(), 1);
     let (event_object, event_party) = credits::primary_artist_added_event_fields(&primary_added[0]);
     assert_eq!(event_object, recording_id);
-    assert_eq!(event_party, lead_address);
+    assert_eq!(event_party, lead_id);
     let featured_added = events_by_type<credits::RecordingFeaturedArtistAddedEvent<RecordingShare>>();
     assert_eq!(featured_added.length(), 1);
     let (event_object, event_party) = credits::featured_artist_added_event_fields(&featured_added[0]);
     assert_eq!(event_object, recording_id);
-    assert_eq!(event_party, guest_address);
+    assert_eq!(event_party, guest_id);
 
     // The phantom share type is part of the event type filter.
     assert_eq!(events_by_type<credits::RecordingCreditAddedEvent<bool>>().length(), 0);
@@ -164,7 +162,7 @@ fun remove_credit_then_add_primary_fails_on_published_recording() {
     let (featured, _featured_pc) = party::new(party::new_individual_kind(), b"Featured Party".to_string(), ts.ctx());
     let pid = object::id(&p);
     let featured_id = object::id(&featured);
-    let recording_id = object::id(&rec).to_address();
+    let recording_id = object::id(&rec);
     credits::add_credit(&mut rec, &cap, &p,
         credit::new(b"Alice Display".to_string(), vector[rpr::new_vocalist_role(option::none())]));
     credits::add_credit(&mut rec, &cap, &featured,
@@ -178,10 +176,10 @@ fun remove_credit_then_add_primary_fails_on_published_recording() {
     assert_eq!(removed.length(), 2);
     let (event_object, event_party) = credits::credit_removed_event_fields(&removed[0]);
     assert_eq!(event_object, recording_id);
-    assert_eq!(event_party, pid.to_address());
+    assert_eq!(event_party, pid);
     let (event_object, event_party) = credits::credit_removed_event_fields(&removed[1]);
     assert_eq!(event_object, recording_id);
-    assert_eq!(event_party, featured_id.to_address());
+    assert_eq!(event_party, featured_id);
     assert_eq!(events_by_type<credits::RecordingCreditRemovedEvent<bool>>().length(), 0);
 
     // The cascade ends both designations, each with its own event.
@@ -189,12 +187,12 @@ fun remove_credit_then_add_primary_fails_on_published_recording() {
     assert_eq!(primary_removed.length(), 1);
     let (event_object, event_party) = credits::primary_artist_removed_event_fields(&primary_removed[0]);
     assert_eq!(event_object, recording_id);
-    assert_eq!(event_party, pid.to_address());
+    assert_eq!(event_party, pid);
     let featured_removed = events_by_type<credits::RecordingFeaturedArtistRemovedEvent<RecordingShare>>();
     assert_eq!(featured_removed.length(), 1);
     let (event_object, event_party) = credits::featured_artist_removed_event_fields(&featured_removed[0]);
     assert_eq!(event_object, recording_id);
-    assert_eq!(event_party, featured_id.to_address());
+    assert_eq!(event_party, featured_id);
     assert!(!credits::is_primary_artist(&rec, pid));
     assert!(!credits::is_featured_artist(&rec, featured_id));
 

@@ -36,8 +36,8 @@ event-only indexer would otherwise have to look up.
 
 | Event | Fields | BCS bytes |
 |---|---|---|
-| `RecordingMasterSetEvent<RecordingShare>` | `recording_id: address`, `master: Audio` | 112 + format length; 116 for `flac`, 128 maximum |
-| `RecordingMasterClearedEvent<RecordingShare>` | `recording_id: address` | 32 |
+| `RecordingMasterSetEvent<RecordingShare>` | `recording_id: ID`, `master: Audio` | 112 + format length; 116 for `flac`, 128 maximum |
+| `RecordingMasterClearedEvent<RecordingShare>` | `recording_id: ID` | 32 |
 
 `Audio` serializes as `format` (one length byte plus the name), `channels: u8`,
 `bit_depth: u8`, `sample_rate_hz: u32`, `samples: u64`, `pcm_digest` (one

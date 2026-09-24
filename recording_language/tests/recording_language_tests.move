@@ -58,7 +58,7 @@ fun stored_codes(rec: &Recording<REC>): vector<String> {
 fun set_read_replace_clear_lifecycle() {
     let ctx = &mut tx_context::dummy();
     let (mut rec, cap) = new_rec<REC>(ctx);
-    let rec_id = object::id(&rec).to_address();
+    let rec_id = object::id(&rec);
 
     assert!(!rl::has_languages(&rec));
 
@@ -153,7 +153,7 @@ fun order_is_preserved() {
 fun instrumental_is_distinct_from_absent_and_from_sung() {
     let ctx = &mut tx_context::dummy();
     let (mut rec, cap) = new_rec<REC>(ctx);
-    let rec_id = object::id(&rec).to_address();
+    let rec_id = object::id(&rec);
 
     // Nothing attached: no claim either way.
     assert!(!rl::has_languages(&rec));
@@ -191,13 +191,13 @@ fun instrumental_is_distinct_from_absent_and_from_sung() {
     destroy(cap);
 }
 
-/// The set event is the recording address plus the ordered codes: one
+/// The set event is the recording id plus the ordered codes: one
 /// vector-length byte, then three bytes per two-letter code.
 #[test]
 fun set_event_carries_the_recording_and_the_new_value() {
     let ctx = &mut tx_context::dummy();
     let (mut rec, cap) = new_rec<REC>(ctx);
-    let rec_id = object::id(&rec).to_address();
+    let rec_id = object::id(&rec);
 
     rl::set_languages(&mut rec, &cap, langs(vector[b"en", b"fr"]));
     let events = events_by_type<RecordingLanguagesSetEvent<REC>>();

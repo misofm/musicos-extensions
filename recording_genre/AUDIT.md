@@ -80,8 +80,8 @@ exploitable findings.
 Changes in this generation:
 
 - Events are now `<phantom RecordingShare>` only and slimmed: `Added` and
-  `Removed` carry the recording and genre addresses (64 BCS bytes, down from
-  221); `Cleared` carries the recording address (32, down from up to 407).
+  `Removed` carry the recording and genre ids (64 BCS bytes, down from
+  221); `Cleared` carries the recording id (32, down from up to 407).
   Dropped: composition id, admin cap address, indices, counts, field and
   primary flags, before/after primary ids, clear cause, and the removed-id
   list. Removing the last genre still emits only `Removed` and drops the
@@ -99,3 +99,6 @@ remove-promotes-next behavior are unchanged.
 Evidence: with Sui `1.79.0`, strict Testnet and Mainnet lint and
 warnings-as-errors builds pass clean and all 17 tests pass on each network;
 the production module reports 100.00% coverage.
+
+Event `recording_id`/`genre_id` fields are typed `ID` rather than `address`,
+and emit sites pass object ids directly; BCS layout and sizes are unchanged.

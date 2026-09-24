@@ -62,3 +62,6 @@ absence-is-not-`NotExplicit` rule are unchanged.
 Evidence: with Sui `1.79.0`, strict Testnet and Mainnet lint and
 warnings-as-errors builds pass clean and all 13 tests pass on each network;
 the production module reports 100.00% coverage.
+
+Event `recording_id` fields are typed `ID` rather than `address`, and emit
+sites pass the object id directly; BCS layout and sizes are unchanged.

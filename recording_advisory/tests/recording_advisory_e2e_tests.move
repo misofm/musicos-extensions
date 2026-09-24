@@ -52,7 +52,7 @@ fun admin_rates_a_published_shared_recording_and_a_stranger_reads_it() {
     let events = events_by_type<RecordingAdvisorySetEvent<REC>>();
     assert_eq!(events.length(), 1);
     let (event_id, advisory) = adv::set_event_fields(&events[0]);
-    assert_eq!(event_id, rec_id.to_address());
+    assert_eq!(event_id, rec_id);
     assert!(advisory.is_explicit());
     assert_eq!(to_bytes(&events[0]).length(), 33);
     ts::return_shared(rec);
@@ -78,7 +78,7 @@ fun admin_rates_a_published_shared_recording_and_a_stranger_reads_it() {
     assert!(!adv::has_advisory(&rec));
     let cleared = events_by_type<RecordingAdvisoryClearedEvent<REC>>();
     assert_eq!(cleared.length(), 1);
-    assert_eq!(adv::cleared_event_fields(&cleared[0]), rec_id.to_address());
+    assert_eq!(adv::cleared_event_fields(&cleared[0]), rec_id);
     assert_eq!(to_bytes(&cleared[0]).length(), 32);
     ts::return_shared(rec);
 

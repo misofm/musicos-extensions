@@ -67,12 +67,12 @@ instrument names and levels included.
 
 | Event | Fields | BCS bytes |
 |---|---|---|
-| `RecordingCreditAddedEvent<RecordingShare>` | `recording_id: address`, `party_id: address`, `roles: vector<RecordingPartyRole>` | 66 – 1105 (typically 67: one levelless role) |
-| `RecordingCreditRemovedEvent<RecordingShare>` | `recording_id: address`, `party_id: address` | 64 |
-| `RecordingPrimaryArtistAddedEvent<RecordingShare>` | `recording_id: address`, `party_id: address` | 64 |
-| `RecordingPrimaryArtistRemovedEvent<RecordingShare>` | `recording_id: address`, `party_id: address` | 64 |
-| `RecordingFeaturedArtistAddedEvent<RecordingShare>` | `recording_id: address`, `party_id: address` | 64 |
-| `RecordingFeaturedArtistRemovedEvent<RecordingShare>` | `recording_id: address`, `party_id: address` | 64 |
+| `RecordingCreditAddedEvent<RecordingShare>` | `recording_id: ID`, `party_id: ID`, `roles: vector<RecordingPartyRole>` | 66 – 1105 (typically 67: one levelless role) |
+| `RecordingCreditRemovedEvent<RecordingShare>` | `recording_id: ID`, `party_id: ID` | 64 |
+| `RecordingPrimaryArtistAddedEvent<RecordingShare>` | `recording_id: ID`, `party_id: ID` | 64 |
+| `RecordingPrimaryArtistRemovedEvent<RecordingShare>` | `recording_id: ID`, `party_id: ID` | 64 |
+| `RecordingFeaturedArtistAddedEvent<RecordingShare>` | `recording_id: ID`, `party_id: ID` | 64 |
+| `RecordingFeaturedArtistRemovedEvent<RecordingShare>` | `recording_id: ID`, `party_id: ID` | 64 |
 
 Billing designations are business-visible, so a cascade is not left to
 inference: when `remove_credit` removes a party who is a primary or featured

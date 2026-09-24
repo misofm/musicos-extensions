@@ -81,11 +81,11 @@ fun genre_lifecycle_on_published_shared_release() {
     let added = event::events_by_type<rg::ReleaseGenreAddedEvent>();
     assert_eq!(added.length(), 2);
     let (a0_release_id, a0_genre_id) = rg::genre_added_event_fields(&added[0]);
-    assert_eq!(a0_release_id, release_id.to_address());
-    assert_eq!(a0_genre_id, electronic_id.to_address());
+    assert_eq!(a0_release_id, release_id);
+    assert_eq!(a0_genre_id, electronic_id);
     let (a1_release_id, a1_genre_id) = rg::genre_added_event_fields(&added[1]);
-    assert_eq!(a1_release_id, release_id.to_address());
-    assert_eq!(a1_genre_id, hiphop_id.to_address());
+    assert_eq!(a1_release_id, release_id);
+    assert_eq!(a1_genre_id, hiphop_id);
 
     ts::return_immutable(hiphop);
     ts::return_immutable(electronic);
@@ -105,14 +105,14 @@ fun genre_lifecycle_on_published_shared_release() {
     let removed = event::events_by_type<rg::ReleaseGenreRemovedEvent>();
     assert_eq!(removed.length(), 1);
     let (removed_release_id, removed_genre_id) = rg::genre_removed_event_fields(&removed[0]);
-    assert_eq!(removed_release_id, release_id.to_address());
-    assert_eq!(removed_genre_id, electronic_id.to_address());
+    assert_eq!(removed_release_id, release_id);
+    assert_eq!(removed_genre_id, electronic_id);
 
     rg::clear_genres(&mut rel, &cap);
     assert!(rg::genres(&rel).is_empty());
     let cleared = event::events_by_type<rg::ReleaseGenresClearedEvent>();
     assert_eq!(cleared.length(), 1);
-    assert_eq!(rg::genres_cleared_event_fields(&cleared[0]), release_id.to_address());
+    assert_eq!(rg::genres_cleared_event_fields(&cleared[0]), release_id);
     ts::return_shared(rel);
 
     // --- Tx 6 (STRANGER): the clear is visible too ---

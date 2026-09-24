@@ -32,23 +32,23 @@ fun repeated(byte: u8, n: u64): String {
 
 /// Asserts the set event's fields and its exact BCS layout:
 /// `release_id` (32) then the title as a ULEB128-prefixed byte vector.
-fun assert_set_event(event: &rt::ReleaseTitleSetEvent, release_id: address, title: &String) {
+fun assert_set_event(event: &rt::ReleaseTitleSetEvent, release_id: ID, title: &String) {
     let (event_release_id, event_title) = rt::title_set_event_fields(event);
     assert_eq!(event_release_id, release_id);
     assert_eq!(event_title, *title);
 
     let mut bytes = bcs::new(bcs::to_bytes(event));
-    assert_eq!(bytes.peel_address(), release_id);
+    assert_eq!(bytes.peel_address().to_id(), release_id);
     assert_eq!(bytes.peel_vec_u8(), *title.as_bytes());
     assert!(bytes.into_remainder_bytes().is_empty());
 }
 
 /// Asserts the cleared event's field and its exact 32-byte BCS layout.
-fun assert_cleared_event(event: &rt::ReleaseTitleClearedEvent, release_id: address) {
+fun assert_cleared_event(event: &rt::ReleaseTitleClearedEvent, release_id: ID) {
     assert_eq!(rt::title_cleared_event_fields(event), release_id);
 
     let mut bytes = bcs::new(bcs::to_bytes(event));
-    assert_eq!(bytes.peel_address(), release_id);
+    assert_eq!(bytes.peel_address().to_id(), release_id);
     assert!(bytes.into_remainder_bytes().is_empty());
 }
 
@@ -56,7 +56,7 @@ fun assert_cleared_event(event: &rt::ReleaseTitleClearedEvent, release_id: addre
 fun set_read_replace_clear_lifecycle() {
     let ctx = &mut tx_context::dummy();
     let (mut rel, cap) = mk_release(ctx);
-    let release_id = object::id(&rel).to_address();
+    let release_id = object::id(&rel);
     let first = b"Long Player".to_string();
     let second = b"Long Player (Deluxe Edition)".to_string();
 
@@ -103,7 +103,7 @@ fun set_read_replace_clear_lifecycle() {
 fun title_is_preserved_verbatim() {
     let ctx = &mut tx_context::dummy();
     let (mut rel, cap) = mk_release(ctx);
-    let release_id = object::id(&rel).to_address();
+    let release_id = object::id(&rel);
     let text = b"  \xc3\x89t\xc3\xa9 \xe2\x9c\xbf / Side B: \"the  Remixes\"\t".to_string();
 
     rt::set_title(&mut rel, &cap, text);
@@ -134,8 +134,8 @@ fun titles_are_per_release() {
     let ctx = &mut tx_context::dummy();
     let (mut a, a_cap) = mk_release(ctx);
     let (mut b, b_cap) = mk_release(ctx);
-    let a_id = object::id(&a).to_address();
-    let b_id = object::id(&b).to_address();
+    let a_id = object::id(&a);
+    let b_id = object::id(&b);
     let a_title = b"First".to_string();
     let b_title = b"Second".to_string();
 
@@ -165,7 +165,7 @@ fun titles_are_per_release() {
 fun exactly_max_length_is_accepted_with_exact_bcs_size() {
     let ctx = &mut tx_context::dummy();
     let (mut rel, cap) = mk_release(ctx);
-    let release_id = object::id(&rel).to_address();
+    let release_id = object::id(&rel);
     let max = repeated(65, 300);
 
     rt::set_title(&mut rel, &cap, max);
@@ -218,7 +218,7 @@ fun one_multibyte_character_past_the_byte_bound_aborts() {
 fun equal_set_is_a_silent_no_op() {
     let ctx = &mut tx_context::dummy();
     let (mut rel, cap) = mk_release(ctx);
-    let release_id = object::id(&rel).to_address();
+    let release_id = object::id(&rel);
     let text = b"Long Player".to_string();
 
     rt::set_title(&mut rel, &cap, text);

@@ -41,11 +41,11 @@ event-only indexer would otherwise have to look up.
 
 | Event | Fields | BCS bytes |
 |---|---|---|
-| `RecordingStreamingTranscodeSetEvent<RecordingShare>` | `recording_id: address`, `quilt_id: u256` | 64 |
-| `RecordingStreamingTranscodeClearedEvent<RecordingShare>` | `recording_id: address` | 32 |
+| `RecordingStreamingTranscodeSetEvent<RecordingShare>` | `recording_id: ID`, `quilt_id: u256` | 64 |
+| `RecordingStreamingTranscodeClearedEvent<RecordingShare>` | `recording_id: ID` | 32 |
 
 The Quilt ID is the stored value, serialized as 32 little-endian bytes after
-the address. An equal set and an absent clear emit nothing, so every event is
+the recording id. An equal set and an absent clear emit nothing, so every event is
 a real state transition.
 
 ## Errors

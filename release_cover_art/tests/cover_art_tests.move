@@ -39,7 +39,7 @@ fun mk_release(ctx: &mut TxContext): (Release, ReleaseAdminCap) {
 /// Event fields, compared one at a time.
 fun assert_set_event(
     e: &ReleaseCoverArtSetEvent,
-    release_id: address,
+    release_id: ID,
     still_blob_id: u256,
     animated_blob_id: Option<u256>,
 ) {
@@ -51,7 +51,7 @@ fun assert_set_event(
 
 fun assert_track_set_event(
     e: &ReleaseTrackCoverArtSetEvent,
-    release_id: address,
+    release_id: ID,
     track_index: u64,
     still_blob_id: u256,
     animated_blob_id: Option<u256>,
@@ -66,7 +66,7 @@ fun assert_track_set_event(
 
 fun assert_track_cleared_event(
     e: &ReleaseTrackCoverArtClearedEvent,
-    release_id: address,
+    release_id: ID,
     track_index: u64,
 ) {
     let (event_release_id, event_index) = release_cover_art::track_cleared_event_fields(e);
@@ -184,7 +184,7 @@ fun clear_track_cover_rejects_out_of_bounds_index_when_attached() {
 fun set_cover_emits_release_and_blob_ids() {
     let ctx = &mut tx_context::dummy();
     let (mut rel, cap) = mk_release(ctx);
-    let rel_id = object::id(&rel).to_address();
+    let rel_id = object::id(&rel);
 
     release_cover_art::set_cover(&mut rel, &cap, fixtures::plain(100));
 
@@ -202,7 +202,7 @@ fun set_cover_emits_release_and_blob_ids() {
 fun animated_cover_event_carries_both_blob_ids() {
     let ctx = &mut tx_context::dummy();
     let (mut rel, cap) = mk_release(ctx);
-    let rel_id = object::id(&rel).to_address();
+    let rel_id = object::id(&rel);
 
     release_cover_art::set_cover(&mut rel, &cap, fixtures::animated(100, 101));
 
@@ -220,7 +220,7 @@ fun animated_cover_event_carries_both_blob_ids() {
 fun clear_cover_emits_only_the_release() {
     let ctx = &mut tx_context::dummy();
     let (mut rel, cap) = mk_release(ctx);
-    let rel_id = object::id(&rel).to_address();
+    let rel_id = object::id(&rel);
 
     release_cover_art::set_cover(&mut rel, &cap, cover::new_for_testing());
     release_cover_art::clear_cover(&mut rel, &cap);
@@ -238,7 +238,7 @@ fun clear_cover_emits_only_the_release() {
 fun set_track_cover_emits_release_index_and_blob_ids() {
     let ctx = &mut tx_context::dummy();
     let (mut rel, cap) = mk_release(ctx);
-    let rel_id = object::id(&rel).to_address();
+    let rel_id = object::id(&rel);
 
     // A per-track set lazily initializes the record (no album cover first).
     release_cover_art::set_track_cover(&mut rel, &cap, 1, fixtures::animated(200, 201));
@@ -258,7 +258,7 @@ fun set_track_cover_emits_release_index_and_blob_ids() {
 fun clear_track_cover_emits_release_and_index() {
     let ctx = &mut tx_context::dummy();
     let (mut rel, cap) = mk_release(ctx);
-    let rel_id = object::id(&rel).to_address();
+    let rel_id = object::id(&rel);
 
     release_cover_art::set_track_cover(&mut rel, &cap, 1, cover::new_for_testing());
     release_cover_art::clear_track_cover(&mut rel, &cap, 1);

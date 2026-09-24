@@ -52,7 +52,7 @@ fun admin_names_a_published_shared_recording_and_a_stranger_reads_it() {
     let events = events_by_type<RecordingVersionSetEvent<REC>>();
     assert_eq!(events.length(), 1);
     let (event_id, version) = rv::set_event_fields(&events[0]);
-    assert_eq!(event_id, rec_id.to_address());
+    assert_eq!(event_id, rec_id);
     assert_eq!(version, b"Live".to_string());
     assert_eq!(to_bytes(&events[0]).length(), 37);
     ts::return_shared(rec);
@@ -78,7 +78,7 @@ fun admin_names_a_published_shared_recording_and_a_stranger_reads_it() {
     assert!(!rv::has_version(&rec));
     let cleared = events_by_type<RecordingVersionClearedEvent<REC>>();
     assert_eq!(cleared.length(), 1);
-    assert_eq!(rv::cleared_event_fields(&cleared[0]), rec_id.to_address());
+    assert_eq!(rv::cleared_event_fields(&cleared[0]), rec_id);
     assert_eq!(to_bytes(&cleared[0]).length(), 32);
     ts::return_shared(rec);
 

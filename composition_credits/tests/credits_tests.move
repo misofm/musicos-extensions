@@ -63,7 +63,7 @@ fun add_credit_attaches_and_reads_back() {
     let added = events_by_type<credits::CompositionCreditAddedEvent<CompositionShare>>();
     assert_eq!(added.length(), 1);
     let (_, first_party, first_roles) = credits::added_event_fields(&added[0]);
-    assert_eq!(first_party, object::id(&p1).to_address());
+    assert_eq!(first_party, object::id(&p1));
     assert_eq!(first_roles, vector[cpr::new_composer_role()]);
 
     let (p2, p2c) = mk_party(b"Bob", ts.ctx());
@@ -73,7 +73,7 @@ fun add_credit_attaches_and_reads_back() {
     let added = events_by_type<credits::CompositionCreditAddedEvent<CompositionShare>>();
     assert_eq!(added.length(), 2);
     let (_, second_party, second_roles) = credits::added_event_fields(&added[1]);
-    assert_eq!(second_party, object::id(&p2).to_address());
+    assert_eq!(second_party, object::id(&p2));
     assert_eq!(second_roles, vector[cpr::new_lyricist_role()]);
 
     destroy(comp); destroy(cap); destroy(p1); destroy(p1c); destroy(p2); destroy(p2c);
@@ -171,7 +171,7 @@ fun remove_credit_round_trip() {
     let removed = events_by_type<credits::CompositionCreditRemovedEvent<CompositionShare>>();
     assert_eq!(removed.length(), 1);
     let (_, event_party) = credits::removed_event_fields(&removed[0]);
-    assert_eq!(event_party, object::id(&p2).to_address());
+    assert_eq!(event_party, object::id(&p2));
 
     credits::remove_credit(&mut comp, &cap, object::id(&p1));
     credits::remove_credit(&mut comp, &cap, object::id(&p3));
@@ -179,9 +179,9 @@ fun remove_credit_round_trip() {
     let removed = events_by_type<credits::CompositionCreditRemovedEvent<CompositionShare>>();
     assert_eq!(removed.length(), 3);
     let (_, event_party) = credits::removed_event_fields(&removed[1]);
-    assert_eq!(event_party, object::id(&p1).to_address());
+    assert_eq!(event_party, object::id(&p1));
     let (_, event_party) = credits::removed_event_fields(&removed[2]);
-    assert_eq!(event_party, object::id(&p3).to_address());
+    assert_eq!(event_party, object::id(&p3));
 
     // The retained empty record lets a party be re-added at index 0.
     assert!(credits::has_credits(&comp));
@@ -191,7 +191,7 @@ fun remove_credit_round_trip() {
     assert_eq!(credits::credits(&comp).get_idx(&object::id(&p2)), 0);
     let added = events_by_type<credits::CompositionCreditAddedEvent<CompositionShare>>();
     let (_, event_party, event_roles) = credits::added_event_fields(&added[3]);
-    assert_eq!(event_party, object::id(&p2).to_address());
+    assert_eq!(event_party, object::id(&p2));
     assert_eq!(event_roles, vector[cpr::new_translator_role()]);
 
     // Views and test accessors are pure reads and do not add event records.
@@ -233,10 +233,10 @@ fun add_credit_emits_full_record() {
     let events = events_by_type<credits::CompositionCreditAddedEvent<CompositionShare>>();
     assert_eq!(events.length(), 1);
     let (event_composition_id, event_party_id, event_roles) = credits::added_event_fields(&events[0]);
-    assert_eq!(event_composition_id, composition_id.to_address());
-    assert_eq!(event_party_id, party_id.to_address());
+    assert_eq!(event_composition_id, composition_id);
+    assert_eq!(event_party_id, party_id);
     assert_eq!(event_roles, roles);
-    // Two addresses and five unit-variant roles (one byte each): the maximum.
+    // Two ids and five unit-variant roles (one byte each): the maximum.
     assert_eq!(to_bytes(&events[0]).length(), 32 + 32 + 1 + 5);
 
     // The phantom share type keeps independent composition event streams
@@ -279,8 +279,8 @@ fun remove_credit_emits_the_removed_party() {
     let events = events_by_type<credits::CompositionCreditRemovedEvent<CompositionShare>>();
     assert_eq!(events.length(), 1);
     let (event_composition_id, event_party_id) = credits::removed_event_fields(&events[0]);
-    assert_eq!(event_composition_id, composition_id.to_address());
-    assert_eq!(event_party_id, party_id.to_address());
+    assert_eq!(event_composition_id, composition_id);
+    assert_eq!(event_party_id, party_id);
     assert_eq!(to_bytes(&events[0]).length(), 64);
     assert_eq!(events_by_type<credits::CompositionCreditRemovedEvent<OtherCompositionShare>>().length(), 0);
 

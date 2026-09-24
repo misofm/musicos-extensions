@@ -45,9 +45,9 @@ otherwise have to look up; the ordered list is replayed from them.
 
 | Event | Fields | BCS size |
 |---|---|---|
-| `ReleaseGenreAddedEvent` | `release_id: address`, `genre_id: address` | 64 |
-| `ReleaseGenreRemovedEvent` | `release_id: address`, `genre_id: address` | 64 |
-| `ReleaseGenresClearedEvent` | `release_id: address` | 32 |
+| `ReleaseGenreAddedEvent` | `release_id: ID`, `genre_id: ID` | 64 |
+| `ReleaseGenreRemovedEvent` | `release_id: ID`, `genre_id: ID` | 64 |
+| `ReleaseGenresClearedEvent` | `release_id: ID` | 32 |
 
 Removing the last genre emits only `ReleaseGenreRemovedEvent`; there is no
 cascaded cleared event. A cleared event is emitted only when a list was

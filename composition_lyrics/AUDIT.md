@@ -76,3 +76,6 @@ preservation, empty versus absent entries, the 32,768/32,769-byte boundary on
 add and replace, equal-set and absent-clear silence, silent views, and exact
 event BCS layouts. `tests/check_cap_types.py` is unchanged and still expects
 `sui` on `PATH`.
+
+Event `composition_id` fields are typed `ID` rather than `address`, and emit
+sites pass the object id directly; BCS layout and sizes are unchanged.

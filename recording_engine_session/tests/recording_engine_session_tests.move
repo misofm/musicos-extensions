@@ -221,7 +221,7 @@ fun sessions_are_isolated_per_recording() {
 fun set_event_carries_recording_and_session_blob() {
     let ctx = &mut tx_context::dummy();
     let (mut rec, cap) = new_rec<REC>(ctx);
-    let rec_id = object::id(&rec).to_address();
+    let rec_id = object::id(&rec);
 
     session::set_engine_session(
         &mut rec,
@@ -244,7 +244,7 @@ fun set_event_carries_recording_and_session_blob() {
 fun clear_event_is_emitted_only_after_removal() {
     let ctx = &mut tx_context::dummy();
     let (mut rec, cap) = new_rec<REC>(ctx);
-    let rec_id = object::id(&rec).to_address();
+    let rec_id = object::id(&rec);
 
     session::clear_engine_session(&mut rec, &cap);
     assert_eq!(events_by_type<RecordingEngineSessionClearedEvent<REC>>().length(), 0);
@@ -476,9 +476,9 @@ fun event_streams_are_partitioned_by_recording_share_type() {
     assert_eq!(b_events.length(), 1);
     let (a_id, a_blob) = session::set_event_fields(&a_events[0]);
     let (b_id, b_blob) = session::set_event_fields(&b_events[0]);
-    assert_eq!(a_id, object::id(&a).to_address());
+    assert_eq!(a_id, object::id(&a));
     assert_eq!(a_blob, 1);
-    assert_eq!(b_id, object::id(&b).to_address());
+    assert_eq!(b_id, object::id(&b));
     assert_eq!(b_blob, 2);
 
     session::clear_engine_session(&mut a, &a_cap);

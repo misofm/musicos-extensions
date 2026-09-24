@@ -35,8 +35,8 @@ event-only indexer would otherwise have to look up.
 
 | Event | Fields | BCS bytes |
 |---|---|---|
-| `RecordingAdvisorySetEvent<RecordingShare>` | `recording_id: address`, `advisory: Advisory` | 33 |
-| `RecordingAdvisoryClearedEvent<RecordingShare>` | `recording_id: address` | 32 |
+| `RecordingAdvisorySetEvent<RecordingShare>` | `recording_id: ID`, `advisory: Advisory` | 33 |
+| `RecordingAdvisoryClearedEvent<RecordingShare>` | `recording_id: ID` | 32 |
 
 `advisory` serializes as the variant index: `Explicit = 0`, `NotExplicit = 1`,
 `Cleaned = 2`. An equal set and an absent clear emit nothing, so every event is

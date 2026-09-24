@@ -36,8 +36,8 @@ Both events are generic over `RecordingShare` only.
 
 | Event | Fields | BCS bytes |
 |---|---|---|
-| `RecordingLanguagesSetEvent<RecordingShare>` | `recording_id: address`, `languages: vector<String>` | `33 + 3n` for `n` codes: 33 (instrumental) to 63 (ten codes) |
-| `RecordingLanguagesClearedEvent<RecordingShare>` | `recording_id: address` | 32 |
+| `RecordingLanguagesSetEvent<RecordingShare>` | `recording_id: ID`, `languages: vector<String>` | `33 + 3n` for `n` codes: 33 (instrumental) to 63 (ten codes) |
+| `RecordingLanguagesClearedEvent<RecordingShare>` | `recording_id: ID` | 32 |
 
 `languages` holds the ordered two-letter codes as strings. An equal set and an
 absent clear emit nothing, so every event is a real state transition.

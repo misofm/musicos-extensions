@@ -53,32 +53,32 @@ fun mk_release(ctx: &mut TxContext): (Release, ReleaseAdminCap) {
 }
 
 /// Asserts an added event's fields and its exact 64-byte BCS layout.
-fun assert_added_event(event: &rg::ReleaseGenreAddedEvent, release_id: address, genre_id: ID) {
+fun assert_added_event(event: &rg::ReleaseGenreAddedEvent, release_id: ID, genre_id: ID) {
     let (event_release_id, event_genre_id) = rg::genre_added_event_fields(event);
     assert_eq!(event_release_id, release_id);
-    assert_eq!(event_genre_id, genre_id.to_address());
+    assert_eq!(event_genre_id, genre_id);
     let mut bytes = bcs::new(bcs::to_bytes(event));
-    assert_eq!(bytes.peel_address(), release_id);
-    assert_eq!(bytes.peel_address(), genre_id.to_address());
+    assert_eq!(bytes.peel_address().to_id(), release_id);
+    assert_eq!(bytes.peel_address().to_id(), genre_id);
     assert!(bytes.into_remainder_bytes().is_empty());
 }
 
 /// Asserts a removed event's fields and its exact 64-byte BCS layout.
-fun assert_removed_event(event: &rg::ReleaseGenreRemovedEvent, release_id: address, genre_id: ID) {
+fun assert_removed_event(event: &rg::ReleaseGenreRemovedEvent, release_id: ID, genre_id: ID) {
     let (event_release_id, event_genre_id) = rg::genre_removed_event_fields(event);
     assert_eq!(event_release_id, release_id);
-    assert_eq!(event_genre_id, genre_id.to_address());
+    assert_eq!(event_genre_id, genre_id);
     let mut bytes = bcs::new(bcs::to_bytes(event));
-    assert_eq!(bytes.peel_address(), release_id);
-    assert_eq!(bytes.peel_address(), genre_id.to_address());
+    assert_eq!(bytes.peel_address().to_id(), release_id);
+    assert_eq!(bytes.peel_address().to_id(), genre_id);
     assert!(bytes.into_remainder_bytes().is_empty());
 }
 
 /// Asserts a cleared event's field and its exact 32-byte BCS layout.
-fun assert_cleared_event(event: &rg::ReleaseGenresClearedEvent, release_id: address) {
+fun assert_cleared_event(event: &rg::ReleaseGenresClearedEvent, release_id: ID) {
     assert_eq!(rg::genres_cleared_event_fields(event), release_id);
     let mut bytes = bcs::new(bcs::to_bytes(event));
-    assert_eq!(bytes.peel_address(), release_id);
+    assert_eq!(bytes.peel_address().to_id(), release_id);
     assert!(bytes.into_remainder_bytes().is_empty());
 }
 
@@ -110,7 +110,7 @@ fun event_replay_tracks_order_and_field_lifecycle() {
     scenario.next_tx(CREATOR);
     let genres = ids.map!(|id| scenario.take_immutable_by_id<Genre>(id));
     let (mut rel, cap) = mk_release(scenario.ctx());
-    let release_id = object::id(&rel).to_address();
+    let release_id = object::id(&rel);
     let mut projected: vector<ID> = vector[];
 
     rg::add_genre(&mut rel, &cap, &genres[0]);
@@ -173,8 +173,8 @@ fun two_releases_have_independent_event_identity() {
     let b = scenario.take_immutable_by_id<Genre>(ids[1]);
     let (mut rel_a, cap_a) = mk_release(scenario.ctx());
     let (mut rel_b, cap_b) = mk_release(scenario.ctx());
-    let rel_a_id = object::id(&rel_a).to_address();
-    let rel_b_id = object::id(&rel_b).to_address();
+    let rel_a_id = object::id(&rel_a);
+    let rel_b_id = object::id(&rel_b);
 
     rg::add_genre(&mut rel_a, &cap_a, &a);
     rg::add_genre(&mut rel_b, &cap_b, &b);
@@ -358,7 +358,7 @@ fun removing_the_primary_promotes_the_next() {
     scenario.next_tx(CREATOR);
     let genres = ids.map!(|id| scenario.take_immutable_by_id<Genre>(id));
     let (mut rel, cap) = mk_release(scenario.ctx());
-    let release_id = object::id(&rel).to_address();
+    let release_id = object::id(&rel);
     genres.do_ref!(|genre| rg::add_genre(&mut rel, &cap, genre));
 
     rg::remove_genre(&mut rel, &cap, ids[0]);
@@ -434,7 +434,7 @@ fun clear_genres_removes_the_whole_list() {
     scenario.next_tx(CREATOR);
     let genres = ids.map!(|id| scenario.take_immutable_by_id<Genre>(id));
     let (mut rel, cap) = mk_release(scenario.ctx());
-    let release_id = object::id(&rel).to_address();
+    let release_id = object::id(&rel);
     genres.do_ref!(|genre| rg::add_genre(&mut rel, &cap, genre));
 
     rg::clear_genres(&mut rel, &cap);

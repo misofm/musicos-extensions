@@ -144,8 +144,8 @@ fun titles_are_per_composition() {
     let ctx = &mut tx_context::dummy();
     let (mut a, a_cap) = mk_composition(ctx);
     let (mut b, b_cap) = mk_composition(ctx);
-    let a_id = object::id(&a).to_address();
-    let b_id = object::id(&b).to_address();
+    let a_id = object::id(&a);
+    let b_id = object::id(&b);
 
     ct::set_title(&mut a, &a_cap, b"First".to_string());
     assert!(ct::has_title(&a));
@@ -206,7 +206,7 @@ fun composition_share_types_have_separate_state_and_event_streams() {
 fun set_emits_each_transition() {
     let ctx = &mut tx_context::dummy();
     let (mut comp, cap) = mk_composition(ctx);
-    let comp_id = object::id(&comp).to_address();
+    let comp_id = object::id(&comp);
 
     ct::set_title(&mut comp, &cap, b"First draft".to_string());
     ct::set_title(&mut comp, &cap, b"Second draft".to_string());
@@ -250,7 +250,7 @@ fun first_set_is_never_a_no_op() {
 fun clear_emits_only_when_something_was_removed() {
     let ctx = &mut tx_context::dummy();
     let (mut comp, cap) = mk_composition(ctx);
-    let comp_id = object::id(&comp).to_address();
+    let comp_id = object::id(&comp);
 
     ct::clear_title(&mut comp, &cap);
     assert_eq!(event::num_events(), 0);
@@ -286,7 +286,7 @@ fun views_are_silent() {
     destroy(cap);
 }
 
-/// Set carries the composition id plus the exact value (32-byte address,
+/// Set carries the composition id plus the exact value (32-byte id,
 /// ULEB length, bytes); clear carries the id alone.
 #[test]
 fun payloads_have_exact_bcs_sizes() {

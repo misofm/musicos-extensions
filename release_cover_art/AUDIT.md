@@ -77,3 +77,6 @@ Evidence: with Sui `1.79.0`, strict lint and warnings-as-errors builds pass and 
 pass on Testnet and Mainnet (previously 20); the production module reports
 100.00% coverage (up from 97.02%: the encrypted-blob paths are now exercised
 and no longer branch).
+
+Event `release_id` fields are typed `ID` rather than `address`, and emit sites
+pass the object id directly; BCS layout and sizes are unchanged.

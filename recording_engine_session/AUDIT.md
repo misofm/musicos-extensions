@@ -83,3 +83,6 @@ Evidence: with Sui `1.79.0`, strict Testnet and Mainnet lint and
 warnings-as-errors builds pass clean and all 25 tests pass on each network
 (count unchanged); the production module reports 100.00% coverage, including
 the 0/1/127/128-stem size invariance and both no-op paths.
+
+Event `recording_id` fields are typed `ID` rather than `address`, and emit
+sites pass the object id directly; BCS layout and sizes are unchanged.

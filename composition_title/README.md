@@ -54,8 +54,8 @@ without adding capability custody or an authorization policy of its own.
 A field is carried only if an indexer reading events alone would otherwise
 need an object lookup for it.
 
-- `CompositionTitleSetEvent<S> { composition_id: address, title: String }`
-- `CompositionTitleClearedEvent<S> { composition_id: address }`
+- `CompositionTitleSetEvent<S> { composition_id: ID, title: String }`
+- `CompositionTitleClearedEvent<S> { composition_id: ID }`
 
 Dropped as derivable: the admin cap id (the derived address of
 `composition_id` under `CompositionAdminCapKey`), the sender (the transaction

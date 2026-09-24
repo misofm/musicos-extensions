@@ -49,14 +49,14 @@ public struct ExtensionKey() has copy, drop, store;
 /// the composition and the value now attached; the admin cap is derivable
 /// from the composition id and prior state is the indexer's own projection.
 public struct CompositionTitleSetEvent<phantom CompositionShare> has copy, drop {
-    composition_id: address,
+    composition_id: ID,
     title: String,
 }
 
 /// Emitted when an attached title is removed. Absent clears emit nothing, so
 /// a clear always removes the indexer's currently projected value.
 public struct CompositionTitleClearedEvent<phantom CompositionShare> has copy, drop {
-    composition_id: address,
+    composition_id: ID,
 }
 
 // === Public Functions ===
@@ -74,7 +74,7 @@ public fun set_title<CompositionShare>(
     assert!(!bytes.is_empty(), EEmptyTitle);
     assert!(bytes.length() <= MAX_TITLE_LENGTH, ETitleTooLong);
 
-    let composition_id = object::id(self).to_address();
+    let composition_id = object::id(self);
     let uid = self.uid_mut(cap);
     if (df::exists(uid, ExtensionKey())) {
         let stored: &mut String = df::borrow_mut(uid, ExtensionKey());
@@ -92,7 +92,7 @@ public fun clear_title<CompositionShare>(
     self: &mut Composition<CompositionShare>,
     cap: &CompositionAdminCap<CompositionShare>,
 ) {
-    let composition_id = object::id(self).to_address();
+    let composition_id = object::id(self);
     let uid = self.uid_mut(cap);
     if (!df::exists(uid, ExtensionKey())) return;
     let _: String = df::remove(uid, ExtensionKey());
@@ -118,13 +118,13 @@ public fun title<CompositionShare>(self: &Composition<CompositionShare>): &Strin
 #[test_only]
 public fun set_event_fields<CompositionShare>(
     e: &CompositionTitleSetEvent<CompositionShare>,
-): (address, String) {
+): (ID, String) {
     (e.composition_id, e.title)
 }
 
 #[test_only]
 public fun cleared_event_fields<CompositionShare>(
     e: &CompositionTitleClearedEvent<CompositionShare>,
-): address {
+): ID {
     e.composition_id
 }

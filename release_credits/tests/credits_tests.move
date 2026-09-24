@@ -232,7 +232,7 @@ fun remove_credit_round_trip() {
 fun add_credit_emits_the_full_record() {
     let mut ts = test_scenario::begin(ARTIST);
     let (mut rel, cap) = mk_release(ts.ctx());
-    let rel_id = object::id(&rel).to_address();
+    let rel_id = object::id(&rel);
     let (p1, p1c) = mk_party(b"Alice", ts.ctx());
     let (p2, p2c) = mk_party(b"Bob", ts.ctx());
     let alice = credit::new(b"Alice".to_string(), vector[rpr::new_primary_role()]);
@@ -245,13 +245,13 @@ fun add_credit_emits_the_full_record() {
     assert_eq!(events.length(), 2);
     let (event_object, event_party, event_roles) = credits::added_event_fields(&events[0]);
     assert_eq!(event_object, rel_id);
-    assert_eq!(event_party, object::id(&p1).to_address());
+    assert_eq!(event_party, object::id(&p1));
     assert_eq!(event_roles, vector[rpr::new_primary_role()]);
     let (event_object, event_party, event_roles) = credits::added_event_fields(&events[1]);
     assert_eq!(event_object, rel_id);
-    assert_eq!(event_party, object::id(&p2).to_address());
+    assert_eq!(event_party, object::id(&p2));
     assert_eq!(event_roles, vector[rpr::new_featured_role()]);
-    // Two addresses and a one-element vector of a unit variant: every add
+    // Two ids and a one-element vector of a unit variant: every add
     // event is exactly this.
     assert_eq!(to_bytes(&events[0]).length(), 32 + 32 + 1 + 1);
 
@@ -263,7 +263,7 @@ fun add_credit_emits_the_full_record() {
 fun remove_credit_emits_the_removed_record() {
     let mut ts = test_scenario::begin(ARTIST);
     let (mut rel, cap) = mk_release(ts.ctx());
-    let rel_id = object::id(&rel).to_address();
+    let rel_id = object::id(&rel);
     let (p, pc) = mk_party(b"Alice", ts.ctx());
     let pid = object::id(&p);
 
@@ -279,7 +279,7 @@ fun remove_credit_emits_the_removed_record() {
     assert_eq!(events.length(), 1);
     let (event_object, event_party) = credits::removed_event_fields(&events[0]);
     assert_eq!(event_object, rel_id);
-    assert_eq!(event_party, pid.to_address());
+    assert_eq!(event_party, pid);
     assert_eq!(to_bytes(&events[0]).length(), 64);
 
     destroy(rel); destroy(cap); destroy(p); destroy(pc);
@@ -313,7 +313,7 @@ fun event_carries_role_and_leaves_display_name_in_storage() {
 
     let events = events_by_type<credits::ReleaseCreditAddedEvent>();
     let (_, party_id, roles) = credits::added_event_fields(&events[0]);
-    assert_eq!(party_id, object::id(&party).to_address());
+    assert_eq!(party_id, object::id(&party));
     assert_eq!(roles, vector[rpr::new_featured_role()]);
     let stored = &credits::credits(&rel)[&object::id(&party)];
     assert_eq!(*stored.display_name(), b"BillingDisplayName".to_string());
@@ -342,14 +342,14 @@ fun remove_shifts_stored_order_and_readd_appends() {
     assert_eq!(credits::credits(&rel).get_idx(&object::id(&p3)), 1);
     let removed = events_by_type<credits::ReleaseCreditRemovedEvent>();
     let (_, removed_party) = credits::removed_event_fields(&removed[0]);
-    assert_eq!(removed_party, object::id(&p2).to_address());
+    assert_eq!(removed_party, object::id(&p2));
 
     let two_readded = credit::new(b"Two Readded".to_string(), vector[rpr::new_featured_role()]);
     credits::add_credit(&mut rel, &cap, &p2, two_readded);
     assert_eq!(credits::credits(&rel).get_idx(&object::id(&p2)), 2);
     let added = events_by_type<credits::ReleaseCreditAddedEvent>();
     let (_, party_id, roles) = credits::added_event_fields(&added[3]);
-    assert_eq!(party_id, object::id(&p2).to_address());
+    assert_eq!(party_id, object::id(&p2));
     assert_eq!(roles, vector[rpr::new_featured_role()]);
     assert_eq!(credits::credits(&rel)[&object::id(&p2)], two_readded);
 
@@ -376,7 +376,7 @@ fun final_remove_retains_record_and_readd_lands_in_it() {
     assert_eq!(credits::credits(&rel).get_idx(&party_id), 0);
     let added = events_by_type<credits::ReleaseCreditAddedEvent>();
     let (_, event_party, roles) = credits::added_event_fields(&added[1]);
-    assert_eq!(event_party, party_id.to_address());
+    assert_eq!(event_party, party_id);
     assert_eq!(roles, vector[rpr::new_featured_role()]);
     assert_eq!(credits::credits(&rel)[&party_id], second);
 

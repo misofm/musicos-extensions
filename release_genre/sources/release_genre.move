@@ -50,20 +50,20 @@ public struct ExtensionKey() has copy, drop, store;
 /// Emitted when a genre is appended. The first add creates the field, making
 /// that genre the primary.
 public struct ReleaseGenreAddedEvent has copy, drop {
-    release_id: address,
-    genre_id: address,
+    release_id: ID,
+    genre_id: ID,
 }
 
 /// Emitted when a genre is removed. Removing the last genre drops the field
 /// and emits only this event.
 public struct ReleaseGenreRemovedEvent has copy, drop {
-    release_id: address,
-    genre_id: address,
+    release_id: ID,
+    genre_id: ID,
 }
 
 /// Emitted when an attached genre list is dropped by `clear_genres`.
 public struct ReleaseGenresClearedEvent has copy, drop {
-    release_id: address,
+    release_id: ID,
 }
 
 // === Public Functions ===
@@ -72,7 +72,7 @@ public struct ReleaseGenresClearedEvent has copy, drop {
 /// After cap authorization, aborts `EDuplicateGenre` if the genre is already
 /// present, then `EMaxGenres` if the release is at capacity.
 public fun add_genre(self: &mut Release, cap: &ReleaseAdminCap, genre: &Genre) {
-    let release_id = object::id(self).to_address();
+    let release_id = object::id(self);
     let genre_id = object::id(genre);
     let uid = self.uid_mut(cap);
     if (df::exists(uid, ExtensionKey())) {
@@ -83,7 +83,7 @@ public fun add_genre(self: &mut Release, cap: &ReleaseAdminCap, genre: &Genre) {
     } else {
         df::add(uid, ExtensionKey(), vector[genre_id]);
     };
-    emit(ReleaseGenreAddedEvent { release_id, genre_id: genre_id.to_address() });
+    emit(ReleaseGenreAddedEvent { release_id, genre_id });
 }
 
 /// Removes a genre by id. If it was the primary, the next entry becomes
@@ -91,7 +91,7 @@ public fun add_genre(self: &mut Release, cap: &ReleaseAdminCap, genre: &Genre) {
 /// authorization, aborts `EGenreNotPresent` if the genre is not assigned,
 /// including when the release has no genres at all.
 public fun remove_genre(self: &mut Release, cap: &ReleaseAdminCap, genre_id: ID) {
-    let release_id = object::id(self).to_address();
+    let release_id = object::id(self);
     let uid = self.uid_mut(cap);
     assert!(df::exists(uid, ExtensionKey()), EGenreNotPresent);
     let genres: &mut vector<ID> = df::borrow_mut(uid, ExtensionKey());
@@ -101,13 +101,13 @@ public fun remove_genre(self: &mut Release, cap: &ReleaseAdminCap, genre_id: ID)
     if (genres.is_empty()) {
         let _: vector<ID> = df::remove(uid, ExtensionKey());
     };
-    emit(ReleaseGenreRemovedEvent { release_id, genre_id: genre_id.to_address() });
+    emit(ReleaseGenreRemovedEvent { release_id, genre_id });
 }
 
 /// Removes the release's entire genre list. Authorizes first; an absent list
 /// is a silent no-op.
 public fun clear_genres(self: &mut Release, cap: &ReleaseAdminCap) {
-    let release_id = object::id(self).to_address();
+    let release_id = object::id(self);
     let uid = self.uid_mut(cap);
     if (df::exists(uid, ExtensionKey())) {
         let _: vector<ID> = df::remove(uid, ExtensionKey());
@@ -127,16 +127,16 @@ public fun genres(self: &Release): vector<ID> {
 // === Test Functions ===
 
 #[test_only]
-public fun genre_added_event_fields(e: &ReleaseGenreAddedEvent): (address, address) {
+public fun genre_added_event_fields(e: &ReleaseGenreAddedEvent): (ID, ID) {
     (e.release_id, e.genre_id)
 }
 
 #[test_only]
-public fun genre_removed_event_fields(e: &ReleaseGenreRemovedEvent): (address, address) {
+public fun genre_removed_event_fields(e: &ReleaseGenreRemovedEvent): (ID, ID) {
     (e.release_id, e.genre_id)
 }
 
 #[test_only]
-public fun genres_cleared_event_fields(e: &ReleaseGenresClearedEvent): address {
+public fun genres_cleared_event_fields(e: &ReleaseGenresClearedEvent): ID {
     e.release_id
 }

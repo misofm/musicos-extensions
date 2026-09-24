@@ -59,8 +59,8 @@ key. The compressed body stays in the dynamic field.
 
 | Event | Fields | BCS size |
 |---|---|---|
-| `CompositionLyricsSetEvent<CompositionShare>` | `composition_id: address`, `language: String` | 35 |
-| `CompositionLyricsClearedEvent<CompositionShare>` | `composition_id: address`, `language: String` | 35 |
+| `CompositionLyricsSetEvent<CompositionShare>` | `composition_id: ID`, `language: String` | 35 |
+| `CompositionLyricsClearedEvent<CompositionShare>` | `composition_id: ID`, `language: String` | 35 |
 
 A set event is emitted only when the stored bytes actually change; a cleared
 event only when an entry was actually removed. Views emit nothing. Replaying

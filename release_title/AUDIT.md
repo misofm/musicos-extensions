@@ -29,3 +29,6 @@ validation-before-authorization precedence, absence, the exact 300-byte and
 byte-versus-character bounds, verbatim storage, equal-set silence, silent
 views, per-release isolation, and exact event field and BCS layouts including
 the 334-byte maximum set event.
+
+Event `release_id` fields are typed `ID` rather than `address`, and emit sites
+pass object ids directly; BCS layout and sizes are unchanged.

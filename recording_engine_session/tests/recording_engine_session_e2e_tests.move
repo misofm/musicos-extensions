@@ -53,7 +53,7 @@ fun lifecycle_works_on_a_published_shared_recording() {
     // === Tx 2 (ADMIN): attach a session to the shared recording ===
     ts.next_tx(ADMIN);
     let mut rec = ts.take_shared<Recording<REC>>();
-    let rec_id = object::id(&rec).to_address();
+    let rec_id = object::id(&rec);
     session::set_engine_session(&mut rec, &cap, new_session(111));
     assert_eq!(blob_id(session::engine_session(&rec)), 111);
     assert_eq!(session::stem_blob_id(&session::stems(session::engine_session(&rec))[0]), 112);

@@ -44,7 +44,7 @@ fun ascii_of_length(n: u64): String {
 fun set_read_replace_clear_lifecycle() {
     let ctx = &mut tx_context::dummy();
     let (mut rec, cap) = new_rec<REC>(ctx);
-    let rec_id = object::id(&rec).to_address();
+    let rec_id = object::id(&rec);
 
     assert!(!rv::has_version(&rec));
 
@@ -116,13 +116,13 @@ fun clear_when_absent_is_silent() {
     destroy(cap);
 }
 
-/// The set event is the recording address plus the BCS string: one length
+/// The set event is the recording id plus the BCS string: one length
 /// byte below 128 bytes, two at the 300-byte maximum.
 #[test]
 fun set_event_carries_the_recording_and_the_new_value() {
     let ctx = &mut tx_context::dummy();
     let (mut rec, cap) = new_rec<REC>(ctx);
-    let rec_id = object::id(&rec).to_address();
+    let rec_id = object::id(&rec);
 
     rv::set_version(&mut rec, &cap, b"Live".to_string());
     let events = events_by_type<RecordingVersionSetEvent<REC>>();
@@ -150,7 +150,7 @@ fun set_event_carries_the_recording_and_the_new_value() {
 fun cleared_event_carries_only_the_recording() {
     let ctx = &mut tx_context::dummy();
     let (mut rec, cap) = new_rec<REC>(ctx);
-    let rec_id = object::id(&rec).to_address();
+    let rec_id = object::id(&rec);
 
     rv::set_version(&mut rec, &cap, b"Live".to_string());
     rv::clear_version(&mut rec, &cap);

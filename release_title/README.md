@@ -32,8 +32,8 @@ otherwise have to look up.
 
 | Event | Fields | BCS size |
 |---|---|---|
-| `ReleaseTitleSetEvent` | `release_id: address`, `title: String` | 32 + ULEB128 length + title bytes; at most 334 |
-| `ReleaseTitleClearedEvent` | `release_id: address` | 32 |
+| `ReleaseTitleSetEvent` | `release_id: ID`, `title: String` | 32 + ULEB128 length + title bytes; at most 334 |
+| `ReleaseTitleClearedEvent` | `release_id: ID` | 32 |
 
 A set event is emitted only when the stored value actually changes; a cleared
 event only when a title was actually removed. Views emit nothing.

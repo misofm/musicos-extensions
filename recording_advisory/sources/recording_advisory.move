@@ -49,13 +49,13 @@ public enum Advisory has copy, drop, store {
 
 /// Emitted when the advisory is set to a value it did not already hold.
 public struct RecordingAdvisorySetEvent<phantom RecordingShare> has copy, drop {
-    recording_id: address,
+    recording_id: ID,
     advisory: Advisory,
 }
 
 /// Emitted when an attached advisory is removed.
 public struct RecordingAdvisoryClearedEvent<phantom RecordingShare> has copy, drop {
-    recording_id: address,
+    recording_id: ID,
 }
 
 // === Public Functions ===
@@ -76,7 +76,7 @@ public fun set_advisory<RecordingShare>(
     cap: &RecordingAdminCap<RecordingShare>,
     advisory: Advisory,
 ) {
-    let recording_id = object::id(self).to_address();
+    let recording_id = object::id(self);
     let uid = self.uid_mut(cap);
     if (df::exists(uid, ExtensionKey())) {
         let current: &mut Advisory = df::borrow_mut(uid, ExtensionKey());
@@ -94,7 +94,7 @@ public fun clear_advisory<RecordingShare>(
     self: &mut Recording<RecordingShare>,
     cap: &RecordingAdminCap<RecordingShare>,
 ) {
-    let recording_id = object::id(self).to_address();
+    let recording_id = object::id(self);
     let uid = self.uid_mut(cap);
     if (df::exists(uid, ExtensionKey())) {
         let _: Advisory = df::remove(uid, ExtensionKey());
@@ -136,13 +136,13 @@ public fun is_cleaned(self: &Advisory): bool {
 #[test_only]
 public fun set_event_fields<RecordingShare>(
     e: &RecordingAdvisorySetEvent<RecordingShare>,
-): (address, Advisory) {
+): (ID, Advisory) {
     (e.recording_id, e.advisory)
 }
 
 #[test_only]
 public fun cleared_event_fields<RecordingShare>(
     e: &RecordingAdvisoryClearedEvent<RecordingShare>,
-): address {
+): ID {
     e.recording_id
 }

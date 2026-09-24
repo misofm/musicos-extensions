@@ -75,3 +75,6 @@ warnings-as-errors builds pass clean and all 7 tests pass on each network
 (count unchanged); the production module reports 100.00% coverage, and the
 lifecycle test replays every event into an event-only projection that matches
 the views at each step.
+
+Event `recording_id` fields are typed `ID` rather than `address`, and emit
+sites pass the object id directly; BCS layout and sizes are unchanged.

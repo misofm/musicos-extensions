@@ -50,13 +50,13 @@ public struct ExtensionKey() has copy, drop, store;
 /// Emitted when the language list is set to a value it did not already hold.
 /// `languages` holds the ordered ISO 639-1 codes; empty means instrumental.
 public struct RecordingLanguagesSetEvent<phantom RecordingShare> has copy, drop {
-    recording_id: address,
+    recording_id: ID,
     languages: vector<String>,
 }
 
 /// Emitted when an attached language record is removed.
 public struct RecordingLanguagesClearedEvent<phantom RecordingShare> has copy, drop {
-    recording_id: address,
+    recording_id: ID,
 }
 
 // === Public Functions ===
@@ -71,7 +71,7 @@ public fun set_languages<RecordingShare>(
     languages: vector<LanguageCode>,
 ) {
     validate(&languages);
-    let recording_id = object::id(self).to_address();
+    let recording_id = object::id(self);
     let uid = self.uid_mut(cap);
     if (df::exists(uid, ExtensionKey())) {
         let current: &mut vector<LanguageCode> = df::borrow_mut(uid, ExtensionKey());
@@ -92,7 +92,7 @@ public fun clear_languages<RecordingShare>(
     self: &mut Recording<RecordingShare>,
     cap: &RecordingAdminCap<RecordingShare>,
 ) {
-    let recording_id = object::id(self).to_address();
+    let recording_id = object::id(self);
     let uid = self.uid_mut(cap);
     if (df::exists(uid, ExtensionKey())) {
         let _: vector<LanguageCode> = df::remove(uid, ExtensionKey());
@@ -122,14 +122,14 @@ public fun languages<RecordingShare>(
 #[test_only]
 public fun set_event_fields<RecordingShare>(
     e: &RecordingLanguagesSetEvent<RecordingShare>,
-): (address, vector<String>) {
+): (ID, vector<String>) {
     (e.recording_id, e.languages)
 }
 
 #[test_only]
 public fun cleared_event_fields<RecordingShare>(
     e: &RecordingLanguagesClearedEvent<RecordingShare>,
-): address {
+): ID {
     e.recording_id
 }
 

@@ -46,9 +46,9 @@ All events are generic over `RecordingShare` only.
 
 | Event | Fields | BCS bytes |
 |---|---|---|
-| `RecordingGenreAddedEvent<RecordingShare>` | `recording_id: address`, `genre_id: address` | 64 |
-| `RecordingGenreRemovedEvent<RecordingShare>` | `recording_id: address`, `genre_id: address` | 64 |
-| `RecordingGenresClearedEvent<RecordingShare>` | `recording_id: address` | 32 |
+| `RecordingGenreAddedEvent<RecordingShare>` | `recording_id: ID`, `genre_id: ID` | 64 |
+| `RecordingGenreRemovedEvent<RecordingShare>` | `recording_id: ID`, `genre_id: ID` | 64 |
+| `RecordingGenresClearedEvent<RecordingShare>` | `recording_id: ID` | 32 |
 
 Removing the last genre emits only `Removed`; `Cleared` is emitted only by
 `clear_genres` on an attached list. An absent clear emits nothing. Genre names

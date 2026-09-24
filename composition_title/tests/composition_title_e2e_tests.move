@@ -53,7 +53,7 @@ fun title_set_before_publish_survives_publication() {
     let sets = event::events_by_type<ct::CompositionTitleSetEvent<CompositionShare>>();
     assert_eq!(sets.length(), 1);
     let (event_id, title) = ct::set_event_fields(&sets[0]);
-    assert_eq!(event_id, comp_id.to_address());
+    assert_eq!(event_id, comp_id);
     assert_eq!(title, b"So What".to_string());
 
     // --- Tx 2 (STRANGER): the title is on the published, shared object ---
@@ -107,7 +107,7 @@ fun title_lifecycle_on_a_published_and_shared_composition() {
     let sets = event::events_by_type<ct::CompositionTitleSetEvent<CompositionShare>>();
     assert_eq!(sets.length(), 1);
     let (event_id, title) = ct::set_event_fields(&sets[0]);
-    assert_eq!(event_id, comp_id.to_address());
+    assert_eq!(event_id, comp_id);
     assert_eq!(title, b"Freddie Freeloader".to_string());
 
     // --- Tx 4 (STRANGER): reads back the same title a transaction later ---
@@ -131,11 +131,11 @@ fun title_lifecycle_on_a_published_and_shared_composition() {
     let sets = event::events_by_type<ct::CompositionTitleSetEvent<CompositionShare>>();
     assert_eq!(sets.length(), 1);
     let (event_id, title) = ct::set_event_fields(&sets[0]);
-    assert_eq!(event_id, comp_id.to_address());
+    assert_eq!(event_id, comp_id);
     assert_eq!(title, b"Freddie the Freeloader".to_string());
     let clears = event::events_by_type<ct::CompositionTitleClearedEvent<CompositionShare>>();
     assert_eq!(clears.length(), 1);
-    assert_eq!(ct::cleared_event_fields(&clears[0]), comp_id.to_address());
+    assert_eq!(ct::cleared_event_fields(&clears[0]), comp_id);
 
     // --- Tx 6 (STRANGER): the clear is visible too ---
     ts.next_tx(STRANGER);

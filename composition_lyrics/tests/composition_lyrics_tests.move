@@ -27,7 +27,7 @@ fun new_composition(
 /// (32) then the two-byte language code as a ULEB128-prefixed string (3).
 fun assert_set_event(
     e: &cl::CompositionLyricsSetEvent<CompositionShare>,
-    composition_id: address,
+    composition_id: ID,
     language: vector<u8>,
 ) {
     let (event_id, event_language) = cl::set_event_fields(e);
@@ -35,7 +35,7 @@ fun assert_set_event(
     assert_eq!(event_language, language.to_string());
 
     let mut bytes = bcs::new(bcs::to_bytes(e));
-    assert_eq!(bytes.peel_address(), composition_id);
+    assert_eq!(bytes.peel_address().to_id(), composition_id);
     assert_eq!(bytes.peel_vec_u8(), language);
     assert!(bytes.into_remainder_bytes().is_empty());
     assert_eq!(bcs::to_bytes(e).length(), 35);
@@ -44,7 +44,7 @@ fun assert_set_event(
 /// Asserts a cleared event's fields and its exact 35-byte BCS layout.
 fun assert_cleared_event(
     e: &cl::CompositionLyricsClearedEvent<CompositionShare>,
-    composition_id: address,
+    composition_id: ID,
     language: vector<u8>,
 ) {
     let (event_id, event_language) = cl::clear_event_fields(e);
@@ -52,7 +52,7 @@ fun assert_cleared_event(
     assert_eq!(event_language, language.to_string());
 
     let mut bytes = bcs::new(bcs::to_bytes(e));
-    assert_eq!(bytes.peel_address(), composition_id);
+    assert_eq!(bytes.peel_address().to_id(), composition_id);
     assert_eq!(bytes.peel_vec_u8(), language);
     assert!(bytes.into_remainder_bytes().is_empty());
     assert_eq!(bcs::to_bytes(e).length(), 35);
@@ -64,7 +64,7 @@ fun languages_are_independent_and_events_replay_transitions() {
     let (mut comp, cap) = new_composition(ctx);
     let en = lc::new(b"en".to_string());
     let ja = lc::new(b"ja".to_string());
-    let id = object::id(&comp).to_address();
+    let id = object::id(&comp);
     assert!(!cl::has_lyrics(&comp, en));
     cl::clear_lyrics(&mut comp, &cap, en);
     assert!(event::events_by_type<cl::CompositionLyricsClearedEvent<CompositionShare>>().is_empty());
@@ -110,7 +110,7 @@ fun equal_set_is_a_silent_no_op() {
     let ctx = &mut tx_context::dummy();
     let (mut comp, cap) = new_composition(ctx);
     let en = lc::new(b"en".to_string());
-    let id = object::id(&comp).to_address();
+    let id = object::id(&comp);
 
     cl::set_lyrics(&mut comp, &cap, en, vector[1, 2, 3]);
     let events_after_first = event::num_events();
@@ -150,7 +150,7 @@ fun empty_payload_is_distinct_from_absence() {
     let ctx = &mut tx_context::dummy();
     let (mut comp, cap) = new_composition(ctx);
     let en = lc::new(b"en".to_string());
-    let id = object::id(&comp).to_address();
+    let id = object::id(&comp);
     cl::set_lyrics(&mut comp, &cap, en, vector[]);
     assert!(cl::has_lyrics(&comp, en));
     assert!(cl::lyrics(&comp, en).is_empty());
@@ -174,7 +174,7 @@ fun maximum_payload_can_be_added_replaced_and_cleared() {
     let ctx = &mut tx_context::dummy();
     let (mut comp, cap) = new_composition(ctx);
     let en = lc::new(b"en".to_string());
-    let id = object::id(&comp).to_address();
+    let id = object::id(&comp);
     assert_eq!(cl::max_lyrics_length(), 32768);
     let data = vector::tabulate!(32768, |_| 255u8);
     let other = vector::tabulate!(32768, |_| 0u8);

@@ -62,17 +62,17 @@ fun return_genres(genres: vector<Genre>) {
     genres.destroy!(|genre| ts::return_immutable(genre));
 }
 
-fun assert_added(event: &RecordingGenreAddedEvent<REC>, rec: address, genre: ID) {
+fun assert_added(event: &RecordingGenreAddedEvent<REC>, rec: ID, genre: ID) {
     let (event_rec, event_genre) = rg::added_event_fields(event);
     assert_eq!(event_rec, rec);
-    assert_eq!(event_genre, genre.to_address());
+    assert_eq!(event_genre, genre);
     assert_eq!(to_bytes(event).length(), 64);
 }
 
-fun assert_removed(event: &RecordingGenreRemovedEvent<REC>, rec: address, genre: ID) {
+fun assert_removed(event: &RecordingGenreRemovedEvent<REC>, rec: ID, genre: ID) {
     let (event_rec, event_genre) = rg::removed_event_fields(event);
     assert_eq!(event_rec, rec);
-    assert_eq!(event_genre, genre.to_address());
+    assert_eq!(event_genre, genre);
     assert_eq!(to_bytes(event).length(), 64);
 }
 
@@ -94,7 +94,7 @@ fun add_remove_clear_lifecycle_with_events() {
     scenario.next_tx(CREATOR);
     let genres = take_genres(&scenario, &ids);
     let (mut rec, cap) = new_rec<REC>(scenario.ctx());
-    let rec_id = object::id(&rec).to_address();
+    let rec_id = object::id(&rec);
 
     // First add creates the field and establishes the primary.
     rg::add_genre(&mut rec, &cap, &genres[0]);

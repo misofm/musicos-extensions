@@ -64,15 +64,15 @@ public struct ReleaseCredits has store {
 /// Emitted when a party is credited, with its one role as stored; the
 /// display name stays in storage.
 public struct ReleaseCreditAddedEvent has copy, drop {
-    release_id: address,
-    party_id: address,
+    release_id: ID,
+    party_id: ID,
     roles: vector<ReleasePartyRole>,
 }
 
 /// Emitted when a party's credit is removed.
 public struct ReleaseCreditRemovedEvent has copy, drop {
-    release_id: address,
-    party_id: address,
+    release_id: ID,
+    party_id: ID,
 }
 
 // === Public Functions ===
@@ -89,7 +89,7 @@ public fun add_credit(
 ) {
     assert!(credit.roles().length() == CREDIT_ROLE_COUNT, EInvalidCreditRoleCount);
 
-    let release_id = object::id(self).to_address();
+    let release_id = object::id(self);
     let party_id = object::id(party);
     let roles = *credit.roles();
     let rc = borrow_mut_or_init(self.uid_mut(cap));
@@ -97,18 +97,18 @@ public fun add_credit(
     assert!(!rc.credits.contains(&party_id), EPartyAlreadyCredited);
     rc.credits.insert(party_id, credit);
 
-    emit(ReleaseCreditAddedEvent { release_id, party_id: party_id.to_address(), roles });
+    emit(ReleaseCreditAddedEvent { release_id, party_id, roles });
 }
 
 /// Removes a party's credit. Aborts when no record is attached or the party
 /// is not credited. Removing the last credit keeps the empty record attached.
 public fun remove_credit(self: &mut Release, cap: &ReleaseAdminCap, party_id: ID) {
-    let release_id = object::id(self).to_address();
+    let release_id = object::id(self);
     let rc = borrow_mut(self.uid_mut(cap));
     assert!(rc.credits.contains(&party_id), EPartyNotCredited);
     let (_, _) = rc.credits.remove(&party_id);
 
-    emit(ReleaseCreditRemovedEvent { release_id, party_id: party_id.to_address() });
+    emit(ReleaseCreditRemovedEvent { release_id, party_id });
 }
 
 // === View Functions ===
@@ -147,11 +147,11 @@ fun borrow_mut_or_init(uid: &mut UID): &mut ReleaseCredits {
 #[test_only]
 public fun added_event_fields(
     e: &ReleaseCreditAddedEvent,
-): (address, address, vector<ReleasePartyRole>) {
+): (ID, ID, vector<ReleasePartyRole>) {
     (e.release_id, e.party_id, e.roles)
 }
 
 #[test_only]
-public fun removed_event_fields(e: &ReleaseCreditRemovedEvent): (address, address) {
+public fun removed_event_fields(e: &ReleaseCreditRemovedEvent): (ID, ID) {
     (e.release_id, e.party_id)
 }

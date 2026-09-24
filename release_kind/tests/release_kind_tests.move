@@ -26,23 +26,23 @@ fun mk_release(ctx: &mut TxContext): (Release, ReleaseAdminCap) {
 
 /// Asserts the set event's fields and its exact BCS layout:
 /// `release_id` (32) then the kind as a ULEB128-prefixed byte vector.
-fun assert_set_event(event: &rk::ReleaseKindSetEvent, release_id: address, kind: vector<u8>) {
+fun assert_set_event(event: &rk::ReleaseKindSetEvent, release_id: ID, kind: vector<u8>) {
     let (event_release_id, event_kind) = rk::kind_set_event_fields(event);
     assert_eq!(event_release_id, release_id);
     assert_eq!(*event_kind.as_bytes(), kind);
 
     let mut bytes = bcs::new(bcs::to_bytes(event));
-    assert_eq!(bytes.peel_address(), release_id);
+    assert_eq!(bytes.peel_address().to_id(), release_id);
     assert_eq!(bytes.peel_vec_u8(), kind);
     assert!(bytes.into_remainder_bytes().is_empty());
 }
 
 /// Asserts the cleared event's field and its exact 32-byte BCS layout.
-fun assert_cleared_event(event: &rk::ReleaseKindClearedEvent, release_id: address) {
+fun assert_cleared_event(event: &rk::ReleaseKindClearedEvent, release_id: ID) {
     assert_eq!(rk::kind_cleared_event_fields(event), release_id);
 
     let mut bytes = bcs::new(bcs::to_bytes(event));
-    assert_eq!(bytes.peel_address(), release_id);
+    assert_eq!(bytes.peel_address().to_id(), release_id);
     assert!(bytes.into_remainder_bytes().is_empty());
 }
 
@@ -50,7 +50,7 @@ fun assert_cleared_event(event: &rk::ReleaseKindClearedEvent, release_id: addres
 fun set_read_replace_clear_lifecycle() {
     let ctx = &mut tx_context::dummy();
     let (mut rel, cap) = mk_release(ctx);
-    let release_id = object::id(&rel).to_address();
+    let release_id = object::id(&rel);
 
     assert!(!rk::has_kind(&rel));
 
@@ -129,8 +129,8 @@ fun kinds_are_per_release() {
     let ctx = &mut tx_context::dummy();
     let (mut a, a_cap) = mk_release(ctx);
     let (mut b, b_cap) = mk_release(ctx);
-    let a_id = object::id(&a).to_address();
-    let b_id = object::id(&b).to_address();
+    let a_id = object::id(&a);
+    let b_id = object::id(&b);
 
     rk::set_kind(&mut a, &a_cap, b"Album".to_string());
     assert!(rk::has_kind(&a));
@@ -158,7 +158,7 @@ fun kinds_are_per_release() {
 fun exactly_max_length_is_accepted_with_exact_bcs_size() {
     let ctx = &mut tx_context::dummy();
     let (mut rel, cap) = mk_release(ctx);
-    let release_id = object::id(&rel).to_address();
+    let release_id = object::id(&rel);
 
     let max = b"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
     assert_eq!(max.length(), 32);
@@ -214,7 +214,7 @@ fun nine_multibyte_characters_exceed_the_byte_bound() {
 fun verbatim_whitespace_and_nul_bytes() {
     let ctx = &mut tx_context::dummy();
     let (mut rel, cap) = mk_release(ctx);
-    let release_id = object::id(&rel).to_address();
+    let release_id = object::id(&rel);
     let whitespace_nul = vector[69, 80, 32, 9, 0, 32, 101, 112];
 
     rk::set_kind(&mut rel, &cap, whitespace_nul.to_string());
@@ -233,7 +233,7 @@ fun verbatim_whitespace_and_nul_bytes() {
 fun equal_set_is_a_silent_no_op() {
     let ctx = &mut tx_context::dummy();
     let (mut rel, cap) = mk_release(ctx);
-    let release_id = object::id(&rel).to_address();
+    let release_id = object::id(&rel);
 
     rk::set_kind(&mut rel, &cap, b"EP".to_string());
     let events_after_first = event::num_events();

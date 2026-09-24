@@ -44,13 +44,13 @@ public struct ExtensionKey() has copy, drop, store;
 
 /// Emitted when a release's title is set or replaced with a different value.
 public struct ReleaseTitleSetEvent has copy, drop {
-    release_id: address,
+    release_id: ID,
     title: String,
 }
 
 /// Emitted when an attached title is removed.
 public struct ReleaseTitleClearedEvent has copy, drop {
-    release_id: address,
+    release_id: ID,
 }
 
 // === Public Functions ===
@@ -63,7 +63,7 @@ public fun set_title(self: &mut Release, cap: &ReleaseAdminCap, title: String) {
     assert!(!title.is_empty(), EEmptyTitle);
     assert!(title.length() <= MAX_TITLE_LENGTH, ETitleTooLong);
 
-    let release_id = object::id(self).to_address();
+    let release_id = object::id(self);
     let uid = self.uid_mut(cap);
     if (df::exists(uid, ExtensionKey())) {
         let stored: &mut String = df::borrow_mut(uid, ExtensionKey());
@@ -78,7 +78,7 @@ public fun set_title(self: &mut Release, cap: &ReleaseAdminCap, title: String) {
 /// Removes the title, if any. Authorizes first; an absent title is a silent
 /// no-op.
 public fun clear_title(self: &mut Release, cap: &ReleaseAdminCap) {
-    let release_id = object::id(self).to_address();
+    let release_id = object::id(self);
     let uid = self.uid_mut(cap);
     if (df::exists(uid, ExtensionKey())) {
         let _: String = df::remove(uid, ExtensionKey());
@@ -102,11 +102,11 @@ public fun title(self: &Release): &String {
 // === Test Functions ===
 
 #[test_only]
-public fun title_set_event_fields(e: &ReleaseTitleSetEvent): (address, String) {
+public fun title_set_event_fields(e: &ReleaseTitleSetEvent): (ID, String) {
     (e.release_id, e.title)
 }
 
 #[test_only]
-public fun title_cleared_event_fields(e: &ReleaseTitleClearedEvent): address {
+public fun title_cleared_event_fields(e: &ReleaseTitleClearedEvent): ID {
     e.release_id
 }

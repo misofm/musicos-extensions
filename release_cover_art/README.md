@@ -44,10 +44,10 @@ blob IDs of the new value on a set.
 
 | Event | Fields | BCS bytes |
 |---|---|---|
-| `ReleaseCoverArtSetEvent` | `release_id: address`, `still_blob_id: u256`, `animated_blob_id: Option<u256>` | 65 (no animation) or 97 |
-| `ReleaseCoverArtClearedEvent` | `release_id: address` | 32 |
-| `ReleaseTrackCoverArtSetEvent` | `release_id: address`, `track_index: u64`, `still_blob_id: u256`, `animated_blob_id: Option<u256>` | 73 (no animation) or 105 |
-| `ReleaseTrackCoverArtClearedEvent` | `release_id: address`, `track_index: u64` | 40 |
+| `ReleaseCoverArtSetEvent` | `release_id: ID`, `still_blob_id: u256`, `animated_blob_id: Option<u256>` | 65 (no animation) or 97 |
+| `ReleaseCoverArtClearedEvent` | `release_id: ID` | 32 |
+| `ReleaseTrackCoverArtSetEvent` | `release_id: ID`, `track_index: u64`, `still_blob_id: u256`, `animated_blob_id: Option<u256>` | 73 (no animation) or 105 |
+| `ReleaseTrackCoverArtClearedEvent` | `release_id: ID`, `track_index: u64` | 40 |
 
 Cover art is always unencrypted: `cover_art::new` rejects encrypted blobs.
 An equal set and an absent clear emit nothing, so every event is a real

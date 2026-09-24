@@ -46,8 +46,8 @@ event-only indexer would otherwise have to look up.
 
 | Event | Fields | BCS bytes |
 |---|---|---|
-| `RecordingEngineSessionSetEvent<RecordingShare>` | `recording_id: address`, `blob_id: u256` | 64 |
-| `RecordingEngineSessionClearedEvent<RecordingShare>` | `recording_id: address` | 32 |
+| `RecordingEngineSessionSetEvent<RecordingShare>` | `recording_id: ID`, `blob_id: u256` | 64 |
+| `RecordingEngineSessionClearedEvent<RecordingShare>` | `recording_id: ID` | 32 |
 
 The stem list is unbounded and stays in storage: a set event carries the
 session document's blob ID, and a set event whose blob ID is unchanged means

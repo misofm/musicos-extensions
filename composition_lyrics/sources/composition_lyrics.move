@@ -39,13 +39,13 @@ public struct ExtensionKey(LanguageCode) has copy, drop, store;
 
 /// Emitted when a language's lyrics are set or replaced with different bytes.
 public struct CompositionLyricsSetEvent<phantom CompositionShare> has copy, drop {
-    composition_id: address,
+    composition_id: ID,
     language: String,
 }
 
 /// Emitted when a language's lyrics are removed.
 public struct CompositionLyricsClearedEvent<phantom CompositionShare> has copy, drop {
-    composition_id: address,
+    composition_id: ID,
     language: String,
 }
 
@@ -63,7 +63,7 @@ public fun set_lyrics<CompositionShare>(
 ) {
     assert!(lyrics.length() <= MAX_LYRICS_LENGTH, ELyricsTooLong);
 
-    let composition_id = object::id(self).to_address();
+    let composition_id = object::id(self);
     let uid = self.uid_mut(cap);
     let key = ExtensionKey(language);
     if (df::exists(uid, key)) {
@@ -83,7 +83,7 @@ public fun clear_lyrics<CompositionShare>(
     cap: &CompositionAdminCap<CompositionShare>,
     language: LanguageCode,
 ) {
-    let composition_id = object::id(self).to_address();
+    let composition_id = object::id(self);
     let uid = self.uid_mut(cap);
     let key = ExtensionKey(language);
     if (df::exists(uid, key)) {
@@ -123,13 +123,13 @@ public fun max_lyrics_length(): u64 { MAX_LYRICS_LENGTH }
 #[test_only]
 public fun set_event_fields<CompositionShare>(
     e: &CompositionLyricsSetEvent<CompositionShare>,
-): (address, String) {
+): (ID, String) {
     (e.composition_id, e.language)
 }
 
 #[test_only]
 public fun clear_event_fields<CompositionShare>(
     e: &CompositionLyricsClearedEvent<CompositionShare>,
-): (address, String) {
+): (ID, String) {
     (e.composition_id, e.language)
 }

@@ -51,8 +51,8 @@ that keys the entry, and — on add — the roles exactly as stored.
 
 | Event | Fields | BCS bytes |
 |---|---|---|
-| `CompositionCreditAddedEvent<CompositionShare>` | `composition_id: address`, `party_id: address`, `roles: vector<CompositionPartyRole>` | 66 (one role) – 70 (five) |
-| `CompositionCreditRemovedEvent<CompositionShare>` | `composition_id: address`, `party_id: address` | 64 |
+| `CompositionCreditAddedEvent<CompositionShare>` | `composition_id: ID`, `party_id: ID`, `roles: vector<CompositionPartyRole>` | 66 (one role) – 70 (five) |
+| `CompositionCreditRemovedEvent<CompositionShare>` | `composition_id: ID`, `party_id: ID` | 64 |
 
 `roles` is the credit's role vector in stored order; every
 `CompositionPartyRole` is a unit variant, so each role is one byte (its

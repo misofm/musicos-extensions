@@ -32,8 +32,8 @@ otherwise have to look up.
 
 | Event | Fields | BCS size |
 |---|---|---|
-| `ReleaseKindSetEvent` | `release_id: address`, `kind: String` | 32 + ULEB128 length + kind bytes; at most 65 |
-| `ReleaseKindClearedEvent` | `release_id: address` | 32 |
+| `ReleaseKindSetEvent` | `release_id: ID`, `kind: String` | 32 + ULEB128 length + kind bytes; at most 65 |
+| `ReleaseKindClearedEvent` | `release_id: ID` | 32 |
 
 A set event is emitted only when the stored value actually changes; a cleared
 event only when a kind was actually removed. Views emit nothing.

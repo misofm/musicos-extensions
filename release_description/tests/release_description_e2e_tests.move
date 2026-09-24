@@ -61,7 +61,7 @@ fun description_lifecycle_on_a_published_and_shared_release() {
     let set_events = event::events_by_type<rd::ReleaseDescriptionSetEvent>();
     assert_eq!(set_events.length(), 1);
     let (event_id, event_description) = rd::description_set_event_fields(&set_events[0]);
-    assert_eq!(event_id, rel_id.to_address());
+    assert_eq!(event_id, rel_id);
     assert_eq!(event_description, b"Recorded live in one room.".to_string());
 
     // --- Tx 4 (STRANGER): reads back the same prose a transaction later ---
@@ -81,11 +81,11 @@ fun description_lifecycle_on_a_published_and_shared_release() {
     let set_events = event::events_by_type<rd::ReleaseDescriptionSetEvent>();
     assert_eq!(set_events.length(), 1);
     let (event_id, event_description) = rd::description_set_event_fields(&set_events[0]);
-    assert_eq!(event_id, rel_id.to_address());
+    assert_eq!(event_id, rel_id);
     assert_eq!(event_description, b"Recorded live in one room, in two days.".to_string());
     let cleared_events = event::events_by_type<rd::ReleaseDescriptionClearedEvent>();
     assert_eq!(cleared_events.length(), 1);
-    assert_eq!(rd::description_cleared_event_fields(&cleared_events[0]), rel_id.to_address());
+    assert_eq!(rd::description_cleared_event_fields(&cleared_events[0]), rel_id);
 
     // --- Tx 6 (STRANGER): the clear is visible too ---
     ts.next_tx(STRANGER);

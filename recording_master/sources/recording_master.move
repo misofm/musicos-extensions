@@ -32,13 +32,13 @@ public struct ExtensionKey() has copy, drop, store;
 /// Emitted when the master is set to a value it did not already hold. The
 /// `Audio` is bounded technical metadata plus a blob ID, so it is the value.
 public struct RecordingMasterSetEvent<phantom RecordingShare> has copy, drop {
-    recording_id: address,
+    recording_id: ID,
     master: Audio,
 }
 
 /// Emitted when an attached master is removed.
 public struct RecordingMasterClearedEvent<phantom RecordingShare> has copy, drop {
-    recording_id: address,
+    recording_id: ID,
 }
 
 // === Public Functions ===
@@ -50,7 +50,7 @@ public fun set_master<RecordingShare>(
     cap: &RecordingAdminCap<RecordingShare>,
     master: Audio,
 ) {
-    let recording_id = object::id(self).to_address();
+    let recording_id = object::id(self);
     let uid = self.uid_mut(cap);
     if (df::exists(uid, ExtensionKey())) {
         let current: &mut Audio = df::borrow_mut(uid, ExtensionKey());
@@ -67,7 +67,7 @@ public fun clear_master<RecordingShare>(
     self: &mut Recording<RecordingShare>,
     cap: &RecordingAdminCap<RecordingShare>,
 ) {
-    let recording_id = object::id(self).to_address();
+    let recording_id = object::id(self);
     let uid = self.uid_mut(cap);
     if (df::exists(uid, ExtensionKey())) {
         let _: Audio = df::remove(uid, ExtensionKey());
@@ -93,13 +93,13 @@ public fun master<RecordingShare>(self: &Recording<RecordingShare>): &Audio {
 #[test_only]
 public fun set_event_fields<RecordingShare>(
     e: &RecordingMasterSetEvent<RecordingShare>,
-): (address, Audio) {
+): (ID, Audio) {
     (e.recording_id, e.master)
 }
 
 #[test_only]
 public fun cleared_event_fields<RecordingShare>(
     e: &RecordingMasterClearedEvent<RecordingShare>,
-): address {
+): ID {
     e.recording_id
 }

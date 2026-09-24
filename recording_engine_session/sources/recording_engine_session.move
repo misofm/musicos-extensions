@@ -69,13 +69,13 @@ public struct EngineSession has copy, drop, store {
 /// read from the recording, so a set event with an unchanged blob ID means
 /// the stems changed.
 public struct RecordingEngineSessionSetEvent<phantom RecordingShare> has copy, drop {
-    recording_id: address,
+    recording_id: ID,
     blob_id: u256,
 }
 
 /// Emitted when an attached session is removed.
 public struct RecordingEngineSessionClearedEvent<phantom RecordingShare> has copy, drop {
-    recording_id: address,
+    recording_id: ID,
 }
 
 // === Public Functions ===
@@ -107,7 +107,7 @@ public fun set_engine_session<RecordingShare>(
     cap: &RecordingAdminCap<RecordingShare>,
     session: EngineSession,
 ) {
-    let recording_id = object::id(self).to_address();
+    let recording_id = object::id(self);
     let blob_id = session.blob_id;
     let uid = self.uid_mut(cap);
     if (df::exists(uid, ExtensionKey())) {
@@ -125,7 +125,7 @@ public fun clear_engine_session<RecordingShare>(
     self: &mut Recording<RecordingShare>,
     cap: &RecordingAdminCap<RecordingShare>,
 ) {
-    let recording_id = object::id(self).to_address();
+    let recording_id = object::id(self);
     let uid = self.uid_mut(cap);
     if (df::exists(uid, ExtensionKey())) {
         let _: EngineSession = df::remove(uid, ExtensionKey());
@@ -183,13 +183,13 @@ fun digest_lt(a: &vector<u8>, b: &vector<u8>): bool {
 #[test_only]
 public fun set_event_fields<RecordingShare>(
     e: &RecordingEngineSessionSetEvent<RecordingShare>,
-): (address, u256) {
+): (ID, u256) {
     (e.recording_id, e.blob_id)
 }
 
 #[test_only]
 public fun cleared_event_fields<RecordingShare>(
     e: &RecordingEngineSessionClearedEvent<RecordingShare>,
-): address {
+): ID {
     e.recording_id
 }

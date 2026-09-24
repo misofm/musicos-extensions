@@ -49,20 +49,20 @@ public struct ExtensionKey() has copy, drop, store;
 
 /// Emitted when a genre is appended; the first add makes it the primary.
 public struct RecordingGenreAddedEvent<phantom RecordingShare> has copy, drop {
-    recording_id: address,
-    genre_id: address,
+    recording_id: ID,
+    genre_id: ID,
 }
 
 /// Emitted when a genre is removed. Removing the last genre drops the field
 /// and emits only this event.
 public struct RecordingGenreRemovedEvent<phantom RecordingShare> has copy, drop {
-    recording_id: address,
-    genre_id: address,
+    recording_id: ID,
+    genre_id: ID,
 }
 
 /// Emitted when `clear_genres` removes an attached list.
 public struct RecordingGenresClearedEvent<phantom RecordingShare> has copy, drop {
-    recording_id: address,
+    recording_id: ID,
 }
 
 // === Public Functions ===
@@ -75,7 +75,7 @@ public fun add_genre<RecordingShare>(
     cap: &RecordingAdminCap<RecordingShare>,
     genre: &Genre,
 ) {
-    let recording_id = object::id(self).to_address();
+    let recording_id = object::id(self);
     let genre_id = object::id(genre);
     let uid = self.uid_mut(cap);
     if (df::exists(uid, ExtensionKey())) {
@@ -88,7 +88,7 @@ public fun add_genre<RecordingShare>(
     };
     emit(RecordingGenreAddedEvent<RecordingShare> {
         recording_id,
-        genre_id: genre_id.to_address(),
+        genre_id,
     });
 }
 
@@ -101,7 +101,7 @@ public fun remove_genre<RecordingShare>(
     cap: &RecordingAdminCap<RecordingShare>,
     genre_id: ID,
 ) {
-    let recording_id = object::id(self).to_address();
+    let recording_id = object::id(self);
     let uid = self.uid_mut(cap);
     assert!(df::exists(uid, ExtensionKey()), EGenreNotPresent);
     let genres: &mut vector<ID> = df::borrow_mut(uid, ExtensionKey());
@@ -113,7 +113,7 @@ public fun remove_genre<RecordingShare>(
     };
     emit(RecordingGenreRemovedEvent<RecordingShare> {
         recording_id,
-        genre_id: genre_id.to_address(),
+        genre_id,
     });
 }
 
@@ -122,7 +122,7 @@ public fun clear_genres<RecordingShare>(
     self: &mut Recording<RecordingShare>,
     cap: &RecordingAdminCap<RecordingShare>,
 ) {
-    let recording_id = object::id(self).to_address();
+    let recording_id = object::id(self);
     let uid = self.uid_mut(cap);
     if (df::exists(uid, ExtensionKey())) {
         let _: vector<ID> = df::remove(uid, ExtensionKey());
@@ -148,20 +148,20 @@ public fun genres<RecordingShare>(self: &Recording<RecordingShare>): vector<ID> 
 #[test_only]
 public fun added_event_fields<RecordingShare>(
     e: &RecordingGenreAddedEvent<RecordingShare>,
-): (address, address) {
+): (ID, ID) {
     (e.recording_id, e.genre_id)
 }
 
 #[test_only]
 public fun removed_event_fields<RecordingShare>(
     e: &RecordingGenreRemovedEvent<RecordingShare>,
-): (address, address) {
+): (ID, ID) {
     (e.recording_id, e.genre_id)
 }
 
 #[test_only]
 public fun cleared_event_fields<RecordingShare>(
     e: &RecordingGenresClearedEvent<RecordingShare>,
-): address {
+): ID {
     e.recording_id
 }

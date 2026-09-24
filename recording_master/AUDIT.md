@@ -53,7 +53,7 @@ Changes in this generation:
   `CompositionShare` parameter.
 - Events renamed `Master{Set,Unset}Event<RecordingShare, CompositionShare>`
   → `RecordingMaster{Set,Cleared}Event<RecordingShare>`; `recording_id` is
-  now an `address` (was `ID`, same 32 bytes). The set event still carries the
+  an `ID`, as before (32 bytes). The set event still carries the
   complete `Audio` — bounded technical metadata plus a blob ID — so payloads
   are unchanged at 112 + format length (128 maximum) and 32.
 - An equal set now neither writes nor emits; previously it rewrote the field
@@ -68,3 +68,6 @@ Evidence: with Sui `1.79.0`, strict Testnet and Mainnet lint and
 warnings-as-errors builds pass clean and all 12 tests pass on each network
 (previously 11); the production module reports 100.00% coverage, including
 the 128-byte format ceiling and both no-op paths.
+
+Event `recording_id` fields are typed `ID` rather than `address`, and emit
+sites pass the object id directly; BCS layout and sizes are unchanged.

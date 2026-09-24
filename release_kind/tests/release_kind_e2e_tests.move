@@ -55,7 +55,7 @@ fun kind_lifecycle_against_a_published_shared_release() {
     let set_events = event::events_by_type<rk::ReleaseKindSetEvent>();
     assert_eq!(set_events.length(), 1);
     let (event_id, event_kind) = rk::kind_set_event_fields(&set_events[0]);
-    assert_eq!(event_id, rel_id.to_address());
+    assert_eq!(event_id, rel_id);
     assert_eq!(event_kind, b"Album".to_string());
 
     // --- Tx 3 (STRANGER, owns nothing): reads are permissionless ---
@@ -77,11 +77,11 @@ fun kind_lifecycle_against_a_published_shared_release() {
     let set_events = event::events_by_type<rk::ReleaseKindSetEvent>();
     assert_eq!(set_events.length(), 1);
     let (event_id, event_kind) = rk::kind_set_event_fields(&set_events[0]);
-    assert_eq!(event_id, rel_id.to_address());
+    assert_eq!(event_id, rel_id);
     assert_eq!(event_kind, b"Extended Play".to_string());
     let cleared_events = event::events_by_type<rk::ReleaseKindClearedEvent>();
     assert_eq!(cleared_events.length(), 1);
-    assert_eq!(rk::kind_cleared_event_fields(&cleared_events[0]), rel_id.to_address());
+    assert_eq!(rk::kind_cleared_event_fields(&cleared_events[0]), rel_id);
 
     // --- Tx 5 (STRANGER): the clear is visible too ---
     ts.next_tx(STRANGER);

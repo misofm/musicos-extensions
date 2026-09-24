@@ -92,8 +92,8 @@ fun master_events_are_partitioned_by_recording_share_type() {
     assert_eq!(b_events.length(), 1);
     let (a_id, _) = master_ext::set_event_fields(&a_events[0]);
     let (b_id, _) = master_ext::set_event_fields(&b_events[0]);
-    assert_eq!(a_id, object::id(&a).to_address());
-    assert_eq!(b_id, object::id(&b).to_address());
+    assert_eq!(a_id, object::id(&a));
+    assert_eq!(b_id, object::id(&b));
 
     master_ext::clear_master(&mut a, &a_cap);
     assert_eq!(events_by_type<RecordingMasterClearedEvent<REC>>().length(), 1);
@@ -111,7 +111,7 @@ fun master_events_are_partitioned_by_recording_share_type() {
 fun set_emits_the_audio_and_recording() {
     let ctx = &mut tx_context::dummy();
     let (mut rec, cap) = new_rec<REC>(ctx);
-    let rec_id = object::id(&rec).to_address();
+    let rec_id = object::id(&rec);
     let audio = new_audio(7);
 
     // Audio construction is a pure value operation; attaching it is the
@@ -127,7 +127,7 @@ fun set_emits_the_audio_and_recording() {
     assert_eq!(id, rec_id);
     assert_eq!(master, audio);
     assert_audio_metadata(&master);
-    // 32-byte recording address + the 4-byte `flac` fixture's 84-byte Audio.
+    // 32-byte recording id + the 4-byte `flac` fixture's 84-byte Audio.
     assert_eq!(to_bytes(&events[0]).length(), 116);
 
     destroy(rec);
@@ -216,7 +216,7 @@ fun same_blob_with_changed_audio_metadata_emits() {
 fun clear_emits_only_when_something_was_removed() {
     let ctx = &mut tx_context::dummy();
     let (mut rec, cap) = new_rec<REC>(ctx);
-    let rec_id = object::id(&rec).to_address();
+    let rec_id = object::id(&rec);
 
     // Nothing attached — a no-op must stay silent.
     master_ext::clear_master(&mut rec, &cap);

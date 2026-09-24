@@ -49,8 +49,8 @@ on add — the role exactly as stored.
 
 | Event | Fields | BCS bytes |
 |---|---|---|
-| `ReleaseCreditAddedEvent` | `release_id: address`, `party_id: address`, `roles: vector<ReleasePartyRole>` | 66 |
-| `ReleaseCreditRemovedEvent` | `release_id: address`, `party_id: address` | 64 |
+| `ReleaseCreditAddedEvent` | `release_id: ID`, `party_id: ID`, `roles: vector<ReleasePartyRole>` | 66 |
+| `ReleaseCreditRemovedEvent` | `release_id: ID`, `party_id: ID` | 64 |
 
 `roles` is the credit's one-element role vector; `ReleasePartyRole` is a unit
 variant (`Primary = 0`, `Featured = 1` by declaration order), so every add

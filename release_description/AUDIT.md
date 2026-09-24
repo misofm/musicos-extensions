@@ -54,3 +54,6 @@ warnings, 19/19 on each environment, covering the published/shared lifecycle,
 wrong caps on set and on clear (absent and present), validation precedence,
 exact 8192-byte and byte-versus-character bounds, verbatim storage, equal-set
 silence, silent views, per-release isolation, and exact event BCS layouts.
+
+Event `release_id` fields are typed `ID` rather than `address`, and emit sites
+pass the object id directly; BCS layout and sizes are unchanged.

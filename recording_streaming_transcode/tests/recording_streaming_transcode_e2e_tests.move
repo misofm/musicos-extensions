@@ -47,7 +47,7 @@ fun publish_and_share_recording(ts: &mut Scenario): RecordingAdminCap<REC> {
 /// The set event's fields, compared one at a time.
 fun assert_set_event<RecordingShare>(
     e: &RecordingStreamingTranscodeSetEvent<RecordingShare>,
-    recording_id: address,
+    recording_id: ID,
     quilt_id: u256,
 ) {
     let (event_recording_id, event_quilt_id) = transcode::set_event_fields(e);
@@ -63,7 +63,7 @@ fun lifecycle_works_on_a_published_shared_recording() {
     // === Tx 2 (ADMIN): attach a transcode to the shared recording ===
     ts.next_tx(ADMIN);
     let mut rec = ts.take_shared<Recording<REC>>();
-    let rec_id = object::id(&rec).to_address();
+    let rec_id = object::id(&rec);
     transcode::set_streaming_transcode(&mut rec, &cap, new_transcode(111));
     assert_eq!(quilt_id(transcode::streaming_transcode(&rec)), 111);
 

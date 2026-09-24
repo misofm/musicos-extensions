@@ -42,13 +42,13 @@ public struct StreamingTranscode has copy, drop, store {
 
 /// Emitted when the transcode is set to a value it did not already hold.
 public struct RecordingStreamingTranscodeSetEvent<phantom RecordingShare> has copy, drop {
-    recording_id: address,
+    recording_id: ID,
     quilt_id: u256,
 }
 
 /// Emitted when an attached transcode is removed.
 public struct RecordingStreamingTranscodeClearedEvent<phantom RecordingShare> has copy, drop {
-    recording_id: address,
+    recording_id: ID,
 }
 
 // === Public Functions ===
@@ -65,7 +65,7 @@ public fun set_streaming_transcode<RecordingShare>(
     cap: &RecordingAdminCap<RecordingShare>,
     transcode: StreamingTranscode,
 ) {
-    let recording_id = object::id(self).to_address();
+    let recording_id = object::id(self);
     let quilt_id = transcode.quilt.quilt_id();
     let uid = self.uid_mut(cap);
     if (df::exists(uid, ExtensionKey())) {
@@ -83,7 +83,7 @@ public fun clear_streaming_transcode<RecordingShare>(
     self: &mut Recording<RecordingShare>,
     cap: &RecordingAdminCap<RecordingShare>,
 ) {
-    let recording_id = object::id(self).to_address();
+    let recording_id = object::id(self);
     let uid = self.uid_mut(cap);
     if (df::exists(uid, ExtensionKey())) {
         let _: StreamingTranscode = df::remove(uid, ExtensionKey());
@@ -116,13 +116,13 @@ public fun quilt(self: &StreamingTranscode): &WalrusQuilt {
 #[test_only]
 public fun set_event_fields<RecordingShare>(
     e: &RecordingStreamingTranscodeSetEvent<RecordingShare>,
-): (address, u256) {
+): (ID, u256) {
     (e.recording_id, e.quilt_id)
 }
 
 #[test_only]
 public fun cleared_event_fields<RecordingShare>(
     e: &RecordingStreamingTranscodeClearedEvent<RecordingShare>,
-): address {
+): ID {
     e.recording_id
 }
