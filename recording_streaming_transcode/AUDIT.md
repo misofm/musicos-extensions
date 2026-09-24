@@ -41,3 +41,37 @@ construction and access, zero/large/max `u256` preservation, per-Recording and
 phantom isolation, exact event payloads and BCS replay, the three-set/two-clear
 739-byte composition, permissionless reads, and the published shared-Recording
 lifecycle. Production-module raw coverage is 100.00%.
+
+## 2026-09-24 — regeneration against musicos `6dff4de`
+
+Re-reviewed for republication against `musicos` at
+`6dff4deca5ced186989c064e152c92a06384750c`, where `Recording` takes a single
+`RecordingShare` parameter and `publish` no longer takes a Clock. `ori` stays
+at `367ed5fe92a8b62da02c1116537cf08d111e0789`; both lock graphs now resolve
+`musicos` at `6dff4de` and `share` at `6ac1dbf`. Verdict: no exploitable
+findings.
+
+Changes in this generation:
+
+- `ENoStreamingTranscode` is the numeric constant 1 (previously an
+  `#[error]` byte string).
+- `unset_streaming_transcode` → `clear_streaming_transcode`; every signature
+  drops the `CompositionShare` parameter.
+- `RecordingStreamingTranscode{Set,Cleared}Event` are now
+  `<phantom RecordingShare>` only and slimmed to the recording address plus,
+  on set, the Quilt ID (64 and 32 BCS bytes, down from 161 and 128). Dropped:
+  composition id (joinable via `RecordingPublishedEvent`), admin cap address,
+  `had_transcode`, `previous_quilt_id`, and the removed Quilt ID on clear.
+- An equal set now neither writes nor emits; previously it rewrote the field
+  silently. Absent clears remain silent.
+- Guard order is cap check then stored-state comparison; the function takes
+  no validatable argument.
+
+Storage key, value type, the Quilt-only wrapper, and authorization are
+unchanged.
+
+Evidence: with Sui `1.79.0`, strict Testnet and Mainnet lint and
+warnings-as-errors builds pass clean and all 7 tests pass on each network
+(count unchanged); the production module reports 100.00% coverage, and the
+lifecycle test replays every event into an event-only projection that matches
+the views at each step.

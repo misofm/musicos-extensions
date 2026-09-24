@@ -1,112 +1,103 @@
 // Copyright (c) Miso Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-/// Language-specific lyrics attached to a composition. The payload convention
-/// is UTF-8 text compressed into one self-contained Zstandard frame without an
-/// external dictionary. Move stores opaque bytes: it does not decode, inspect
-/// frame headers, validate text, or attest to the lyrics or their language.
-/// Writes require the composition's matching admin cap; reads are permissionless.
+/// Language-specific lyrics attached to a composition, one entry per ISO
+/// 639-1 language code. The payload convention is UTF-8 text compressed into
+/// one self-contained Zstandard frame without an external dictionary. Move
+/// stores opaque bytes: it does not decode, inspect frame headers, validate
+/// text, or attest to the lyrics or their language.
+///
+/// Writes require the composition's matching admin cap; reads are
+/// permissionless. Events carry the composition and the language key only;
+/// the compressed body is read from the dynamic field.
 module composition_lyrics::composition_lyrics;
 
 use language_code::language_code::LanguageCode;
 use musicos::composition::{Composition, CompositionAdminCap};
+use std::string::String;
 use sui::dynamic_field as df;
 use sui::event::emit;
+
+// === Errors ===
+
+/// No lyrics are attached for this language.
+const ENoLyrics: u64 = 1;
+/// The compressed lyrics exceed `MAX_LYRICS_LENGTH` bytes.
+const ELyricsTooLong: u64 = 2;
 
 // === Constants ===
 
 /// Storage bound per language, in compressed bytes. Not a decoded text limit.
 const MAX_LYRICS_LENGTH: u64 = 32768;
 
-// === Errors ===
-
-#[error]
-const EMaxLyricsLengthExceeded: vector<u8> = b"Compressed lyrics exceed the maximum length";
-#[error]
-const ENoLyrics: vector<u8> = b"No lyrics are attached for this language";
-
 // === Structs ===
 
-/// The wrapper reserves this extension's namespace; the value selects a language.
+/// Dynamic-field key — one compressed payload (`vector<u8>`) per language.
 public struct ExtensionKey(LanguageCode) has copy, drop, store;
 
 // === Events ===
 
-/// Compact change notifications; content remains in the dynamic field.
-/// See EVENT_PAYLOADS.md for retained context and BCS bounds.
+/// Emitted when a language's lyrics are set or replaced with different bytes.
 public struct CompositionLyricsSetEvent<phantom CompositionShare> has copy, drop {
     composition_id: address,
-    composition_admin_cap_id: address,
-    language: vector<u8>,
-    lyrics_existed_before: bool,
+    language: String,
 }
 
-/// Emitted only when an existing language entry is removed.
+/// Emitted when a language's lyrics are removed.
 public struct CompositionLyricsClearedEvent<phantom CompositionShare> has copy, drop {
     composition_id: address,
-    composition_admin_cap_id: address,
-    language: vector<u8>,
+    language: String,
 }
 
 // === Public Functions ===
 
 /// Adds or replaces one language, preserving the supplied bytes exactly.
-/// Authorization precedes storage validation. Empty and malformed frames are
-/// left for clients to interpret. Equal replacements still write the value but
-/// do not emit a change event.
+/// Aborts `ELyricsTooLong` past `MAX_LYRICS_LENGTH` bytes, before cap
+/// authorization. Empty and malformed frames are left for clients to
+/// interpret. Setting the bytes already stored neither writes nor emits.
 public fun set_lyrics<CompositionShare>(
     self: &mut Composition<CompositionShare>,
     cap: &CompositionAdminCap<CompositionShare>,
     language: LanguageCode,
     lyrics: vector<u8>,
 ) {
+    assert!(lyrics.length() <= MAX_LYRICS_LENGTH, ELyricsTooLong);
+
     let composition_id = object::id(self).to_address();
-    let composition_admin_cap_id = object::id(cap).to_address();
     let uid = self.uid_mut(cap);
-    assert!(lyrics.length() <= MAX_LYRICS_LENGTH, EMaxLyricsLengthExceeded);
     let key = ExtensionKey(language);
-    let lyrics_existed_before = df::exists(uid, key);
-    let lyrics_changed = if (lyrics_existed_before) {
+    if (df::exists(uid, key)) {
         let stored: &mut vector<u8> = df::borrow_mut(uid, key);
-        let lyrics_changed = *stored != lyrics;
+        if (*stored == lyrics) return;
         *stored = lyrics;
-        lyrics_changed
     } else {
         df::add(uid, key, lyrics);
-        true
     };
-    if (lyrics_changed) {
-        emit(CompositionLyricsSetEvent<CompositionShare> {
-            composition_id,
-            composition_admin_cap_id,
-            language: *language.code().as_bytes(),
-            lyrics_existed_before,
-        });
-    };
+    emit(CompositionLyricsSetEvent<CompositionShare> { composition_id, language: language.code() });
 }
 
-/// Removes only this language. An absent entry is an authorized, silent no-op.
+/// Removes only this language. Authorizes first; an absent entry is a silent
+/// no-op.
 public fun clear_lyrics<CompositionShare>(
     self: &mut Composition<CompositionShare>,
     cap: &CompositionAdminCap<CompositionShare>,
     language: LanguageCode,
 ) {
     let composition_id = object::id(self).to_address();
-    let composition_admin_cap_id = object::id(cap).to_address();
     let uid = self.uid_mut(cap);
     let key = ExtensionKey(language);
     if (df::exists(uid, key)) {
         let _: vector<u8> = df::remove(uid, key);
         emit(CompositionLyricsClearedEvent<CompositionShare> {
             composition_id,
-            composition_admin_cap_id,
-            language: *language.code().as_bytes(),
+            language: language.code(),
         });
     }
 }
 
 // === View Functions ===
 
+/// Whether lyrics are attached for this language.
 public fun has_lyrics<CompositionShare>(
     self: &Composition<CompositionShare>,
     language: LanguageCode,
@@ -114,7 +105,8 @@ public fun has_lyrics<CompositionShare>(
     df::exists(self.uid(), ExtensionKey(language))
 }
 
-/// Borrows the compressed bytes. Aborts when this language has no entry.
+/// Borrows the compressed bytes. Aborts `ENoLyrics` when this language has
+/// no entry.
 public fun lyrics<CompositionShare>(
     self: &Composition<CompositionShare>,
     language: LanguageCode,
@@ -131,13 +123,13 @@ public fun max_lyrics_length(): u64 { MAX_LYRICS_LENGTH }
 #[test_only]
 public fun set_event_fields<CompositionShare>(
     e: &CompositionLyricsSetEvent<CompositionShare>,
-): (address, address, vector<u8>, bool) {
-    (e.composition_id, e.composition_admin_cap_id, e.language, e.lyrics_existed_before)
+): (address, String) {
+    (e.composition_id, e.language)
 }
 
 #[test_only]
 public fun clear_event_fields<CompositionShare>(
     e: &CompositionLyricsClearedEvent<CompositionShare>,
-): (address, address, vector<u8>) {
-    (e.composition_id, e.composition_admin_cap_id, e.language)
+): (address, String) {
+    (e.composition_id, e.language)
 }

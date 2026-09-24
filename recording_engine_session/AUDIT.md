@@ -46,3 +46,40 @@ unset, zero and maximum `u256`, repeated stem blob IDs, independent phantom
 event streams, type-only cap behavior, constructor validation precedence, and the
 0/1/127/128 stem BCS boundaries. Constructor validation precedence is covered;
 production-module coverage is 100.00%.
+
+## 2026-09-24 — regeneration against musicos `6dff4de`
+
+Re-reviewed for republication against `musicos` at
+`6dff4deca5ced186989c064e152c92a06384750c`, where `Recording` takes a single
+`RecordingShare` parameter and `publish` no longer takes a Clock. Both lock
+graphs now resolve `musicos` at `6dff4de` and `share` at `6ac1dbf`. Verdict:
+no exploitable findings.
+
+Changes in this generation:
+
+- Errors are numeric `u64` constants: `ENoEngineSession` = 1,
+  `EInvalidStemDigest` = 2, `EUnsortedStems` = 3 (previously `#[error]`
+  byte strings).
+- `unset_engine_session` → `clear_engine_session`; every signature drops the
+  `CompositionShare` parameter.
+- Events renamed `EngineSession{Set,Unset}Event<RecordingShare,
+  CompositionShare>` → `RecordingEngineSession{Set,Cleared}Event<RecordingShare>`
+  and slimmed to the recording address plus, on set, the session blob ID
+  (64 and 32 BCS bytes, down from 178 and 136). Dropped: composition id
+  (joinable via `RecordingPublishedEvent`), admin cap address, the
+  `had_previous`/`value_changed` flags, the previous session blob ID, and
+  the previous/current/removed stem counts. The stem list stays excluded as
+  unbounded content; a set event whose blob ID is unchanged signals a stem
+  change and the indexer re-reads the recording.
+- An equal set now neither writes nor emits; previously it rewrote the field
+  silently. Absent clears remain silent.
+- Guard order: constructor argument validation (`new_stem`, `new`) → cap
+  check → stored-state comparison.
+
+Storage key, value type, constructor validation, canonical stem ordering, and
+authorization are unchanged.
+
+Evidence: with Sui `1.79.0`, strict Testnet and Mainnet lint and
+warnings-as-errors builds pass clean and all 25 tests pass on each network
+(count unchanged); the production module reports 100.00% coverage, including
+the 0/1/127/128-stem size invariance and both no-op paths.

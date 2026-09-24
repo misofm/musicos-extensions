@@ -35,3 +35,44 @@ Testnet and Mainnet: 16/16 tests. The suite covers shared published objects,
 authorization, limits, duplicate rejection, role validation, insertion-order
 indices, retained empty records, generic event streams, and primitive event
 fields.
+
+## 2026-09-24 — regeneration against musicos `6dff4de` and partyos `88c2e40`
+
+Re-reviewed for republication against `musicos` at
+`6dff4deca5ced186989c064e152c92a06384750c` (`publish(self, cap)` takes no
+Clock; core stores no title) and `partyos` at
+`88c2e40353dbee8d8f98272069b4d836b02b12ae` (`party::new(kind, name, ctx)`
+takes no Clock). `credit` stays at `6c295ea10f796edfec18f54783733a35210f4b06`;
+both lock graphs now pin it there (the Mainnet graph previously carried an
+older `credit`, `musicos`, and `partyos`). Verdict unchanged: no exploitable
+findings.
+
+Changes in this generation:
+
+- `CompositionPartyRole::Custom` removed with `new_custom_role`,
+  `MAX_CUSTOM_NAME_LENGTH`, `EEmptyString` (35) and
+  `EMaxCustomNameLengthExceeded` (31); the module now has no error
+  constants. Roles outside the six canonical variants will arrive in a future
+  package generation. The `name()` token renderer and the package-private
+  `event_encoding` helper were removed: no consumer under `/home/bl/misofm`
+  calls them, and a role is read from its BCS variant index.
+- Events slimmed to the composition address, the party address, and — on
+  add — `roles: vector<CompositionPartyRole>` exactly as stored:
+  `CompositionCreditAddedEvent` is 66–70 BCS bytes (one byte per unit-variant
+  role) and `CompositionCreditRemovedEvent` is 64 (both down from 128).
+  Dropped: admin cap address (derived from the composition), before/after
+  counts, insertion index, role-code vector, and record presence flags. The
+  display name stays in storage; an indexer reconstructs membership, order,
+  and roles from the ordered add/remove stream.
+- No silent no-op path exists: re-crediting a party (identical credit
+  included) aborts `EPartyAlreadyCredited`, and removing an uncredited party
+  aborts `EPartyNotCredited`, as before.
+- Guard order is argument validation (`EExceedsMaxRoles`), then the cap
+  (`uid_mut`), then stored-state checks with capacity before duplicate.
+
+Storage key, value type, authorization, bounds, and the retained empty record
+are unchanged.
+
+Evidence: with Sui `1.79.0`, strict Testnet and Mainnet lint and
+warnings-as-errors builds pass clean and all 13 tests pass on each network;
+both production modules report 100.00% coverage.

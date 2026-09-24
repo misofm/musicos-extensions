@@ -1,137 +1,97 @@
 // Copyright (c) Miso Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+/// Constructor validation and set/read/replace/clear mechanics against a bare
+/// `Recording`. Nothing here crosses a transaction boundary, so
+/// `tx_context::dummy()` suffices; the published, shared shape is covered in
+/// `recording_engine_session_e2e_tests`.
 #[test_only]
 module recording_engine_session::recording_engine_session_tests;
 
-use musicos::recording;
-use musicos::test_helpers;
-use recording_engine_session::recording_engine_session as session;
+use musicos::recording::{Self, Recording, RecordingAdminCap};
+use recording_engine_session::recording_engine_session::{
+    Self as session,
+    EngineSession,
+    RecordingEngineSessionSetEvent,
+    RecordingEngineSessionClearedEvent,
+};
 use std::unit_test::{assert_eq, destroy};
-use sui::event;
+use sui::bcs::to_bytes;
+use sui::event::events_by_type;
 
 public struct REC {}
-public struct COMP {}
 public struct OTHER_REC {}
-public struct OTHER_COMP {}
 
 const MAX_U256: u256 =
     0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
 
-fun new_recording(ctx: &mut TxContext): (
-    recording::Recording<REC, COMP>,
-    recording::RecordingAdminCap<REC>,
-) {
-    let composition_id = test_helpers::fake_id(ctx);
-    new_recording_with_composition(ctx, composition_id)
-}
-
-fun new_recording_with_composition(
+/// Only a `Recording` is needed, so a bare id stands in for its composition.
+fun new_rec<RecordingShare>(
     ctx: &mut TxContext,
-    composition_id: ID,
-): (
-    recording::Recording<REC, COMP>,
-    recording::RecordingAdminCap<REC>,
-) {
-    recording::new_for_testing<REC, COMP>(composition_id, ctx)
-}
-
-fun plain_blob(blob_id: u256): u256 {
-    blob_id
+): (Recording<RecordingShare>, RecordingAdminCap<RecordingShare>) {
+    recording::new_for_testing<RecordingShare>(object::id_from_address(@0xC0FFEE), ctx)
 }
 
 /// A 32-byte digest whose first byte is `lead` and whose last byte is `tail`.
 fun digest(lead: u8, tail: u8): vector<u8> {
     let mut bytes = vector[lead];
-    let mut i = 1u64;
-    while (i < 31) {
-        bytes.push_back(0);
-        i = i + 1;
-    };
+    30u64.do!(|_| bytes.push_back(0));
     bytes.push_back(tail);
     bytes
 }
 
-fun digest_for_index(index: u64): vector<u8> {
-    let mut lead = 0u8;
-    let mut i = 0;
-    while (i < index) {
-        lead = lead + 1;
-        i = i + 1;
-    };
-    digest(lead, 0)
+/// A session with `count` stems in digest order, each on its own blob.
+fun session_with_stems(count: u64): EngineSession {
+    let stems = vector::tabulate!(count, |i| session::new_stem(digest(i as u8, 0), 1000 + (i as u256)));
+    session::new(2000 + (count as u256), stems)
 }
 
-fun blob_for_index(index: u64): u256 {
-    let mut value = 1000u256;
-    let mut i = 0;
-    while (i < index) {
-        value = value + 1;
-        i = i + 1;
-    };
-    value
+fun new_session(blob_id: u256): EngineSession {
+    session::new(blob_id, vector[])
 }
 
-fun session_with_stems(count: u64): session::EngineSession {
-    let mut stems = vector[];
-    let mut i = 0;
-    while (i < count) {
-        stems.push_back(session::new_stem(digest_for_index(i), plain_blob(blob_for_index(i))));
-        i = i + 1;
-    };
-    session::new(plain_blob(blob_for_index(count + 1000)), stems)
-}
-
-fun new_session(blob_id: u256): session::EngineSession {
-    session::new(plain_blob(blob_id), vector[])
-}
-
-fun blob_id(value: &session::EngineSession): u256 {
+fun blob_id(value: &EngineSession): u256 {
     session::blob_id(value)
 }
 
 #[test]
-fun set_read_replace_unset_lifecycle() {
+fun set_read_replace_clear_lifecycle() {
     let ctx = &mut tx_context::dummy();
-    let (mut recording, cap) = new_recording(ctx);
+    let (mut rec, cap) = new_rec<REC>(ctx);
 
-    assert!(!session::has_engine_session(&recording));
+    assert!(!session::has_engine_session(&rec));
 
-    session::set_engine_session(&mut recording, &cap, new_session(111));
-    assert!(session::has_engine_session(&recording));
-    assert_eq!(blob_id(session::engine_session(&recording)), 111);
+    session::set_engine_session(&mut rec, &cap, new_session(111));
+    assert!(session::has_engine_session(&rec));
+    assert_eq!(blob_id(session::engine_session(&rec)), 111);
 
-    session::set_engine_session(&mut recording, &cap, new_session(222));
-    assert_eq!(blob_id(session::engine_session(&recording)), 222);
+    session::set_engine_session(&mut rec, &cap, new_session(222));
+    assert_eq!(blob_id(session::engine_session(&rec)), 222);
 
-    session::unset_engine_session(&mut recording, &cap);
-    assert!(!session::has_engine_session(&recording));
+    session::clear_engine_session(&mut rec, &cap);
+    assert!(!session::has_engine_session(&rec));
 
-    // Unset is idempotent.
-    session::unset_engine_session(&mut recording, &cap);
-    assert!(!session::has_engine_session(&recording));
+    // Clear is idempotent.
+    session::clear_engine_session(&mut rec, &cap);
+    assert!(!session::has_engine_session(&rec));
 
-    destroy(recording);
+    destroy(rec);
     destroy(cap);
 }
 
 #[test]
 fun stems_are_stored_in_digest_order_with_their_blobs() {
     let ctx = &mut tx_context::dummy();
-    let (mut recording, cap) = new_recording(ctx);
+    let (mut rec, cap) = new_rec<REC>(ctx);
 
     let stems = vector[
-        session::new_stem(digest(1, 0), plain_blob(10)),
-        session::new_stem(digest(1, 1), plain_blob(11)),
-        session::new_stem(digest(2, 0), plain_blob(20)),
+        session::new_stem(digest(1, 0), 10),
+        session::new_stem(digest(1, 1), 11),
+        session::new_stem(digest(2, 0), 20),
     ];
-    session::set_engine_session(
-        &mut recording,
-        &cap,
-        session::new(plain_blob(1), stems),
-    );
+    session::set_engine_session(&mut rec, &cap, session::new(1, stems));
 
-    let stored = session::stems(session::engine_session(&recording));
+    let stored = session::stems(session::engine_session(&rec));
     assert_eq!(stored.length(), 3);
     assert_eq!(*session::stem_digest(&stored[0]), digest(1, 0));
     assert_eq!(session::stem_blob_id(&stored[0]), 10);
@@ -140,82 +100,78 @@ fun stems_are_stored_in_digest_order_with_their_blobs() {
     assert_eq!(*session::stem_digest(&stored[2]), digest(2, 0));
     assert_eq!(session::stem_blob_id(&stored[2]), 20);
 
-    destroy(recording);
+    destroy(rec);
     destroy(cap);
 }
 
 #[test]
 fun replacing_a_session_replaces_its_stems_atomically() {
     let ctx = &mut tx_context::dummy();
-    let (mut recording, cap) = new_recording(ctx);
+    let (mut rec, cap) = new_rec<REC>(ctx);
 
     session::set_engine_session(
-        &mut recording,
+        &mut rec,
         &cap,
-        session::new(plain_blob(1), vector[session::new_stem(digest(1, 0), plain_blob(10))]),
+        session::new(1, vector[session::new_stem(digest(1, 0), 10)]),
     );
     session::set_engine_session(
-        &mut recording,
+        &mut rec,
         &cap,
         session::new(
-            plain_blob(2),
+            2,
             vector[
-                session::new_stem(digest(1, 0), plain_blob(10)),
-                session::new_stem(digest(3, 0), plain_blob(30)),
+                session::new_stem(digest(1, 0), 10),
+                session::new_stem(digest(3, 0), 30),
             ],
         ),
     );
 
-    let current = session::engine_session(&recording);
+    let current = session::engine_session(&rec);
     assert_eq!(blob_id(current), 2);
     assert_eq!(session::stems(current).length(), 2);
     assert_eq!(session::stem_blob_id(&session::stems(current)[1]), 30);
 
-    destroy(recording);
+    destroy(rec);
     destroy(cap);
 }
 
 #[test]
 fun complete_u256_blob_id_domain_is_preserved() {
     let ctx = &mut tx_context::dummy();
-    let (mut recording, cap) = new_recording(ctx);
+    let (mut rec, cap) = new_rec<REC>(ctx);
 
     session::set_engine_session(
-        &mut recording,
+        &mut rec,
         &cap,
-        session::new(
-            plain_blob(MAX_U256),
-            vector[session::new_stem(digest(0, 0), plain_blob(MAX_U256))],
-        ),
+        session::new(MAX_U256, vector[session::new_stem(digest(0, 0), MAX_U256)]),
     );
-    let stored = session::engine_session(&recording);
+    let stored = session::engine_session(&rec);
     assert_eq!(blob_id(stored), MAX_U256);
     assert_eq!(session::stem_blob_id(&session::stems(stored)[0]), MAX_U256);
 
-    destroy(recording);
+    destroy(rec);
     destroy(cap);
 }
 
-
 #[test, expected_failure(abort_code = session::EInvalidStemDigest)]
 fun short_stem_digest_is_rejected() {
-    let _ = session::new_stem(b"too-short", plain_blob(1));
+    let _ = session::new_stem(b"too-short", 1);
 }
 
 #[test, expected_failure(abort_code = session::EInvalidStemDigest)]
 fun long_stem_digest_is_rejected() {
     let mut bytes = digest(0, 0);
     bytes.push_back(0);
-    let _ = session::new_stem(bytes, plain_blob(1));
+    let _ = session::new_stem(bytes, 1);
 }
 
 #[test, expected_failure(abort_code = session::EUnsortedStems)]
 fun unsorted_stems_are_rejected() {
     let _ = session::new(
-        plain_blob(1),
+        1,
         vector[
-            session::new_stem(digest(2, 0), plain_blob(20)),
-            session::new_stem(digest(1, 0), plain_blob(10)),
+            session::new_stem(digest(2, 0), 20),
+            session::new_stem(digest(1, 0), 10),
         ],
     );
 }
@@ -223,10 +179,10 @@ fun unsorted_stems_are_rejected() {
 #[test, expected_failure(abort_code = session::EUnsortedStems)]
 fun stems_ordered_only_by_a_late_byte_must_still_be_sorted() {
     let _ = session::new(
-        plain_blob(1),
+        1,
         vector[
-            session::new_stem(digest(1, 1), plain_blob(11)),
-            session::new_stem(digest(1, 0), plain_blob(10)),
+            session::new_stem(digest(1, 1), 11),
+            session::new_stem(digest(1, 0), 10),
         ],
     );
 }
@@ -234,10 +190,10 @@ fun stems_ordered_only_by_a_late_byte_must_still_be_sorted() {
 #[test, expected_failure(abort_code = session::EUnsortedStems)]
 fun duplicate_stem_digests_are_rejected() {
     let _ = session::new(
-        plain_blob(1),
+        1,
         vector[
-            session::new_stem(digest(1, 0), plain_blob(10)),
-            session::new_stem(digest(1, 0), plain_blob(11)),
+            session::new_stem(digest(1, 0), 10),
+            session::new_stem(digest(1, 0), 11),
         ],
     );
 }
@@ -245,11 +201,8 @@ fun duplicate_stem_digests_are_rejected() {
 #[test]
 fun sessions_are_isolated_per_recording() {
     let ctx = &mut tx_context::dummy();
-    let (mut a, a_cap) = new_recording(ctx);
-    let (b, b_cap) = recording::new_for_testing<OTHER_REC, COMP>(
-        test_helpers::fake_id(ctx),
-        ctx,
-    );
+    let (mut a, a_cap) = new_rec<REC>(ctx);
+    let (b, b_cap) = new_rec<OTHER_REC>(ctx);
 
     session::set_engine_session(&mut a, &a_cap, new_session(9));
 
@@ -262,393 +215,315 @@ fun sessions_are_isolated_per_recording() {
     destroy(b_cap);
 }
 
+/// The set event carries the recording and the session document's blob ID;
+/// stems stay in storage.
 #[test]
-fun set_event_carries_recording_session_and_stem_count() {
+fun set_event_carries_recording_and_session_blob() {
     let ctx = &mut tx_context::dummy();
-    let composition_id = test_helpers::fake_id(ctx);
-    let (mut recording, cap) = new_recording_with_composition(ctx, composition_id);
-    let recording_id = object::id(&recording);
-    let admin_cap_id = object::id(&cap);
-    let stem_digest = digest(4, 4);
+    let (mut rec, cap) = new_rec<REC>(ctx);
+    let rec_id = object::id(&rec).to_address();
 
-    let value = session::new(
-        plain_blob(7),
-        vector[session::new_stem(stem_digest, plain_blob(44))],
+    session::set_engine_session(
+        &mut rec,
+        &cap,
+        session::new(7, vector[session::new_stem(digest(4, 4), 44)]),
     );
-    session::set_engine_session(&mut recording, &cap, value);
 
-    let events = event::events_by_type<session::EngineSessionSetEvent<REC, COMP>>();
+    let events = events_by_type<RecordingEngineSessionSetEvent<REC>>();
     assert_eq!(events.length(), 1);
-    let (event_recording_id, event_composition_id, event_admin_cap_id, had_previous, value_changed, previous_blob_id, previous_stem_count, event_blob_id, stem_count) = session::set_event_fields(&events[0]);
-    assert_eq!(event_recording_id, recording_id.to_address());
-    assert_eq!(event_composition_id, composition_id.to_address());
-    assert_eq!(event_admin_cap_id, admin_cap_id.to_address());
-    assert!(!had_previous);
-    assert!(value_changed);
-    assert_eq!(previous_blob_id, 0);
-    assert_eq!(previous_stem_count, 0);
+    let (event_rec_id, event_blob_id) = session::set_event_fields(&events[0]);
+    assert_eq!(event_rec_id, rec_id);
     assert_eq!(event_blob_id, 7);
-    assert_eq!(stem_count, 1);
+    assert_eq!(to_bytes(&events[0]).length(), 64);
 
-    destroy(recording);
+    destroy(rec);
     destroy(cap);
 }
 
 #[test]
-fun unset_event_is_emitted_only_after_removal() {
+fun clear_event_is_emitted_only_after_removal() {
     let ctx = &mut tx_context::dummy();
-    let (mut recording, cap) = new_recording(ctx);
-    let recording_id = object::id(&recording);
+    let (mut rec, cap) = new_rec<REC>(ctx);
+    let rec_id = object::id(&rec).to_address();
 
-    session::unset_engine_session(&mut recording, &cap);
-    assert_eq!(
-        event::events_by_type<session::EngineSessionUnsetEvent<REC, COMP>>().length(),
-        0,
-    );
+    session::clear_engine_session(&mut rec, &cap);
+    assert_eq!(events_by_type<RecordingEngineSessionClearedEvent<REC>>().length(), 0);
 
-    session::set_engine_session(&mut recording, &cap, new_session(5));
-    session::unset_engine_session(&mut recording, &cap);
+    session::set_engine_session(&mut rec, &cap, new_session(5));
+    session::clear_engine_session(&mut rec, &cap);
 
-    let events = event::events_by_type<session::EngineSessionUnsetEvent<REC, COMP>>();
+    let events = events_by_type<RecordingEngineSessionClearedEvent<REC>>();
     assert_eq!(events.length(), 1);
-    let (event_recording_id, event_composition_id, event_admin_cap_id, removed_blob_id, removed_stem_count) = session::unset_event_fields(&events[0]);
-    assert_eq!(event_recording_id, recording_id.to_address());
-    assert_eq!(event_composition_id, recording::composition_id(&recording).to_address());
-    assert_eq!(event_admin_cap_id, object::id(&cap).to_address());
-    assert_eq!(removed_blob_id, 5);
-    assert_eq!(removed_stem_count, 0);
+    assert_eq!(session::cleared_event_fields(&events[0]), rec_id);
+    assert_eq!(to_bytes(&events[0]).length(), 32);
 
-    destroy(recording);
+    session::clear_engine_session(&mut rec, &cap);
+    assert_eq!(events_by_type<RecordingEngineSessionClearedEvent<REC>>().length(), 1);
+
+    destroy(rec);
     destroy(cap);
 }
 
 #[test, expected_failure(abort_code = session::ENoEngineSession)]
-fun engine_session_aborts_when_unset() {
+fun engine_session_aborts_when_absent() {
     let ctx = &mut tx_context::dummy();
-    let (recording, cap) = new_recording(ctx);
-    let _ = session::engine_session(&recording);
-    destroy(recording);
+    let (rec, cap) = new_rec<REC>(ctx);
+    let _ = session::engine_session(&rec);
+    destroy(rec);
     destroy(cap);
 }
 
+/// Equality is over the whole value, stem vectors included.
 #[test]
-fun set_events_report_insert_equal_and_each_component_change() {
+fun equal_set_neither_writes_nor_emits() {
     let ctx = &mut tx_context::dummy();
-    let composition_id = test_helpers::fake_id(ctx);
-    let (mut recording, cap) = new_recording_with_composition(ctx, composition_id);
-    let recording_id = object::id(&recording).to_address();
-    let admin_cap_id = object::id(&cap).to_address();
-    let first_digest = digest(1, 0);
+    let (mut rec, cap) = new_rec<REC>(ctx);
 
     session::set_engine_session(
-        &mut recording,
+        &mut rec,
         &cap,
-        session::new(plain_blob(10), vector[session::new_stem(first_digest, plain_blob(20))]),
+        session::new(10, vector[session::new_stem(digest(1, 0), 20)]),
     );
-    // Full equality, including stem vectors, makes the replacement silent.
     session::set_engine_session(
-        &mut recording,
+        &mut rec,
         &cap,
-        session::new(plain_blob(10), vector[session::new_stem(first_digest, plain_blob(20))]),
+        session::new(10, vector[session::new_stem(digest(1, 0), 20)]),
     );
-    let events = event::events_by_type<session::EngineSessionSetEvent<REC, COMP>>();
+
+    let events = events_by_type<RecordingEngineSessionSetEvent<REC>>();
     assert_eq!(events.length(), 1);
-    let (event_recording_id, event_composition_id, event_admin_cap_id, had_previous, value_changed, previous_blob_id, previous_stem_count, current_blob_id, stem_count) = session::set_event_fields(&events[0]);
-    assert_eq!(event_recording_id, recording_id);
-    assert_eq!(event_composition_id, composition_id.to_address());
-    assert_eq!(event_admin_cap_id, admin_cap_id);
-    assert!(!had_previous);
-    assert!(value_changed);
-    assert_eq!(previous_blob_id, 0);
-    assert_eq!(previous_stem_count, 0);
-    assert_eq!(current_blob_id, 10);
-    assert_eq!(stem_count, 1);
+    assert_eq!(session::stems(session::engine_session(&rec)).length(), 1);
 
-    assert_eq!(session::set_event_bcs(&events[0]).length(), 178);
-
-    destroy(recording);
+    destroy(rec);
     destroy(cap);
 }
 
+/// A change to the session blob, a stem digest, or a stem blob each emits; a
+/// stem-only change repeats the unchanged session blob ID, telling the
+/// indexer to re-read the stems.
 #[test]
-fun set_events_report_changes_to_blob_digest_and_stem_blob() {
+fun every_component_change_emits() {
     let ctx = &mut tx_context::dummy();
-    let (mut recording, cap) = new_recording(ctx);
-    let first_digest = digest(1, 0);
-    let second_digest = digest(2, 0);
+    let (mut rec, cap) = new_rec<REC>(ctx);
+
     session::set_engine_session(
-        &mut recording,
+        &mut rec,
         &cap,
-        session::new(plain_blob(10), vector[session::new_stem(first_digest, plain_blob(20))]),
+        session::new(10, vector[session::new_stem(digest(1, 0), 20)]),
     );
     session::set_engine_session(
-        &mut recording,
+        &mut rec,
         &cap,
-        session::new(plain_blob(11), vector[session::new_stem(first_digest, plain_blob(20))]),
+        session::new(11, vector[session::new_stem(digest(1, 0), 20)]),
     );
     session::set_engine_session(
-        &mut recording,
+        &mut rec,
         &cap,
-        session::new(plain_blob(11), vector[session::new_stem(second_digest, plain_blob(20))]),
+        session::new(11, vector[session::new_stem(digest(2, 0), 20)]),
     );
     session::set_engine_session(
-        &mut recording,
+        &mut rec,
         &cap,
-        session::new(plain_blob(11), vector[session::new_stem(second_digest, plain_blob(21))]),
+        session::new(11, vector[session::new_stem(digest(2, 0), 21)]),
     );
-    let events = event::events_by_type<session::EngineSessionSetEvent<REC, COMP>>();
+
+    let events = events_by_type<RecordingEngineSessionSetEvent<REC>>();
     assert_eq!(events.length(), 4);
-    let (_, _, _, had_previous, value_changed, previous_blob_id, previous_stem_count, current_blob_id, _) = session::set_event_fields(&events[1]);
-    assert!(had_previous);
-    assert!(value_changed);
-    assert_eq!(previous_blob_id, 10);
-    assert_eq!(previous_stem_count, 1);
-    assert_eq!(current_blob_id, 11);
-    let (_, _, _, had_previous, value_changed, previous_blob_id, previous_stem_count, current_blob_id, _) = session::set_event_fields(&events[2]);
-    assert!(had_previous);
-    assert!(value_changed);
-    assert_eq!(previous_blob_id, 11);
-    assert_eq!(previous_stem_count, 1);
-    assert_eq!(current_blob_id, 11);
-    let (_, _, _, had_previous, value_changed, previous_blob_id, previous_stem_count, current_blob_id, _) = session::set_event_fields(&events[3]);
-    assert!(had_previous);
-    assert!(value_changed);
-    assert_eq!(previous_blob_id, 11);
-    assert_eq!(previous_stem_count, 1);
-    assert_eq!(current_blob_id, 11);
-    destroy(recording);
+    let expected_blob_ids = vector[10u256, 11, 11, 11];
+    4u64.do!(|i| {
+        let (_, event_blob_id) = session::set_event_fields(&events[i]);
+        assert_eq!(event_blob_id, expected_blob_ids[i]);
+    });
+    assert_eq!(session::stem_blob_id(&session::stems(session::engine_session(&rec))[0]), 21);
+
+    destroy(rec);
     destroy(cap);
 }
 
 #[test]
 fun same_stem_blob_id_is_preserved_for_repeated_sources() {
     let ctx = &mut tx_context::dummy();
-    let (mut recording, cap) = new_recording(ctx);
-    let first_digest = digest(1, 0);
-    let second_digest = digest(2, 0);
+    let (mut rec, cap) = new_rec<REC>(ctx);
+
     session::set_engine_session(
-        &mut recording,
+        &mut rec,
         &cap,
         session::new(
-            plain_blob(9),
+            9,
             vector[
-                session::new_stem(first_digest, plain_blob(99)),
-                session::new_stem(second_digest, plain_blob(99)),
+                session::new_stem(digest(1, 0), 99),
+                session::new_stem(digest(2, 0), 99),
             ],
         ),
     );
-    let events = event::events_by_type<session::EngineSessionSetEvent<REC, COMP>>();
-    let (_, _, _, _, _, _, _, blob, count) = session::set_event_fields(&events[0]);
-    assert_eq!(blob, 9);
-    assert_eq!(count, 2);
-    assert_eq!(session::stems(session::engine_session(&recording)).length(), 2);
-    destroy(recording);
+
+    let events = events_by_type<RecordingEngineSessionSetEvent<REC>>();
+    let (_, event_blob_id) = session::set_event_fields(&events[0]);
+    assert_eq!(event_blob_id, 9);
+    let stems = session::stems(session::engine_session(&rec));
+    assert_eq!(stems.length(), 2);
+    assert_eq!(session::stem_blob_id(&stems[0]), 99);
+    assert_eq!(session::stem_blob_id(&stems[1]), 99);
+
+    destroy(rec);
     destroy(cap);
 }
 
 #[test]
-fun unset_event_snapshots_the_latest_value() {
+fun clear_after_replacement_removes_the_latest_value() {
     let ctx = &mut tx_context::dummy();
-    let (mut recording, cap) = new_recording(ctx);
-    let first_digest = digest(1, 0);
-    let second_digest = digest(2, 0);
+    let (mut rec, cap) = new_rec<REC>(ctx);
+
     session::set_engine_session(
-        &mut recording,
+        &mut rec,
         &cap,
-        session::new(plain_blob(100), vector[session::new_stem(first_digest, plain_blob(10))]),
+        session::new(100, vector[session::new_stem(digest(1, 0), 10)]),
     );
     session::set_engine_session(
-        &mut recording,
+        &mut rec,
         &cap,
         session::new(
-            plain_blob(200),
+            200,
             vector[
-                session::new_stem(first_digest, plain_blob(10)),
-                session::new_stem(second_digest, plain_blob(20)),
+                session::new_stem(digest(1, 0), 10),
+                session::new_stem(digest(2, 0), 20),
             ],
         ),
     );
-    session::unset_engine_session(&mut recording, &cap);
-    assert!(!session::has_engine_session(&recording));
-    let events = event::events_by_type<session::EngineSessionUnsetEvent<REC, COMP>>();
-    let (_, _, _, blob, count) = session::unset_event_fields(&events[0]);
-    assert_eq!(blob, 200);
-    assert_eq!(count, 2);
-    destroy(recording);
+    session::clear_engine_session(&mut rec, &cap);
+
+    assert!(!session::has_engine_session(&rec));
+    assert_eq!(events_by_type<RecordingEngineSessionSetEvent<REC>>().length(), 2);
+    assert_eq!(events_by_type<RecordingEngineSessionClearedEvent<REC>>().length(), 1);
+
+    destroy(rec);
     destroy(cap);
 }
 
 #[test]
 fun zero_and_maximum_u256_blob_ids_are_event_exact() {
     let ctx = &mut tx_context::dummy();
-    let (mut recording, cap) = new_recording(ctx);
+    let (mut rec, cap) = new_rec<REC>(ctx);
+
     session::set_engine_session(
-        &mut recording,
+        &mut rec,
         &cap,
-        session::new(plain_blob(0), vector[session::new_stem(digest(0, 0), plain_blob(0))]),
+        session::new(0, vector[session::new_stem(digest(0, 0), 0)]),
     );
     session::set_engine_session(
-        &mut recording,
+        &mut rec,
         &cap,
-        session::new(plain_blob(MAX_U256), vector[session::new_stem(digest(1, 0), plain_blob(MAX_U256))]),
+        session::new(MAX_U256, vector[session::new_stem(digest(1, 0), MAX_U256)]),
     );
-    let events = event::events_by_type<session::EngineSessionSetEvent<REC, COMP>>();
-    let (_, _, _, _, _, previous_blob_id, _, current_blob_id, _) = session::set_event_fields(&events[1]);
-    assert_eq!(previous_blob_id, 0);
-    assert_eq!(current_blob_id, MAX_U256);
-    destroy(recording);
+
+    let events = events_by_type<RecordingEngineSessionSetEvent<REC>>();
+    let (_, first) = session::set_event_fields(&events[0]);
+    let (_, second) = session::set_event_fields(&events[1]);
+    assert_eq!(first, 0);
+    assert_eq!(second, MAX_U256);
+    // The blob ID is the trailing 32 little-endian bytes.
+    let bytes = to_bytes(&events[1]);
+    assert_eq!(bytes.length(), 64);
+    32u64.do!(|i| assert_eq!(bytes[32 + i], 0xff));
+
+    destroy(rec);
     destroy(cap);
 }
 
 #[test]
 fun constructors_and_views_are_silent() {
-    let stem_digest = digest(3, 4);
-    let stem = session::new_stem(stem_digest, plain_blob(8));
-    let value = session::new(plain_blob(7), vector[stem]);
+    let stem = session::new_stem(digest(3, 4), 8);
+    let value = session::new(7, vector[stem]);
     assert_eq!(session::blob_id(&value), 7);
     assert_eq!(session::stems(&value).length(), 1);
-    assert_eq!(*session::stem_digest(&session::stems(&value)[0]), stem_digest);
+    assert_eq!(*session::stem_digest(&session::stems(&value)[0]), digest(3, 4));
     assert_eq!(session::stem_blob_id(&session::stems(&value)[0]), 8);
-    assert_eq!(event::events_by_type<session::EngineSessionSetEvent<REC, COMP>>().length(), 0);
-    assert_eq!(event::events_by_type<session::EngineSessionUnsetEvent<REC, COMP>>().length(), 0);
+    assert_eq!(events_by_type<RecordingEngineSessionSetEvent<REC>>().length(), 0);
+    assert_eq!(events_by_type<RecordingEngineSessionClearedEvent<REC>>().length(), 0);
 }
 
+/// `recording::uid_mut` matches the cap by type only. Two recordings of one
+/// share type exist only under `new_for_testing`, so this documents the trust
+/// model rather than a reachable production path.
 #[test]
-fun same_share_foreign_cap_is_observationally_accepted() {
+fun cap_is_matched_by_type_only() {
     let ctx = &mut tx_context::dummy();
-    let (mut recording, own_cap) = new_recording(ctx);
-    let (foreign_recording, foreign_cap) = new_recording(ctx);
-    let foreign_cap_id = object::id(&foreign_cap).to_address();
-    session::set_engine_session(&mut recording, &foreign_cap, new_session(55));
-    assert_eq!(blob_id(session::engine_session(&recording)), 55);
-    let events = event::events_by_type<session::EngineSessionSetEvent<REC, COMP>>();
-    let (_, _, admin_cap_id, _, _, _, _, _, _) = session::set_event_fields(&events[0]);
-    assert_eq!(admin_cap_id, foreign_cap_id);
-    destroy(recording);
+    let (mut rec, own_cap) = new_rec<REC>(ctx);
+    let (foreign_rec, foreign_cap) = new_rec<REC>(ctx);
+
+    session::set_engine_session(&mut rec, &foreign_cap, new_session(55));
+    assert_eq!(blob_id(session::engine_session(&rec)), 55);
+    assert!(!session::has_engine_session(&foreign_rec));
+
+    destroy(rec);
     destroy(own_cap);
-    destroy(foreign_recording);
+    destroy(foreign_rec);
     destroy(foreign_cap);
 }
 
 #[test]
-fun independent_phantom_dimensions_have_independent_event_streams() {
+fun event_streams_are_partitioned_by_recording_share_type() {
     let ctx = &mut tx_context::dummy();
-    let composition_id = test_helpers::fake_id(ctx);
-    let other_composition_id = test_helpers::fake_id(ctx);
-    let (mut recording, cap) = new_recording_with_composition(ctx, composition_id);
-    let (mut other_recording, other_cap) =
-        recording::new_for_testing<OTHER_REC, COMP>(composition_id, ctx);
-    let (mut other_composition_recording, other_composition_cap) =
-        recording::new_for_testing<REC, OTHER_COMP>(other_composition_id, ctx);
+    let (mut a, a_cap) = new_rec<REC>(ctx);
+    let (mut b, b_cap) = new_rec<OTHER_REC>(ctx);
 
-    session::set_engine_session(&mut recording, &cap, new_session(1));
-    session::set_engine_session(&mut other_recording, &other_cap, new_session(2));
-    session::set_engine_session(
-        &mut other_composition_recording,
-        &other_composition_cap,
-        new_session(3),
-    );
+    session::set_engine_session(&mut a, &a_cap, new_session(1));
+    session::set_engine_session(&mut b, &b_cap, new_session(2));
 
-    assert_eq!(event::events_by_type<session::EngineSessionSetEvent<REC, COMP>>().length(), 1);
-    let rec_comp_events = event::events_by_type<session::EngineSessionSetEvent<REC, COMP>>();
-    let (_, _, _, _, _, _, _, rec_comp_blob, _) = session::set_event_fields(&rec_comp_events[0]);
-    assert_eq!(rec_comp_blob, 1);
+    let a_events = events_by_type<RecordingEngineSessionSetEvent<REC>>();
+    let b_events = events_by_type<RecordingEngineSessionSetEvent<OTHER_REC>>();
+    assert_eq!(a_events.length(), 1);
+    assert_eq!(b_events.length(), 1);
+    let (a_id, a_blob) = session::set_event_fields(&a_events[0]);
+    let (b_id, b_blob) = session::set_event_fields(&b_events[0]);
+    assert_eq!(a_id, object::id(&a).to_address());
+    assert_eq!(a_blob, 1);
+    assert_eq!(b_id, object::id(&b).to_address());
+    assert_eq!(b_blob, 2);
 
-    let other_rec_comp_events =
-        event::events_by_type<session::EngineSessionSetEvent<OTHER_REC, COMP>>();
-    assert_eq!(other_rec_comp_events.length(), 1);
-    let (_, _, _, _, _, _, _, other_rec_comp_blob, _) = session::set_event_fields(&other_rec_comp_events[0]);
-    assert_eq!(other_rec_comp_blob, 2);
+    session::clear_engine_session(&mut a, &a_cap);
+    assert_eq!(events_by_type<RecordingEngineSessionClearedEvent<REC>>().length(), 1);
+    assert_eq!(events_by_type<RecordingEngineSessionClearedEvent<OTHER_REC>>().length(), 0);
 
-    assert_eq!(event::events_by_type<session::EngineSessionSetEvent<REC, OTHER_COMP>>().length(), 1);
-    let other_comp_events =
-        event::events_by_type<session::EngineSessionSetEvent<REC, OTHER_COMP>>();
-    let (_, _, _, _, _, _, _, other_comp_blob, _) = session::set_event_fields(&other_comp_events[0]);
-    assert_eq!(other_comp_blob, 3);
-    assert_eq!(
-        event::events_by_type<session::EngineSessionSetEvent<OTHER_REC, OTHER_COMP>>().length(),
-        0,
-    );
-
-    session::unset_engine_session(&mut recording, &cap);
-    session::unset_engine_session(&mut other_recording, &other_cap);
-    session::unset_engine_session(
-        &mut other_composition_recording,
-        &other_composition_cap,
-    );
-
-    let rec_comp_unset_events =
-        event::events_by_type<session::EngineSessionUnsetEvent<REC, COMP>>();
-    assert_eq!(rec_comp_unset_events.length(), 1);
-    let (_, _, _, rec_comp_removed_blob, _) = session::unset_event_fields(&rec_comp_unset_events[0]);
-    assert_eq!(rec_comp_removed_blob, 1);
-
-    let other_rec_comp_unset_events =
-        event::events_by_type<session::EngineSessionUnsetEvent<OTHER_REC, COMP>>();
-    assert_eq!(other_rec_comp_unset_events.length(), 1);
-    let (_, _, _, other_rec_comp_removed_blob, _) = session::unset_event_fields(&other_rec_comp_unset_events[0]);
-    assert_eq!(other_rec_comp_removed_blob, 2);
-
-    let other_comp_unset_events =
-        event::events_by_type<session::EngineSessionUnsetEvent<REC, OTHER_COMP>>();
-    assert_eq!(other_comp_unset_events.length(), 1);
-    let (_, _, _, other_comp_removed_blob, _) = session::unset_event_fields(&other_comp_unset_events[0]);
-    assert_eq!(other_comp_removed_blob, 3);
-    assert_eq!(
-        event::events_by_type<session::EngineSessionUnsetEvent<OTHER_REC, OTHER_COMP>>().length(),
-        0,
-    );
-
-    destroy(recording);
-    destroy(cap);
-    destroy(other_recording);
-    destroy(other_cap);
-    destroy(other_composition_recording);
-    destroy(other_composition_cap);
+    destroy(a);
+    destroy(a_cap);
+    destroy(b);
+    destroy(b_cap);
 }
 
+/// Stems are excluded from events, so payload size does not grow with them.
 #[test]
 fun event_size_is_independent_of_zero_one_and_large_stem_vectors() {
     let ctx = &mut tx_context::dummy();
-    let (mut r0, c0) = new_recording(ctx);
-    let (mut r1, c1) = new_recording(ctx);
-    let (mut r127, c127) = new_recording(ctx);
-    let (mut r128, c128) = new_recording(ctx);
-    session::set_engine_session(&mut r0, &c0, session_with_stems(0));
-    session::set_engine_session(&mut r1, &c1, session_with_stems(1));
-    session::set_engine_session(&mut r127, &c127, session_with_stems(127));
-    session::set_engine_session(&mut r128, &c128, session_with_stems(128));
-    let set_events = event::events_by_type<session::EngineSessionSetEvent<REC, COMP>>();
-    assert_eq!(session::set_event_bcs(&set_events[0]).length(), 178);
-    assert_eq!(session::set_event_bcs(&set_events[1]).length(), 178);
-    assert_eq!(session::set_event_bcs(&set_events[2]).length(), 178);
-    assert_eq!(session::set_event_bcs(&set_events[3]).length(), 178);
+    let (mut rec, cap) = new_rec<REC>(ctx);
+    let counts = vector[0u64, 1, 127, 128];
 
-    session::unset_engine_session(&mut r0, &c0);
-    session::unset_engine_session(&mut r1, &c1);
-    session::unset_engine_session(&mut r127, &c127);
-    session::unset_engine_session(&mut r128, &c128);
-    let unset_events = event::events_by_type<session::EngineSessionUnsetEvent<REC, COMP>>();
-    assert_eq!(session::unset_event_bcs(&unset_events[0]).length(), 136);
-    assert_eq!(session::unset_event_bcs(&unset_events[1]).length(), 136);
-    assert_eq!(session::unset_event_bcs(&unset_events[2]).length(), 136);
-    assert_eq!(session::unset_event_bcs(&unset_events[3]).length(), 136);
-    destroy(r0); destroy(c0); destroy(r1); destroy(c1);
-    destroy(r127); destroy(c127); destroy(r128); destroy(c128);
+    counts.do!(|count| session::set_engine_session(&mut rec, &cap, session_with_stems(count)));
+    let set_events = events_by_type<RecordingEngineSessionSetEvent<REC>>();
+    assert_eq!(set_events.length(), 4);
+    set_events.do_ref!(|e| assert_eq!(to_bytes(e).length(), 64));
+    assert_eq!(session::stems(session::engine_session(&rec)).length(), 128);
+
+    session::clear_engine_session(&mut rec, &cap);
+    let cleared = events_by_type<RecordingEngineSessionClearedEvent<REC>>();
+    assert_eq!(to_bytes(&cleared[0]).length(), 32);
+
+    destroy(rec);
+    destroy(cap);
 }
 
 #[test, expected_failure(abort_code = session::EInvalidStemDigest)]
 fun invalid_stem_digest_is_rejected_before_session_use() {
-    let _ = session::new_stem(b"short", plain_blob(1));
+    let _ = session::new_stem(b"short", 1);
 }
 
 #[test, expected_failure(abort_code = session::EUnsortedStems)]
 fun unsorted_session_stems_are_rejected() {
     let _ = session::new(
-        plain_blob(1),
+        1,
         vector[
-            session::new_stem(digest(2, 0), plain_blob(2)),
-            session::new_stem(digest(1, 0), plain_blob(1)),
+            session::new_stem(digest(2, 0), 2),
+            session::new_stem(digest(1, 0), 1),
         ],
     );
 }

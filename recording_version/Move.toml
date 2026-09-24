@@ -1,0 +1,11 @@
+[package]
+name = "recording_version"
+edition = "2024"
+license = "Apache 2.0"
+authors = ["Miso Labs, Inc. (build@miso.network)"]
+
+# One concern, one package: the name of this particular take of a composition
+# ("Live", "Radio Edit", "Acoustic") and nothing else. It needs only musicos
+# core, to operate on `Recording` through its cap-gated `uid_mut`.
+[dependencies]
+musicos = { git = "https://github.com/misofm/musicos.git", rev = "6dff4deca5ced186989c064e152c92a06384750c" }

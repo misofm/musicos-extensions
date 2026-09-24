@@ -1,31 +1,19 @@
 // Copyright (c) Miso Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-/// Defines the roles that parties can hold on a release.
-/// Releases are the commercial packaging of recordings (an album, single, EP),
-/// and a release credit captures top-line billing: a party is either a primary
-/// artist or a featured artist on the release.
+/// The roles a party can hold on a release: top-line billing as a `Primary`
+/// or `Featured` artist on the commercial packaging of recordings.
 ///
-/// ### Design
-///
-/// `ReleasePartyRole` is a closed enum: variants can only be constructed and
-/// matched inside this module, so the `new_*_role` constructors are the external
-/// write-API and `name()` is the external read-API.
-///
-/// - **No level axis and no `Custom` escape hatch.** Release billing is a small,
-///   fixed vocabulary: `Primary` or `Featured`.
-/// - **`name()` is the canonical identifier**, returned as a stable PascalCase
-///   token (`"Primary"` / `"Featured"`).
-///
-/// These identifiers are musicos's own canonical vocabulary; any overlap with an
-/// external standard (e.g. DDEX) is coincidental, not a reproduction of it.
+/// `ReleasePartyRole` is a closed enum constructed only through the
+/// `new_*_role` functions. Release billing is a small, fixed vocabulary:
+/// there is no level axis. The vocabulary is musicos's own; any overlap with
+/// an external standard (e.g. DDEX) is coincidental. Consumers read a role
+/// from its BCS variant index: `Primary = 0`, `Featured = 1`.
 module release_credits::release_party_role;
-
-use std::string::String;
 
 // === Enums ===
 
-/// Represents a party's billing on a release.
+/// A party's billing on a release.
 public enum ReleasePartyRole has copy, drop, store {
     /// A primary (headline) artist on the release.
     Primary,
@@ -34,7 +22,6 @@ public enum ReleasePartyRole has copy, drop, store {
 }
 
 // === Public Functions ===
-// roles
 
 /// Creates a new Primary role.
 public fun new_primary_role(): ReleasePartyRole {
@@ -44,25 +31,4 @@ public fun new_primary_role(): ReleasePartyRole {
 /// Creates a new Featured role.
 public fun new_featured_role(): ReleasePartyRole {
     ReleasePartyRole::Featured
-}
-
-// === View Functions ===
-
-/// Returns the canonical identifier of the role as a stable PascalCase token.
-public fun name(self: &ReleasePartyRole): String {
-    match (self) {
-        ReleasePartyRole::Primary => b"Primary".to_string(),
-        ReleasePartyRole::Featured => b"Featured".to_string(),
-    }
-}
-
-// Encodes the closed release-role vocabulary for mutation events without
-// constructing strings.  The codes are stable: Primary is 0 and Featured is
-// 1.  This remains package-visible so the storage module can snapshot a role
-// while callers still cannot construct or match the enum variants directly.
-public(package) fun event_kind(self: &ReleasePartyRole): u8 {
-    match (self) {
-        ReleasePartyRole::Primary => 0,
-        ReleasePartyRole::Featured => 1,
-    }
 }

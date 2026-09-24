@@ -1,0 +1,13 @@
+[package]
+name = "release_genre"
+edition = "2024"
+license = "Apache 2.0"
+authors = ["Miso Labs, Inc. (build@miso.network)"]
+
+# One concern, one package: the release's own genre classification and
+# nothing else. It needs only the shared genre vocabulary and musicos core, to
+# prove vocabulary membership and to operate on `Release` through its
+# cap-gated `uid_mut`.
+[dependencies]
+genre = { git = "https://github.com/misofm/genre.git", rev = "90baae2919f7272f6d4bbb245b643f7dba5dc0ba" }
+musicos = { git = "https://github.com/misofm/musicos.git", rev = "6dff4deca5ced186989c064e152c92a06384750c" }

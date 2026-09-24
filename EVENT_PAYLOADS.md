@@ -1,5 +1,12 @@
 # Event payload inventory — 2026-09-15
 
+> **2026-09-24:** superseded for every package. Events now carry only the
+> target object's id, the key where there is one (language, platform, track
+> index, party, genre) and the new value when it is small and bounded; large
+> content, cap ids, joinable ids, snapshots, counts and flags are left to the
+> object. See each package's README for current payloads and sizes. The rows
+> below describe the 2026-09-15 generation.
+
 All 15 packages and all 41 event types were reviewed. Events preserve useful
 business context: object/cap provenance, relationship IDs, ordering, counts,
 compact role/language codes, state flags, and bounded media identities. Content

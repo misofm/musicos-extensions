@@ -2,59 +2,135 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /// Unit coverage: constructor validation (every error const), bounds, view
-/// fallback semantics, platform mapping, and event payloads. `ReleaseAdminCap`
-/// authorization is bound to the release's id at runtime (`uid_mut` calls
-/// `authorize`, which checks `object::id(self) == cap.release_id`) rather than to
-/// any sender/address, so single-transaction `tx_context::dummy()` tests
-/// exercise the real authorization logic just as well as a multi-actor
-/// scenario would — scenario mechanics (distinct senders, `next_tx`) add
-/// nothing to these pure boundary/abort/math cases. The production shape —
-/// create → publish → share → operate via `take_shared` across transactions
-/// and distinct senders — is covered separately in
+/// fallback semantics, platform mapping, guard order, and event payloads.
+/// `ReleaseAdminCap` authorization is bound to the release's id at runtime
+/// (`uid_mut` calls `authorize`), not to a sender, so single-transaction
+/// `tx_context::dummy()` tests exercise the real authorization logic. The
+/// production shape — create → publish → share → operate via `take_shared`
+/// across transactions and senders — is covered in
 /// `release_dsp_link_e2e_tests.move`.
 #[test_only]
 module release_dsp_link::release_dsp_link_tests;
 
-use release_dsp_link::release_dsp_link as links;
 use musicos::release::{Self, Release, ReleaseAdminCap};
 use musicos::test_helpers;
 use musicos::track;
+use release_dsp_link::release_dsp_link as links;
 use std::string::String;
 use std::unit_test::{assert_eq, destroy};
+use sui::bcs;
 use sui::event;
 use sui::test_scenario;
 
 const A: address = @0xA1;
 
-// Mirrors `release::EUnauthorized` (release.move:110). Unlike the type-bound
-// recording caps, a `Release` binds its cap at runtime — `uid_mut` calls
-// `authorize`, which asserts `object::id(self) == cap.release_id` — so a foreign cap
-// is testable here.
-const EUnauthorized: u64 = 0;
-
 // A 3-track release: flat tracklist indices 0, 1, 2. `new_for_testing`
-// patches every track's target_release_id to the freshly-minted release, so
-// the placeholder passed here never surfaces.
+// retargets every track at the freshly-minted release, so the placeholder
+// target passed here never surfaces.
 fun mk_release(ctx: &mut TxContext): (Release, ReleaseAdminCap) {
-    let comp_id = test_helpers::fake_id(ctx);
     let rel_id = test_helpers::fake_id(ctx);
     let r0 = test_helpers::fake_id(ctx);
     let r1 = test_helpers::fake_id(ctx);
     let r2 = test_helpers::fake_id(ctx);
     let tracks = vector[
-        track::new_for_testing(comp_id, r0, rel_id, 4000u16),
-        track::new_for_testing(comp_id, r1, rel_id, 3000u16),
-        track::new_for_testing(comp_id, r2, rel_id, 3000u16),
+        track::new_for_testing(r0, rel_id, 4000u16),
+        track::new_for_testing(r1, rel_id, 3000u16),
+        track::new_for_testing(r2, rel_id, 3000u16),
     ];
-    release::new_for_testing(b"Album".to_string(), tracks, ctx)
+    release::new_for_testing(tracks, ctx)
 }
 
-/// 65 'a' bytes — one over every `MAX_*_LENGTH` bound in this module (all 64
-/// or 128), so a single helper covers the tight-bound constructors.
+/// 65 'a' bytes — one over every 64-byte id bound.
 fun overlong_64(): String { vector::tabulate!(65, |_| 97u8).to_string() }
 
 /// 129 'a' bytes — one over the 128-byte handle/slug bound.
 fun overlong_128(): String { vector::tabulate!(129, |_| 97u8).to_string() }
+
+/// Asserts an album set event's fields and exact BCS layout: `release_id`
+/// (32), then the link's own BCS encoding.
+fun assert_release_link_set(
+    e: &links::ReleaseDspLinkSetEvent,
+    release_id: address,
+    link: links::DspLinkData,
+) {
+    let (event_release_id, event_link) = links::release_link_set_event_fields(e);
+    assert_eq!(event_release_id, release_id);
+    assert_eq!(event_link, link);
+
+    let mut expected = bcs::to_bytes(&release_id);
+    expected.append(bcs::to_bytes(&link));
+    assert_eq!(bcs::to_bytes(e), expected);
+}
+
+/// Asserts an album cleared event's fields and exact 33-byte BCS layout.
+fun assert_release_link_cleared(
+    e: &links::ReleaseDspLinkClearedEvent,
+    release_id: address,
+    platform: links::Platform,
+) {
+    let (event_release_id, event_platform) = links::release_link_cleared_event_fields(e);
+    assert_eq!(event_release_id, release_id);
+    assert_eq!(event_platform, platform);
+
+    let mut expected = bcs::to_bytes(&release_id);
+    expected.append(bcs::to_bytes(&platform));
+    assert_eq!(bcs::to_bytes(e), expected);
+    assert_eq!(expected.length(), 33);
+}
+
+/// Asserts a track set event's fields and exact BCS layout: `release_id`
+/// (32), `track_index` (8), then the link's own encoding.
+fun assert_track_link_set(
+    e: &links::ReleaseTrackDspLinkSetEvent,
+    release_id: address,
+    track_index: u64,
+    link: links::DspLinkData,
+) {
+    let (event_release_id, event_index, event_link) = links::track_link_set_event_fields(e);
+    assert_eq!(event_release_id, release_id);
+    assert_eq!(event_index, track_index);
+    assert_eq!(event_link, link);
+
+    let mut expected = bcs::to_bytes(&release_id);
+    expected.append(bcs::to_bytes(&track_index));
+    expected.append(bcs::to_bytes(&link));
+    assert_eq!(bcs::to_bytes(e), expected);
+}
+
+/// Asserts a track cleared event's fields and exact 41-byte BCS layout.
+fun assert_track_link_cleared(
+    e: &links::ReleaseTrackDspLinkClearedEvent,
+    release_id: address,
+    platform: links::Platform,
+    track_index: u64,
+) {
+    let (event_release_id, event_platform, event_index) = links::track_link_cleared_event_fields(e);
+    assert_eq!(event_release_id, release_id);
+    assert_eq!(event_platform, platform);
+    assert_eq!(event_index, track_index);
+
+    let mut expected = bcs::to_bytes(&release_id);
+    expected.append(bcs::to_bytes(&platform));
+    expected.append(bcs::to_bytes(&track_index));
+    assert_eq!(bcs::to_bytes(e), expected);
+    assert_eq!(expected.length(), 41);
+}
+
+/// Asserts a bulk cleared event's fields and exact 33-byte BCS layout.
+fun assert_track_links_cleared(
+    e: &links::ReleaseTrackDspLinksClearedEvent,
+    release_id: address,
+    platform: links::Platform,
+) {
+    let (event_release_id, event_platform) = links::track_links_cleared_event_fields(e);
+    assert_eq!(event_release_id, release_id);
+    assert_eq!(event_platform, platform);
+
+    let mut expected = bcs::to_bytes(&release_id);
+    expected.append(bcs::to_bytes(&platform));
+    assert_eq!(bcs::to_bytes(e), expected);
+    assert_eq!(expected.length(), 33);
+}
 
 // === Album-level Link Lifecycle ===
 
@@ -63,59 +139,40 @@ fun album_link_set_replace_clear_is_independent_per_platform() {
     let mut ts = test_scenario::begin(A);
     let (mut rel, cap) = mk_release(ts.ctx());
     let release_id = object::id(&rel).to_address();
-    let admin_cap_id = object::id(&cap).to_address();
     let spotify = links::platform_spotify();
     let tidal = links::platform_tidal();
+    let first = links::new_spotify(b"3xTbtTM3BSRIGxzWSMaEpc".to_string());
+    let second = links::new_spotify(b"6rqhFgbbKwnb9MLmUQDhG6".to_string());
+    let tidal_link = links::new_tidal(b"12345".to_string());
 
     assert!(!links::has_release_link(&rel, spotify));
     assert!(links::release_link(&rel, spotify).is_none());
 
-    links::set_release_link(&mut rel, &cap, links::new_spotify(b"3xTbtTM3BSRIGxzWSMaEpc".to_string()));
-    links::set_release_link(&mut rel, &cap, links::new_tidal(b"12345".to_string()));
+    links::set_release_link(&mut rel, &cap, first);
+    links::set_release_link(&mut rel, &cap, tidal_link);
 
     assert!(links::has_release_link(&rel, spotify));
     assert!(links::has_release_link(&rel, tidal));
-    assert_eq!(
-        links::release_link(&rel, spotify).destroy_some(),
-        links::new_spotify(b"3xTbtTM3BSRIGxzWSMaEpc".to_string()),
-    );
-    assert_eq!(links::release_link(&rel, tidal).destroy_some(), links::new_tidal(b"12345".to_string()));
+    assert_eq!(links::release_link(&rel, spotify).destroy_some(), first);
+    assert_eq!(links::release_link(&rel, tidal).destroy_some(), tidal_link);
 
     let set_events = event::events_by_type<links::ReleaseDspLinkSetEvent>();
     assert_eq!(set_events.length(), 2);
-    let (event_release_id, event_admin_cap_id, event_platform, event_track_count, field_existed_before, field_exists_after, previous_present, current_present) = links::release_link_set_event_fields(&set_events[0]);
-    assert_eq!(event_release_id, release_id);
-    assert_eq!(event_admin_cap_id, admin_cap_id);
-    assert_eq!(event_platform, spotify);
-    assert_eq!(event_track_count, 3);
-    assert!(!field_existed_before);
-    assert!(field_exists_after);
-    assert!(!previous_present);
-    assert!(current_present);
+    assert_release_link_set(&set_events[0], release_id, first);
+    assert_release_link_set(&set_events[1], release_id, tidal_link);
 
-    // An equal full-value replacement writes but is silent.
-    links::set_release_link(&mut rel, &cap, links::new_spotify(b"3xTbtTM3BSRIGxzWSMaEpc".to_string()));
+    // An equal replacement is silent.
+    links::set_release_link(&mut rel, &cap, first);
     assert_eq!(event::events_by_type<links::ReleaseDspLinkSetEvent>().length(), 2);
 
     // Replacing Spotify's link leaves Tidal's untouched.
-    links::set_release_link(&mut rel, &cap, links::new_spotify(b"6rqhFgbbKwnb9MLmUQDhG6".to_string()));
-    assert_eq!(
-        links::release_link(&rel, spotify).destroy_some(),
-        links::new_spotify(b"6rqhFgbbKwnb9MLmUQDhG6".to_string()),
-    );
-    assert_eq!(links::release_link(&rel, tidal).destroy_some(), links::new_tidal(b"12345".to_string()));
+    links::set_release_link(&mut rel, &cap, second);
+    assert_eq!(links::release_link(&rel, spotify).destroy_some(), second);
+    assert_eq!(links::release_link(&rel, tidal).destroy_some(), tidal_link);
 
     let set_events = event::events_by_type<links::ReleaseDspLinkSetEvent>();
     assert_eq!(set_events.length(), 3);
-    let (event_release_id, event_admin_cap_id, event_platform, event_track_count, field_existed_before, field_exists_after, previous_present, current_present) = links::release_link_set_event_fields(&set_events[2]);
-    assert_eq!(event_release_id, release_id);
-    assert_eq!(event_admin_cap_id, admin_cap_id);
-    assert_eq!(event_platform, spotify);
-    assert_eq!(event_track_count, 3);
-    assert!(field_existed_before);
-    assert!(field_exists_after);
-    assert!(previous_present);
-    assert!(current_present);
+    assert_release_link_set(&set_events[2], release_id, second);
 
     // Clearing Spotify leaves Tidal untouched.
     links::clear_release_link(&mut rel, &cap, spotify);
@@ -124,16 +181,9 @@ fun album_link_set_replace_clear_is_independent_per_platform() {
 
     let cleared_events = event::events_by_type<links::ReleaseDspLinkClearedEvent>();
     assert_eq!(cleared_events.length(), 1);
-    let (event_release_id, event_admin_cap_id, event_platform, event_track_count, field_existed_before, field_exists_after, previous_present, current_present) = links::release_link_cleared_event_fields(&cleared_events[0]);
-    assert_eq!(event_release_id, release_id);
-    assert_eq!(event_admin_cap_id, admin_cap_id);
-    assert_eq!(event_platform, spotify);
-    assert_eq!(event_track_count, 3);
-    assert!(field_existed_before);
-    assert!(!field_exists_after);
-    assert!(previous_present);
-    assert!(!current_present);
+    assert_release_link_cleared(&cleared_events[0], release_id, spotify);
 
+    // Clearing again is silent.
     links::clear_release_link(&mut rel, &cap, spotify);
     assert_eq!(event::events_by_type<links::ReleaseDspLinkClearedEvent>().length(), 1);
 
@@ -147,13 +197,36 @@ fun clear_release_link_is_a_no_op_when_unset() {
     let mut ts = test_scenario::begin(A);
     let (mut rel, cap) = mk_release(ts.ctx());
 
-    // No-op: nothing was set, nothing aborts.
+    let events_before = event::num_events();
     links::clear_release_link(&mut rel, &cap, links::platform_deezer());
     assert!(!links::has_release_link(&rel, links::platform_deezer()));
+    assert_eq!(event::num_events(), events_before);
 
     destroy(rel);
     destroy(cap);
     ts.end();
+}
+
+/// Setting the album link already stored neither emits nor changes it.
+#[test]
+fun equal_release_link_set_is_a_silent_no_op() {
+    let ctx = &mut tx_context::dummy();
+    let (mut rel, cap) = mk_release(ctx);
+    let release_id = object::id(&rel).to_address();
+    let link = links::new_youtube_music(b"PLx".to_string());
+
+    links::set_release_link(&mut rel, &cap, link);
+    let events_after_first = event::num_events();
+    links::set_release_link(&mut rel, &cap, link);
+    assert_eq!(event::num_events(), events_after_first);
+    assert_eq!(links::release_link(&rel, links::platform_youtube_music()).destroy_some(), link);
+
+    let set_events = event::events_by_type<links::ReleaseDspLinkSetEvent>();
+    assert_eq!(set_events.length(), 1);
+    assert_release_link_set(&set_events[0], release_id, link);
+
+    destroy(rel);
+    destroy(cap);
 }
 
 // === Per-track Link Lifecycle ===
@@ -162,38 +235,40 @@ fun clear_release_link_is_a_no_op_when_unset() {
 fun track_link_set_replace_clear_lifecycle() {
     let mut ts = test_scenario::begin(A);
     let (mut rel, cap) = mk_release(ts.ctx());
+    let release_id = object::id(&rel).to_address();
     let bandcamp = links::platform_bandcamp();
+    let first = links::new_bandcamp(b"anartist".to_string(), b"a-track".to_string());
+    let second = links::new_bandcamp(b"anartist".to_string(), b"b-track".to_string());
 
     // No array yet: every index reads none, not an abort.
     assert!(links::track_link(&rel, bandcamp, 0).is_none());
 
-    links::set_track_link(&mut rel, &cap, 1, links::new_bandcamp(b"anartist".to_string(), b"a-track".to_string()));
-    assert_eq!(
-        links::track_link(&rel, bandcamp, 1).destroy_some(),
-        links::new_bandcamp(b"anartist".to_string(), b"a-track".to_string()),
-    );
+    links::set_track_link(&mut rel, &cap, 1, first);
+    assert_eq!(links::track_link(&rel, bandcamp, 1).destroy_some(), first);
     assert!(links::track_link(&rel, bandcamp, 0).is_none());
     assert!(links::track_link(&rel, bandcamp, 2).is_none());
 
     // Setting again on the same slot replaces.
-    links::set_track_link(&mut rel, &cap, 1, links::new_bandcamp(b"anartist".to_string(), b"b-track".to_string()));
-    assert_eq!(
-        links::track_link(&rel, bandcamp, 1).destroy_some(),
-        links::new_bandcamp(b"anartist".to_string(), b"b-track".to_string()),
-    );
-    assert_eq!(event::events_by_type<links::ReleaseTrackDspLinkSetEvent>().length(), 2);
+    links::set_track_link(&mut rel, &cap, 1, second);
+    assert_eq!(links::track_link(&rel, bandcamp, 1).destroy_some(), second);
+    let set_events = event::events_by_type<links::ReleaseTrackDspLinkSetEvent>();
+    assert_eq!(set_events.length(), 2);
+    assert_track_link_set(&set_events[0], release_id, 1, first);
+    assert_track_link_set(&set_events[1], release_id, 1, second);
 
-    // A full-value equal replacement is silent.
-    links::set_track_link(&mut rel, &cap, 1, links::new_bandcamp(b"anartist".to_string(), b"b-track".to_string()));
+    // An equal replacement is silent.
+    links::set_track_link(&mut rel, &cap, 1, second);
     assert_eq!(event::events_by_type<links::ReleaseTrackDspLinkSetEvent>().length(), 2);
 
     // Clearing the slot resets it to none; other slots and other platforms are
     // unaffected.
     links::clear_track_link(&mut rel, &cap, bandcamp, 1);
     assert!(links::track_link(&rel, bandcamp, 1).is_none());
-    assert_eq!(event::events_by_type<links::ReleaseTrackDspLinkClearedEvent>().length(), 1);
+    let cleared_events = event::events_by_type<links::ReleaseTrackDspLinkClearedEvent>();
+    assert_eq!(cleared_events.length(), 1);
+    assert_track_link_cleared(&cleared_events[0], release_id, bandcamp, 1);
 
-    // An already-empty slot is still assigned none but emits no event.
+    // Clearing an already-empty slot is silent.
     links::clear_track_link(&mut rel, &cap, bandcamp, 1);
     assert_eq!(event::events_by_type<links::ReleaseTrackDspLinkClearedEvent>().length(), 1);
 
@@ -207,18 +282,43 @@ fun clear_track_link_is_a_no_op_when_no_array_exists() {
     let mut ts = test_scenario::begin(A);
     let (mut rel, cap) = mk_release(ts.ctx());
 
+    let events_before = event::num_events();
     links::clear_track_link(&mut rel, &cap, links::platform_soundcloud(), 0);
     assert!(links::track_link(&rel, links::platform_soundcloud(), 0).is_none());
+    assert_eq!(event::num_events(), events_before);
 
     destroy(rel);
     destroy(cap);
     ts.end();
 }
 
+/// Setting the track link already stored neither emits nor changes it.
+#[test]
+fun equal_track_link_set_is_a_silent_no_op() {
+    let ctx = &mut tx_context::dummy();
+    let (mut rel, cap) = mk_release(ctx);
+    let release_id = object::id(&rel).to_address();
+    let link = links::new_deezer(b"77".to_string());
+
+    links::set_track_link(&mut rel, &cap, 2, link);
+    let events_after_first = event::num_events();
+    links::set_track_link(&mut rel, &cap, 2, link);
+    assert_eq!(event::num_events(), events_after_first);
+    assert_eq!(links::track_link(&rel, links::platform_deezer(), 2).destroy_some(), link);
+
+    let set_events = event::events_by_type<links::ReleaseTrackDspLinkSetEvent>();
+    assert_eq!(set_events.length(), 1);
+    assert_track_link_set(&set_events[0], release_id, 2, link);
+
+    destroy(rel);
+    destroy(cap);
+}
+
 #[test]
 fun clear_track_links_removes_the_whole_array() {
     let mut ts = test_scenario::begin(A);
     let (mut rel, cap) = mk_release(ts.ctx());
+    let release_id = object::id(&rel).to_address();
     let deezer = links::platform_deezer();
 
     links::set_track_link(&mut rel, &cap, 0, links::new_deezer(b"10".to_string()));
@@ -229,6 +329,9 @@ fun clear_track_links_removes_the_whole_array() {
     // The array is gone: previously-set slots read none again.
     assert!(links::track_link(&rel, deezer, 0).is_none());
     assert!(links::track_link(&rel, deezer, 2).is_none());
+    let cleared_events = event::events_by_type<links::ReleaseTrackDspLinksClearedEvent>();
+    assert_eq!(cleared_events.length(), 1);
+    assert_track_links_cleared(&cleared_events[0], release_id, deezer);
 
     // A second bulk clear is a silent no-op.
     links::clear_track_links(&mut rel, &cap, deezer);
@@ -268,8 +371,8 @@ fun clear_track_link_rejects_out_of_bounds_when_array_exists() {
 fun clear_track_link_out_of_bounds_is_fine_when_no_array_exists() {
     let ctx = &mut tx_context::dummy();
     let (mut rel, cap) = mk_release(ctx);
-    // No-op check happens before the bounds assert, so an absent array never
-    // aborts on a bad index.
+    // The absent-array no-op precedes the bounds check, so an absent array
+    // never aborts on a bad index.
     links::clear_track_link(&mut rel, &cap, links::platform_deezer(), 99);
     destroy(rel);
     destroy(cap);
@@ -301,58 +404,51 @@ fun views_read_none_when_nothing_is_stored() {
 
 // === Platform Mapping ===
 
+/// Each constructor's link reports the matching `Platform`, and the two
+/// enums share one variant order: a link's BCS tag is its platform's tag.
 #[test]
 fun platform_matches_declared_variant_order() {
-    assert_eq!(links::new_spotify(b"x".to_string()).platform(), links::platform_spotify());
-    assert_eq!(
-        links::new_apple_music_album(b"us".to_string(), b"x".to_string()).platform(),
+    let all = vector[
+        links::new_spotify(b"x".to_string()),
+        links::new_apple_music_album(b"us".to_string(), b"x".to_string()),
+        // The track-selector constructors are a distinct success branch (they
+        // populate `track_id: option::some(..)`), so exercise both.
+        links::new_apple_music_track(b"us".to_string(), b"1".to_string(), b"2".to_string()),
+        links::new_amazon_music_album(b"x".to_string()),
+        links::new_amazon_music_track(b"1".to_string(), b"2".to_string()),
+        links::new_bandcamp(b"x".to_string(), b"y".to_string()),
+        links::new_deezer(b"x".to_string()),
+        links::new_soundcloud(b"x".to_string(), b"y".to_string()),
+        links::new_tidal(b"x".to_string()),
+        links::new_youtube_music(b"x".to_string()),
+    ];
+    let platforms = vector[
+        links::platform_spotify(),
         links::platform_apple_music(),
-    );
-    // The track-selector constructors are a distinct success branch (they
-    // populate `track_id: option::some(..)` instead of `option::none()`) —
-    // exercise both explicitly, not just their `expected_failure` siblings.
-    assert_eq!(
-        links::new_apple_music_track(b"us".to_string(), b"1".to_string(), b"2".to_string()).platform(),
         links::platform_apple_music(),
-    );
-    assert_eq!(
-        links::new_amazon_music_album(b"x".to_string()).platform(),
         links::platform_amazon_music(),
-    );
-    assert_eq!(
-        links::new_amazon_music_track(b"1".to_string(), b"2".to_string()).platform(),
         links::platform_amazon_music(),
-    );
-    assert_eq!(
-        links::new_bandcamp(b"x".to_string(), b"y".to_string()).platform(),
         links::platform_bandcamp(),
-    );
-    assert_eq!(links::new_deezer(b"x".to_string()).platform(), links::platform_deezer());
-    assert_eq!(
-        links::new_soundcloud(b"x".to_string(), b"y".to_string()).platform(),
+        links::platform_deezer(),
         links::platform_soundcloud(),
-    );
-    assert_eq!(links::new_tidal(b"x".to_string()).platform(), links::platform_tidal());
-    assert_eq!(
-        links::new_youtube_music(b"x".to_string()).platform(),
+        links::platform_tidal(),
         links::platform_youtube_music(),
-    );
-
-    assert_eq!(links::platform_spotify(), 0);
-    assert_eq!(links::platform_apple_music(), 1);
-    assert_eq!(links::platform_amazon_music(), 2);
-    assert_eq!(links::platform_bandcamp(), 3);
-    assert_eq!(links::platform_deezer(), 4);
-    assert_eq!(links::platform_soundcloud(), 5);
-    assert_eq!(links::platform_tidal(), 6);
-    assert_eq!(links::platform_youtube_music(), 7);
+    ];
+    let mut i = 0;
+    while (i < all.length()) {
+        assert_eq!(all[i].platform(), platforms[i]);
+        let tag = bcs::to_bytes(&platforms[i]);
+        assert_eq!(tag.length(), 1);
+        assert_eq!(tag[0], bcs::to_bytes(&all[i])[0]);
+        i = i + 1;
+    };
 }
 
 // === Authorization ===
 
 /// A `Release` binds its cap at runtime (`uid_mut` calls `authorize`), so a
 /// foreign cap is testable here — unlike the type-bound recording caps.
-#[test, expected_failure(abort_code = EUnauthorized, location = musicos::release)]
+#[test, expected_failure(abort_code = release::EUnauthorized)]
 fun another_releases_cap_is_rejected() {
     let ctx = &mut tx_context::dummy();
     let (mut a, _a_cap) = mk_release(ctx);
@@ -368,7 +464,7 @@ fun another_releases_cap_is_rejected() {
 
 /// Event suppression for an equal value must not bypass the release's
 /// authorization gate.
-#[test, expected_failure(abort_code = EUnauthorized, location = musicos::release)]
+#[test, expected_failure(abort_code = release::EUnauthorized)]
 fun equal_release_link_still_requires_the_cap() {
     let ctx = &mut tx_context::dummy();
     let (mut release, release_cap) = mk_release(ctx);
@@ -379,7 +475,41 @@ fun equal_release_link_still_requires_the_cap() {
     abort
 }
 
-#[test, expected_failure(abort_code = EUnauthorized, location = musicos::release)]
+#[test, expected_failure(abort_code = release::EUnauthorized)]
+fun equal_track_link_still_requires_the_cap() {
+    let ctx = &mut tx_context::dummy();
+    let (mut release, release_cap) = mk_release(ctx);
+    let (_foreign_release, foreign_cap) = mk_release(ctx);
+
+    links::set_track_link(&mut release, &release_cap, 0, links::new_spotify(b"same".to_string()));
+    links::set_track_link(&mut release, &foreign_cap, 0, links::new_spotify(b"same".to_string()));
+    abort
+}
+
+/// The cap check precedes the tracklist bounds check, so a foreign cap
+/// observes `EUnauthorized`, never `ETrackIndexOutOfBounds`.
+#[test, expected_failure(abort_code = release::EUnauthorized)]
+fun wrong_cap_precedes_out_of_bounds_on_set_track_link() {
+    let ctx = &mut tx_context::dummy();
+    let (mut release, _release_cap) = mk_release(ctx);
+    let (_foreign_release, foreign_cap) = mk_release(ctx);
+
+    links::set_track_link(&mut release, &foreign_cap, 99, links::new_spotify(b"x".to_string()));
+    abort
+}
+
+#[test, expected_failure(abort_code = release::EUnauthorized)]
+fun wrong_cap_precedes_out_of_bounds_on_clear_track_link() {
+    let ctx = &mut tx_context::dummy();
+    let (mut release, release_cap) = mk_release(ctx);
+    let (_foreign_release, foreign_cap) = mk_release(ctx);
+
+    links::set_track_link(&mut release, &release_cap, 0, links::new_spotify(b"x".to_string()));
+    links::clear_track_link(&mut release, &foreign_cap, links::platform_spotify(), 99);
+    abort
+}
+
+#[test, expected_failure(abort_code = release::EUnauthorized)]
 fun clear_release_link_requires_the_cap_when_unset() {
     let ctx = &mut tx_context::dummy();
     let (mut release, _release_cap) = mk_release(ctx);
@@ -389,7 +519,7 @@ fun clear_release_link_requires_the_cap_when_unset() {
     abort
 }
 
-#[test, expected_failure(abort_code = EUnauthorized, location = musicos::release)]
+#[test, expected_failure(abort_code = release::EUnauthorized)]
 fun clear_track_link_requires_the_cap_when_unset() {
     let ctx = &mut tx_context::dummy();
     let (mut release, _release_cap) = mk_release(ctx);
@@ -399,7 +529,7 @@ fun clear_track_link_requires_the_cap_when_unset() {
     abort
 }
 
-#[test, expected_failure(abort_code = EUnauthorized, location = musicos::release)]
+#[test, expected_failure(abort_code = release::EUnauthorized)]
 fun clear_track_links_requires_the_cap_when_unset() {
     let ctx = &mut tx_context::dummy();
     let (mut release, _release_cap) = mk_release(ctx);
@@ -449,7 +579,7 @@ fun new_apple_music_album_rejects_overlong_album_id() {
 
 // The three-way `&&` in `new_apple_music_track`'s empty check
 // short-circuits, so each operand is its own bytecode branch — one test per
-// identifier is needed for full branch coverage, not just one.
+// identifier is needed for full branch coverage.
 #[test, expected_failure(abort_code = links::EEmptyAppleMusicIdentifier)]
 fun new_apple_music_track_rejects_empty_storefront() {
     let _ = links::new_apple_music_track(b"".to_string(), b"1".to_string(), b"2".to_string());
@@ -468,8 +598,8 @@ fun new_apple_music_track_rejects_empty_track_id() {
     abort
 }
 
-// The length checks are also separately compiled per constructor (not
-// shared with the album variant), so each needs its own overlong test too.
+// The length checks are compiled per constructor (not shared with the album
+// variant), so each needs its own overlong test too.
 #[test, expected_failure(abort_code = links::EMaxAppleMusicStorefrontLengthExceeded)]
 fun new_apple_music_track_rejects_overlong_storefront() {
     let _ = links::new_apple_music_track(overlong_64(), b"1".to_string(), b"2".to_string());
@@ -500,8 +630,7 @@ fun new_amazon_music_album_rejects_overlong_album_id() {
     abort
 }
 
-// Same short-circuit reasoning as the Apple Music track constructor: each
-// operand of the `&&` is its own branch.
+// Same short-circuit reasoning as the Apple Music track constructor.
 #[test, expected_failure(abort_code = links::EEmptyAmazonMusicIdentifier)]
 fun new_amazon_music_track_rejects_empty_album_id() {
     let _ = links::new_amazon_music_track(b"".to_string(), b"2".to_string());
@@ -514,7 +643,6 @@ fun new_amazon_music_track_rejects_empty_track_id() {
     abort
 }
 
-// Also compiled separately from the album variant's length check.
 #[test, expected_failure(abort_code = links::EMaxAmazonMusicAlbumIdLengthExceeded)]
 fun new_amazon_music_track_rejects_overlong_album_id() {
     let _ = links::new_amazon_music_track(overlong_64(), b"2".to_string());
@@ -618,8 +746,6 @@ fun clear_track_links_emits_one_bulk_clear() {
     let ctx = &mut tx_context::dummy();
     let (mut rel, cap) = mk_release(ctx);
     let release_id = object::id(&rel).to_address();
-    let admin_cap_id = object::id(&cap).to_address();
-
     let deezer = links::platform_deezer();
 
     links::set_track_link(&mut rel, &cap, 0, links::new_deezer(b"10".to_string()));
@@ -629,15 +755,7 @@ fun clear_track_links_emits_one_bulk_clear() {
 
     let events = event::events_by_type<links::ReleaseTrackDspLinksClearedEvent>();
     assert_eq!(events.length(), 1);
-    let (event_release_id, event_admin_cap_id, event_platform, event_track_count, existed_before, exists_after, removed_count, album_present) = links::track_links_cleared_event_fields(&events[0]);
-    assert_eq!(event_release_id, release_id);
-    assert_eq!(event_admin_cap_id, admin_cap_id);
-    assert_eq!(event_platform, deezer);
-    assert_eq!(event_track_count, 3);
-    assert!(existed_before);
-    assert!(!exists_after);
-    assert_eq!(removed_count, 2);
-    assert!(!album_present);
+    assert_track_links_cleared(&events[0], release_id, deezer);
 
     // The array is gone: previously-set slots read none, and a second clear is
     // a silent no-op.

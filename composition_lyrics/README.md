@@ -1,72 +1,101 @@
 # composition_lyrics
 
-Language-specific song lyrics stored on Sui as compressed bytes attached to a
-`musicos::composition::Composition<CompositionShare>`.
+`composition_lyrics` stores language-specific song lyrics as compressed bytes
+on a `musicos::composition::Composition<CompositionShare>`, one entry per ISO
+639-1 language code.
 
 ## Storage and encoding
 
-Each entry is a dynamic field:
+Each entry is a dynamic field on the composition's `UID`:
 
 ```text
 ExtensionKey(LanguageCode) -> vector<u8>
 ```
 
-`LanguageCode` is the same validated ISO 639-1 type used by `recording_language`.
-The module-owned wrapper supplies the namespace and the language selects one
-entry. Each language can be added, replaced, or removed independently. There
-is one version per language, with no preferred-language ordering or onchain
-language index. Clients can discover entries through dynamic-field queries or
-project the events. Regional and script variants are not represented by this
-ISO 639-1 key. Timing belongs to a recording rather than this composition text.
+`LanguageCode` is the validated ISO 639-1 type from `language_code`. The
+module-owned wrapper supplies the namespace and the language selects one
+entry. Each language is added, replaced, or removed independently; there is
+no preferred-language ordering or on-chain language index. Regional and
+script variants are not represented by this key. Timing belongs to a
+recording rather than this composition text.
 
 The payload convention is **UTF-8 lyrics compressed into one standard,
 self-contained Zstandard frame without an external dictionary**. Compression
-level is a client choice; level 9 is a starting default, not part of the schema.
-Clients preserve whitespace, line breaks, punctuation, and text exactly.
+level is a client choice. Clients preserve whitespace, line breaks,
+punctuation, and text exactly.
 
 Move treats the payload as opaque bytes. It does not check zstd headers,
 decompress, validate UTF-8, judge lyrics, or verify their language. Empty and
 malformed byte vectors can be stored. Clients must bound decoder memory and
 output, handle decoding failures, and interpret the resulting text.
 
-The maximum is **32,768 stored bytes per language**. This is a compressed
-storage bound, not a limit on decoded text. No codec flag, uncompressed size,
-external blob reference, or dictionary is stored. Absence means no entry has
-been supplied; an attached empty payload is distinct and does not imply an
-instrumental composition.
+The maximum is **32,768 stored bytes per language**: a compressed storage
+bound, not a limit on decoded text. Absence means no entry has been supplied;
+an attached empty payload is distinct and does not imply an instrumental
+composition.
 
 ## API
 
-| Function | Behavior |
-|---|---|
-| `set_lyrics(composition, cap, language, bytes)` | Add or replace one entry; an event is emitted only when the complete byte payload changes. |
-| `clear_lyrics(composition, cap, language)` | Remove one entry; authorized absent clears are silent no-ops. |
-| `has_lyrics(composition, language)` | Test for presence. |
-| `lyrics(composition, language)` | Borrow stored bytes; abort if absent. |
-| `max_lyrics_length()` | Return the compressed-byte limit. |
+All writes require the composition's `CompositionAdminCap<CompositionShare>`
+and go through the cap-gated `composition::uid_mut`; views are permissionless.
 
-Writes use the core's cap-gated `uid_mut` in every lifecycle state, including
-after publication. The pinned core matches `CompositionShare` types; it does
-not compare cap IDs at runtime. Production construction consumes the share
-TreasuryCap, and the extension inherits that core uniqueness/trust model.
-There is no additional capability custody or authorization policy here.
-Reads are permissionless.
+| Function | Description | Aborts |
+|---|---|---|
+| `set_lyrics(composition, cap, language, bytes)` | Adds or replaces one language's entry, bytes preserved exactly. Setting the bytes already stored neither writes nor emits. | `ELyricsTooLong` (2) past 32,768 bytes, before cap authorization |
+| `clear_lyrics(composition, cap, language)` | Removes one language's entry; an absent entry is a silent no-op | — |
+| `has_lyrics(composition, language): bool` | Whether an entry exists for this language | — |
+| `lyrics(composition, language): &vector<u8>` | Borrows the stored bytes | `ENoLyrics` (1) when absent |
+| `max_lyrics_length(): u64` | The compressed-byte limit (32,768) | — |
+
+The core matches `CompositionShare` types: a cap for another share type is
+rejected at compile time (`tests/check_cap_types.py`), and the core compares
+no cap ids at runtime.
 
 ## Events
 
-Set carries composition/admin-cap IDs, the two-byte ISO language key, and prior presence (68 BCS bytes). Clear carries the same IDs and language key (67 bytes). Compressed lyrics stay in the dynamic field. Empty lyrics remain distinct from absence; equal replacement and absent clear remain silent.
+Both events carry `<phantom CompositionShare>` and only what an event-only
+indexer would otherwise have to look up: the composition and the language
+key. The compressed body stays in the dynamic field.
 
-See [the repository payload inventory](../EVENT_PAYLOADS.md) for byte bounds and retained context.
+| Event | Fields | BCS size |
+|---|---|---|
+| `CompositionLyricsSetEvent<CompositionShare>` | `composition_id: address`, `language: String` | 35 |
+| `CompositionLyricsClearedEvent<CompositionShare>` | `composition_id: address`, `language: String` | 35 |
 
-## Development
+A set event is emitted only when the stored bytes actually change; a cleared
+event only when an entry was actually removed. Views emit nothing. Replaying
+set and cleared events per `(composition_id, language)` yields the set of
+languages currently attached.
+
+## Errors
+
+| Code | Constant | Location | Condition |
+|---|---|---|---|
+| 1 | `ENoLyrics` | `composition_lyrics::composition_lyrics` | `lyrics` with no entry for the language |
+| 2 | `ELyricsTooLong` | `composition_lyrics::composition_lyrics` | `set_lyrics` with more than 32,768 bytes |
+
+## Dependencies
+
+- [`musicos`](https://github.com/misofm/musicos) at
+  `6dff4deca5ced186989c064e152c92a06384750c` — `Composition`,
+  `CompositionAdminCap`, and cap-gated `uid_mut`.
+- [`language_code`](https://github.com/unconfirmedlabs/language_code) at
+  `61542357f3d2ff989d120185046def7cf6c8bdcb` — the validated ISO 639-1 key.
+
+## Publishing
+
+`Published.toml` records the previously deployed generation. This generation
+is published as a fresh immutable package identity and never upgraded in
+place; clients migrate explicitly.
+
+## Build and test
+
+Run from this directory:
 
 ```sh
-sui move build --warnings-are-errors --lint
-sui move test --coverage --warnings-are-errors --lint
+sui move build
+sui move build --build-env mainnet
+sui move test
+sui move test --build-env mainnet
 python3 tests/check_cap_types.py
-sui move coverage summary
 ```
-
-Dependencies are pinned to the same exact revisions as `recording_language`.
-This is an independent package intended for fresh immutable publication under
-the repository's release policy. No publication has been performed.

@@ -8,7 +8,7 @@ storage, delivery, and distribution conventions.
 
 ## Project Structure
 
-12 packages, each an independently versioned and published top-level
+18 packages, each an independently versioned and published top-level
 directory; see the package tables in `README.md` for the full list, each
 package's target object, and its purpose.
 
@@ -18,6 +18,15 @@ audit. Run Move commands from the package directory.
 ## Project Rules
 
 - Use Move 2024 syntax.
+- Import modules, functions, and types with `use`; never write fully
+  qualified `address::module::member` paths inline.
+- In tests, reference the real error constant through the imported module:
+  `expected_failure(abort_code = release::EUnauthorized)`. Move infers the
+  location; do not add `location =` or mirror error constants in test files.
+  Use `location = <imported module>` only for aborts with no named constant.
+- One package per concern: each package defines a single `ExtensionKey()` and
+  stores one value under it, so a schema change to one attribute never forces
+  a data migration of another.
 - Keep packages independently buildable and versioned.
 - Pin Git dependencies to exact 40-character commit SHAs.
 - Preserve `Published.toml` as deployment provenance.

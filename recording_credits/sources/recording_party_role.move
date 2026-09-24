@@ -1,32 +1,18 @@
 // Copyright (c) Miso Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-/// Defines the roles that parties can hold on a recording.
-/// Recordings are audio performances of compositions, and these roles
-/// represent the various production and performance contributions.
+/// The roles a party can hold on a recording: the production and performance
+/// contributions to an audio performance of a composition.
 ///
-/// ### Design
-///
-/// `RecordingPartyRole` is a closed enum: variants can only be constructed and
-/// matched inside this module, so the `new_*_role` constructors are the external
-/// write-API and `name()` is the external read-API.
-///
-/// - **Seniority is a separate axis.** Most roles carry an optional
-///   `RecordingPartyRoleLevel` (Lead, Assistant, Additional, …). Industry
-///   variants like "Second Engineer" or "Additional Producer" are expressed as a
-///   base role plus a level, not as their own variants — this keeps the role set
-///   compact without losing the distinction.
-/// - **`Custom` is the escape hatch.** The canonical variants cover the common
-///   vocabulary; anything outside it is a `Custom(name, level)` whose name is
-///   validated like an instrument name. Prefer a canonical variant when one fits.
-/// - **`name()` is the canonical identifier**, returned as a stable PascalCase
-///   token (e.g. `"MixingEngineer"`). It doubles as an on-chain match key and as
-///   the seed for off-chain display/localization. For `Custom`, `name()` returns
-///   the user-supplied string; for `Instrumentalist`, it returns
-///   `"Instrumentalist"` (the instrument itself is read off-chain).
-///
-/// These identifiers are musicos's own canonical vocabulary; any overlap with an
-/// external standard (e.g. DDEX) is coincidental, not a reproduction of it.
+/// `RecordingPartyRole` is a closed enum constructed only through the
+/// `new_*_role` functions and read through `level()`. Seniority is a separate
+/// axis: most roles carry an optional `RecordingPartyRoleLevel`, so
+/// "Additional Producer" is `Producer` plus `Additional` rather than its own
+/// variant; `ArtistsAndRepertoire` and `Copyist` carry none. `Instrumentalist`
+/// also carries a validated instrument name. The vocabulary is fixed to these
+/// canonical variants and is musicos's own; any overlap with an external
+/// standard (e.g. DDEX) is coincidental. Consumers read a role from its BCS
+/// variant index, in declaration order.
 module recording_credits::recording_party_role;
 
 use std::string::String;
@@ -36,8 +22,6 @@ use std::string::String;
 // Constraint errors (30-39)
 /// Instrument name exceeds maximum length.
 const EMaxInstrumentLengthExceeded: u64 = 30;
-/// Custom role name exceeds maximum length.
-const EMaxCustomNameLengthExceeded: u64 = 31;
 /// String must not be empty.
 const EEmptyString: u64 = 35;
 
@@ -45,14 +29,11 @@ const EEmptyString: u64 = 35;
 
 /// Maximum length of an instrument name in bytes.
 const MAX_INSTRUMENT_LENGTH: u64 = 100;
-/// Maximum length of a custom role name in bytes.
-const MAX_CUSTOM_NAME_LENGTH: u64 = 100;
 
 // === Enums ===
 
-/// Represents a party's role on a recording.
-/// Most roles carry an optional level to indicate seniority/prominence;
-/// `ArtistsAndRepertoire` and `Copyist` are clerical/business roles that do not.
+/// A party's role on a recording. Most roles carry an optional level;
+/// `ArtistsAndRepertoire` and `Copyist` are clerical roles that do not.
 public enum RecordingPartyRole has copy, drop, store {
     /// Performed voice acting or spoken-word performance.
     Actor(Option<RecordingPartyRoleLevel>),
@@ -116,13 +97,9 @@ public enum RecordingPartyRole has copy, drop, store {
     Speaker(Option<RecordingPartyRoleLevel>),
     /// Provided vocals on the recording.
     Vocalist(Option<RecordingPartyRoleLevel>),
-    /// A user-defined role not covered by a canonical variant. Carries the
-    /// role name (validated like an instrument name) and an optional level.
-    /// An escape hatch — prefer a canonical variant when one fits.
-    Custom(String, Option<RecordingPartyRoleLevel>),
 }
 
-/// Indicates the seniority or prominence level of a party.
+/// The seniority or prominence of a party in a role.
 public enum RecordingPartyRoleLevel has copy, drop, store {
     /// Additional/supplementary party.
     Additional,
@@ -145,8 +122,6 @@ public enum RecordingPartyRoleLevel has copy, drop, store {
 }
 
 // === Public Functions ===
-
-// Roles
 
 /// Creates a new Actor role with optional level.
 public fun new_actor_role(level: Option<RecordingPartyRoleLevel>): RecordingPartyRole {
@@ -218,8 +193,8 @@ public fun new_ensemble_role(level: Option<RecordingPartyRoleLevel>): RecordingP
     RecordingPartyRole::Ensemble(level)
 }
 
-/// Creates a new Instrumentalist role with instrument name and optional level.
-/// The instrument name freezes into credits, so it is validated here.
+/// Creates a new Instrumentalist role. The instrument name freezes into
+/// credits, so it is validated here: non-empty and at most 100 bytes.
 public fun new_instrumentalist_role(
     instrument: String,
     level: Option<RecordingPartyRoleLevel>,
@@ -309,20 +284,6 @@ public fun new_vocalist_role(level: Option<RecordingPartyRoleLevel>): RecordingP
     RecordingPartyRole::Vocalist(level)
 }
 
-/// Creates a new Custom role with a user-defined name and optional level.
-/// The name freezes into credits, so it is validated like an instrument name.
-/// Prefer a canonical variant when one fits.
-public fun new_custom_role(
-    role_name: String,
-    level: Option<RecordingPartyRoleLevel>,
-): RecordingPartyRole {
-    assert!(!role_name.is_empty(), EEmptyString);
-    assert!(role_name.length() <= MAX_CUSTOM_NAME_LENGTH, EMaxCustomNameLengthExceeded);
-    RecordingPartyRole::Custom(role_name, level)
-}
-
-// Levels
-
 /// Creates an Additional level.
 public fun new_additional_role_level(): RecordingPartyRoleLevel {
     RecordingPartyRoleLevel::Additional
@@ -370,7 +331,7 @@ public fun new_principal_role_level(): RecordingPartyRoleLevel {
 
 // === View Functions ===
 
-/// Returns the optional level associated with this role.
+/// The role's optional level.
 public fun level(self: &RecordingPartyRole): Option<RecordingPartyRoleLevel> {
     match (self) {
         RecordingPartyRole::Actor(level) => *level,
@@ -404,147 +365,5 @@ public fun level(self: &RecordingPartyRole): Option<RecordingPartyRoleLevel> {
         RecordingPartyRole::SoundDesigner(level) => *level,
         RecordingPartyRole::Speaker(level) => *level,
         RecordingPartyRole::Vocalist(level) => *level,
-        RecordingPartyRole::Custom(_, level) => *level,
-    }
-}
-
-/// Returns the canonical identifier of the role as a stable PascalCase token.
-/// For `Custom`, returns the user-supplied name; for `Instrumentalist`, returns
-/// `"Instrumentalist"` (the instrument is read off-chain).
-public fun name(self: &RecordingPartyRole): String {
-    match (self) {
-        RecordingPartyRole::Actor(_) => b"Actor".to_string(),
-        RecordingPartyRole::Arranger(_) => b"Arranger".to_string(),
-        RecordingPartyRole::ArtistsAndRepertoire => b"ArtistsAndRepertoire".to_string(),
-        RecordingPartyRole::BandLeader(_) => b"BandLeader".to_string(),
-        RecordingPartyRole::Choir(_) => b"Choir".to_string(),
-        RecordingPartyRole::ChoirMaster(_) => b"ChoirMaster".to_string(),
-        RecordingPartyRole::ConcertMaster(_) => b"ConcertMaster".to_string(),
-        RecordingPartyRole::Conductor(_) => b"Conductor".to_string(),
-        RecordingPartyRole::Contractor(_) => b"Contractor".to_string(),
-        RecordingPartyRole::Copyist => b"Copyist".to_string(),
-        RecordingPartyRole::DJ(_) => b"DJ".to_string(),
-        RecordingPartyRole::Editor(_) => b"Editor".to_string(),
-        RecordingPartyRole::Engineer(_) => b"Engineer".to_string(),
-        RecordingPartyRole::Ensemble(_) => b"Ensemble".to_string(),
-        RecordingPartyRole::Instrumentalist(..) => b"Instrumentalist".to_string(),
-        RecordingPartyRole::MasteringEngineer(_) => b"MasteringEngineer".to_string(),
-        RecordingPartyRole::MixingEngineer(_) => b"MixingEngineer".to_string(),
-        RecordingPartyRole::MusicDirector(_) => b"MusicDirector".to_string(),
-        RecordingPartyRole::MusicSupervisor(_) => b"MusicSupervisor".to_string(),
-        RecordingPartyRole::Narrator(_) => b"Narrator".to_string(),
-        RecordingPartyRole::Orchestra(_) => b"Orchestra".to_string(),
-        RecordingPartyRole::Orchestrator(_) => b"Orchestrator".to_string(),
-        RecordingPartyRole::Performer(_) => b"Performer".to_string(),
-        RecordingPartyRole::Producer(_) => b"Producer".to_string(),
-        RecordingPartyRole::Programmer(_) => b"Programmer".to_string(),
-        RecordingPartyRole::RecordingEngineer(_) => b"RecordingEngineer".to_string(),
-        RecordingPartyRole::RemixingEngineer(_) => b"RemixingEngineer".to_string(),
-        RecordingPartyRole::Soloist(_) => b"Soloist".to_string(),
-        RecordingPartyRole::SoundDesigner(_) => b"SoundDesigner".to_string(),
-        RecordingPartyRole::Speaker(_) => b"Speaker".to_string(),
-        RecordingPartyRole::Vocalist(_) => b"Vocalist".to_string(),
-        RecordingPartyRole::Custom(role_name, _) => *role_name,
-    }
-}
-
-/// Returns the stable primitive representation used by recording-credit
-/// mutation events: kind, role-name bytes, instrument bytes, and level code.
-/// Canonical role names are retained in `name`; a Custom role retains its raw
-/// supplied name even when it spells a canonical role. Instrument bytes are
-/// populated only for Instrumentalist, and clerical roles use level code 0.
-public(package) fun event_fields(
-    self: &RecordingPartyRole,
-): (u8, vector<u8>, vector<u8>, u8) {
-    let kind = match (self) {
-        RecordingPartyRole::Actor(_) => 0,
-        RecordingPartyRole::Arranger(_) => 1,
-        RecordingPartyRole::ArtistsAndRepertoire => 2,
-        RecordingPartyRole::BandLeader(_) => 3,
-        RecordingPartyRole::Choir(_) => 4,
-        RecordingPartyRole::ChoirMaster(_) => 5,
-        RecordingPartyRole::ConcertMaster(_) => 6,
-        RecordingPartyRole::Conductor(_) => 7,
-        RecordingPartyRole::Contractor(_) => 8,
-        RecordingPartyRole::Copyist => 9,
-        RecordingPartyRole::DJ(_) => 10,
-        RecordingPartyRole::Editor(_) => 11,
-        RecordingPartyRole::Engineer(_) => 12,
-        RecordingPartyRole::Ensemble(_) => 13,
-        RecordingPartyRole::Instrumentalist(..) => 14,
-        RecordingPartyRole::MasteringEngineer(_) => 15,
-        RecordingPartyRole::MixingEngineer(_) => 16,
-        RecordingPartyRole::MusicDirector(_) => 17,
-        RecordingPartyRole::MusicSupervisor(_) => 18,
-        RecordingPartyRole::Narrator(_) => 19,
-        RecordingPartyRole::Orchestra(_) => 20,
-        RecordingPartyRole::Orchestrator(_) => 21,
-        RecordingPartyRole::Performer(_) => 22,
-        RecordingPartyRole::Producer(_) => 23,
-        RecordingPartyRole::Programmer(_) => 24,
-        RecordingPartyRole::RecordingEngineer(_) => 25,
-        RecordingPartyRole::RemixingEngineer(_) => 26,
-        RecordingPartyRole::Soloist(_) => 27,
-        RecordingPartyRole::SoundDesigner(_) => 28,
-        RecordingPartyRole::Speaker(_) => 29,
-        RecordingPartyRole::Vocalist(_) => 30,
-        RecordingPartyRole::Custom(..) => 31,
-    };
-    let name = self.name().into_bytes();
-    let instrument = match (self) {
-        RecordingPartyRole::Instrumentalist(instrument, _) => *instrument.as_bytes(),
-        _ => vector[],
-    };
-    let level = match (self) {
-        RecordingPartyRole::ArtistsAndRepertoire | RecordingPartyRole::Copyist => 0,
-        RecordingPartyRole::Actor(level)
-        | RecordingPartyRole::Arranger(level)
-        | RecordingPartyRole::BandLeader(level)
-        | RecordingPartyRole::Choir(level)
-        | RecordingPartyRole::ChoirMaster(level)
-        | RecordingPartyRole::ConcertMaster(level)
-        | RecordingPartyRole::Conductor(level)
-        | RecordingPartyRole::Contractor(level)
-        | RecordingPartyRole::DJ(level)
-        | RecordingPartyRole::Editor(level)
-        | RecordingPartyRole::Engineer(level)
-        | RecordingPartyRole::Ensemble(level)
-        | RecordingPartyRole::Instrumentalist(_, level)
-        | RecordingPartyRole::MasteringEngineer(level)
-        | RecordingPartyRole::MixingEngineer(level)
-        | RecordingPartyRole::MusicDirector(level)
-        | RecordingPartyRole::MusicSupervisor(level)
-        | RecordingPartyRole::Narrator(level)
-        | RecordingPartyRole::Orchestra(level)
-        | RecordingPartyRole::Orchestrator(level)
-        | RecordingPartyRole::Performer(level)
-        | RecordingPartyRole::Producer(level)
-        | RecordingPartyRole::Programmer(level)
-        | RecordingPartyRole::RecordingEngineer(level)
-        | RecordingPartyRole::RemixingEngineer(level)
-        | RecordingPartyRole::Soloist(level)
-        | RecordingPartyRole::SoundDesigner(level)
-        | RecordingPartyRole::Speaker(level)
-        | RecordingPartyRole::Vocalist(level)
-        | RecordingPartyRole::Custom(_, level) => role_level_code(level),
-    };
-    (kind, name, instrument, level)
-}
-
-fun role_level_code(level: &Option<RecordingPartyRoleLevel>): u8 {
-    if (level.is_none()) {
-        0
-    } else {
-        match (level.borrow()) {
-            RecordingPartyRoleLevel::Additional => 1,
-            RecordingPartyRoleLevel::Assistant => 2,
-            RecordingPartyRoleLevel::Associate => 3,
-            RecordingPartyRoleLevel::Backing => 4,
-            RecordingPartyRoleLevel::Executive => 5,
-            RecordingPartyRoleLevel::Featured => 6,
-            RecordingPartyRoleLevel::Lead => 7,
-            RecordingPartyRoleLevel::Primary => 8,
-            RecordingPartyRoleLevel::Principal => 9,
-        }
     }
 }

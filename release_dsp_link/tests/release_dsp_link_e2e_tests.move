@@ -3,27 +3,41 @@
 
 /// End-to-end scenario for this package's full use case, run under
 /// `sui::test_scenario`: real transaction boundaries and distinct senders,
-/// against a `Release` that is genuinely PUBLISHED AND SHARED — the
+/// against a `Release` that is genuinely published and shared — the
 /// production shape, since `musicos::release::publish` calls
 /// `transfer::share_object`. DSP-link writes (release-level and per-track)
 /// and reads happen on the shared object via `take_shared` in later
 /// transactions, exactly as a client PTB would compose them. Complements the
-/// unit module's boundary/abort/math coverage.
+/// unit module's boundary/abort coverage.
 #[test_only]
 module release_dsp_link::release_dsp_link_e2e_tests;
 
-use musicos::release::{Self, Release};
+use musicos::release::{Self, Release, ReleaseAdminCap};
 use musicos::test_helpers;
 use musicos::track;
 use release_dsp_link::release_dsp_link as links;
 use std::unit_test::{assert_eq, destroy};
 use sui::event;
-use sui::test_scenario;
+use sui::test_scenario::{Self, Scenario};
 
 // ADMIN holds the release's admin cap and performs the cap-gated writes.
 // STRANGER owns nothing and proves the views are genuinely permissionless.
 const ADMIN: address = @0xAD;
 const STRANGER: address = @0x51;
+
+/// Creates, publishes and shares a release with the given splits as the
+/// current sender. Returns the admin cap and the release id.
+fun publish_and_share(scenario: &mut Scenario, splits: vector<u16>): (ReleaseAdminCap, ID) {
+    let ctx = scenario.ctx();
+    let placeholder = test_helpers::fake_id(ctx);
+    let tracks = splits.map!(|split| {
+        track::new_for_testing(test_helpers::fake_id(ctx), placeholder, split)
+    });
+    let (rel, cap) = release::new_for_testing(tracks, ctx);
+    let rel_id = object::id(&rel);
+    rel.publish(&cap);
+    (cap, rel_id)
+}
 
 /// Publish → share → operate across transactions and senders: ADMIN sets a
 /// release-level link and a per-track link on the freshly-shared release;
@@ -35,39 +49,32 @@ fun published_shared_release_dsp_links_full_lifecycle() {
 
     // --- Tx 1 (ADMIN): create a 2-track release and publish it — publish
     // shares the release, exactly as production does. ---
-    let comp_id = test_helpers::fake_id(ts.ctx());
-    let rec_0 = test_helpers::fake_id(ts.ctx());
-    let rec_1 = test_helpers::fake_id(ts.ctx());
-    let placeholder = test_helpers::fake_id(ts.ctx());
-    let tracks = vector[
-        track::new_for_testing(comp_id, rec_0, placeholder, 6000u16),
-        track::new_for_testing(comp_id, rec_1, placeholder, 4000u16),
-    ];
-    let (rel, rel_cap) = release::new_for_testing(b"EP".to_string(), tracks, ts.ctx());
-    let clock = sui::clock::create_for_testing(ts.ctx());
-    rel.publish(&rel_cap, &clock); // shares the release
-    clock.destroy_for_testing();
+    let (rel_cap, rel_id) = publish_and_share(&mut ts, vector[6000u16, 4000u16]);
+    let album = links::new_spotify(b"albumid".to_string());
+    let track_0 = links::new_apple_music_track(b"us".to_string(), b"1".to_string(), b"2".to_string());
 
     // --- Tx 2 (ADMIN): operate on the now-shared release via take_shared.
     // `sui::event::events_by_type` is scoped to the current test_scenario
-    // transaction (each `next_tx` starts a fresh event log — see
-    // `TransactionEffects.num_user_events`), so payload assertions happen
-    // here, in the same transaction as the emitting call. ---
+    // transaction (each `next_tx` starts a fresh event log), so payload
+    // assertions happen here, in the same transaction as the emitting call. ---
     ts.next_tx(ADMIN);
     let mut rel = ts.take_shared<Release>();
-    links::set_release_link(&mut rel, &rel_cap, links::new_spotify(b"albumid".to_string()));
-    links::set_track_link(
-        &mut rel,
-        &rel_cap,
-        0,
-        links::new_apple_music_track(b"us".to_string(), b"1".to_string(), b"2".to_string()),
-    );
+    assert!(rel.is_published_state());
+    links::set_release_link(&mut rel, &rel_cap, album);
+    links::set_track_link(&mut rel, &rel_cap, 0, track_0);
 
     let set_events = event::events_by_type<links::ReleaseDspLinkSetEvent>();
     assert_eq!(set_events.length(), 1);
+    let (event_release_id, link) = links::release_link_set_event_fields(&set_events[0]);
+    assert_eq!(event_release_id, rel_id.to_address());
+    assert_eq!(link, album);
 
     let track_events = event::events_by_type<links::ReleaseTrackDspLinkSetEvent>();
     assert_eq!(track_events.length(), 1);
+    let (event_release_id, index, link) = links::track_link_set_event_fields(&track_events[0]);
+    assert_eq!(event_release_id, rel_id.to_address());
+    assert_eq!(index, 0);
+    assert_eq!(link, track_0);
 
     test_scenario::return_shared(rel);
 
@@ -78,14 +85,8 @@ fun published_shared_release_dsp_links_full_lifecycle() {
     ts.next_tx(STRANGER);
     let rel = ts.take_shared<Release>();
     assert!(links::has_release_link(&rel, links::platform_spotify()));
-    assert_eq!(
-        links::release_link(&rel, links::platform_spotify()).destroy_some(),
-        links::new_spotify(b"albumid".to_string()),
-    );
-    assert_eq!(
-        links::track_link(&rel, links::platform_apple_music(), 0).destroy_some(),
-        links::new_apple_music_track(b"us".to_string(), b"1".to_string(), b"2".to_string()),
-    );
+    assert_eq!(links::release_link(&rel, links::platform_spotify()).destroy_some(), album);
+    assert_eq!(links::track_link(&rel, links::platform_apple_music(), 0).destroy_some(), track_0);
     assert!(links::track_link(&rel, links::platform_apple_music(), 1).is_none());
     test_scenario::return_shared(rel);
 
@@ -101,9 +102,17 @@ fun published_shared_release_dsp_links_full_lifecycle() {
 
     let cleared_events = event::events_by_type<links::ReleaseDspLinkClearedEvent>();
     assert_eq!(cleared_events.length(), 1);
+    let (event_release_id, platform) = links::release_link_cleared_event_fields(&cleared_events[0]);
+    assert_eq!(event_release_id, rel_id.to_address());
+    assert_eq!(platform, links::platform_spotify());
 
     let track_events = event::events_by_type<links::ReleaseTrackDspLinkClearedEvent>();
     assert_eq!(track_events.length(), 1); // just this tx's clear, not tx 2's set
+    let (event_release_id, platform, index) =
+        links::track_link_cleared_event_fields(&track_events[0]);
+    assert_eq!(event_release_id, rel_id.to_address());
+    assert_eq!(platform, links::platform_apple_music());
+    assert_eq!(index, 0);
 
     test_scenario::return_shared(rel);
     destroy(rel_cap);
@@ -112,27 +121,22 @@ fun published_shared_release_dsp_links_full_lifecycle() {
 
 /// Adversarial: a cap minted for a different release is rejected against a
 /// live, published, shared release — the mismatch is on the cap's bound
-/// release id (checked in `musicos::release::authorize`), not on the sender, so
-/// a stranger presenting a foreign-but-real cap aborts exactly like the
+/// release id (checked in `musicos::release::authorize`), not on the sender,
+/// so a stranger presenting a foreign-but-real cap aborts exactly like the
 /// cap's rightful owner would.
-#[test, expected_failure(abort_code = 0, location = musicos::release)] // release::EUnauthorized
+#[test, expected_failure(abort_code = release::EUnauthorized)]
 fun wrong_cap_rejected_against_shared_release() {
     let mut ts = test_scenario::begin(ADMIN);
 
     // Release A: published and shared.
-    let comp_id = test_helpers::fake_id(ts.ctx());
-    let rec_id = test_helpers::fake_id(ts.ctx());
-    let placeholder = test_helpers::fake_id(ts.ctx());
-    let tracks_a = vector[track::new_for_testing(comp_id, rec_id, placeholder, 10000u16)];
-    let (rel_a, cap_a) = release::new_for_testing(b"A".to_string(), tracks_a, ts.ctx());
-    let clock = sui::clock::create_for_testing(ts.ctx());
-    rel_a.publish(&cap_a, &clock);
-    clock.destroy_for_testing();
+    let (cap_a, _) = publish_and_share(&mut ts, vector[10000u16]);
     destroy(cap_a);
 
     // Release B: never published — only its cap is needed, as a foreign key.
-    let tracks_b = vector[track::new_for_testing(comp_id, rec_id, placeholder, 10000u16)];
-    let (rel_b, cap_b) = release::new_for_testing(b"B".to_string(), tracks_b, ts.ctx());
+    let placeholder = test_helpers::fake_id(ts.ctx());
+    let rec_id = test_helpers::fake_id(ts.ctx());
+    let tracks_b = vector[track::new_for_testing(rec_id, placeholder, 10000u16)];
+    let (rel_b, cap_b) = release::new_for_testing(tracks_b, ts.ctx());
     destroy(rel_b);
 
     // --- Tx 2 (STRANGER): attempts to write to A's shared release using B's

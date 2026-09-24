@@ -47,3 +47,32 @@ replacement events are exercised as well as full-size storage.
 Validation is local; no Mainnet build, live gas measurement, browser decoder
 integration, or deployment was performed. No blocking issue was identified in
 this module within the inherited core trust model above.
+
+## 2026-09-24 — new generation against musicos `6dff4de`
+
+Reviewed for a fresh immutable publication; `Published.toml` remains the
+record of the prior deployment. Changes in this generation:
+
+- `musicos` re-pinned to `6dff4deca5ced186989c064e152c92a06384750c`
+  (`Composition` carries no title; `publish` takes no `Clock`).
+  `language_code` stays at `61542357f3d2ff989d120185046def7cf6c8bdcb`.
+- Error constants converted from `#[error]` strings to numeric `u64`:
+  `ENoLyrics` (1) and `ELyricsTooLong` (2, formerly
+  `EMaxLyricsLengthExceeded`).
+- Events slimmed to what an event-only indexer needs:
+  `CompositionLyricsSetEvent<CompositionShare> { composition_id, language:
+  String }` and `CompositionLyricsClearedEvent<CompositionShare> {
+  composition_id, language: String }`, 35 BCS bytes each. The admin cap id
+  and the prior-presence flag were dropped; the compressed body was already
+  excluded.
+- Setting the bytes already stored is now a true no-op: no write, no event.
+- Guard order changed: the 32,768-byte bound is checked before cap
+  authorization; absent clears remain silent after authorization.
+
+Evidence: with Sui 1.79.0, default and Mainnet builds and tests pass with no
+warnings, 11/11 on each environment, covering independent languages, the
+published/shared lifecycle across senders, share-type isolation, opaque byte
+preservation, empty versus absent entries, the 32,768/32,769-byte boundary on
+add and replace, equal-set and absent-clear silence, silent views, and exact
+event BCS layouts. `tests/check_cap_types.py` is unchanged and still expects
+`sui` on `PATH`.

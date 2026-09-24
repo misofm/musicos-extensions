@@ -2,29 +2,25 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /// A recording administrator's pointer to the Miso Engine session for a
-/// recording: the canonical Session V1 document plus every stem it plays.
+/// recording: the canonical Session V1 document plus every stem it plays,
+/// stored as one value under a dynamic field on the recording's UID and
+/// written through its cap-gated `uid_mut`. Reads are permissionless.
 ///
-/// The Session V1 document references each source by the SHA-256 digest of its
-/// canonical PCM (engine `STEM_IDENTITY_V1`) and carries no locator. Walrus
-/// serves blobs by blob ID. `EngineSession` therefore records, next to the
-/// session blob ID, one `Stem` per source pairing that digest with the blob ID
-/// holding its FLAC delivery object. A client reads one value and
-/// can resolve every source the session names.
+/// The Session V1 document references each source by the SHA-256 digest of
+/// its canonical PCM (engine `STEM_IDENTITY_V1`) and carries no locator;
+/// Walrus serves blobs by blob ID. `EngineSession` therefore pairs the
+/// session blob ID with one `Stem` per source — that digest and the blob ID
+/// holding its FLAC delivery object — so a client reads one value and can
+/// resolve every source the session names. Stems are sorted by digest and
+/// unique, so a session has exactly one canonical form; session and stems are
+/// replaced together because adding a source changes the document.
 ///
-/// Session and stems are one value and are replaced together: adding a source
-/// changes the document, so a new document and a new stem set land in a single
-/// `set_engine_session`. Stems are sorted by digest and unique, so the value has
-/// exactly one canonical form for a given session.
-///
-/// Every reference is a bare blob ID. This extension asserts only which blobs the recording
-/// administrator chose. It does not prove storage availability, document
-/// validity, that a stem decodes to its digest, or that the digests match the
-/// document's sources. Publication tooling must perform those checks before
-/// attachment.
+/// Every reference is a bare blob ID: the extension asserts only which blobs
+/// the administrator chose, not storage availability, document validity, or
+/// that a stem decodes to its digest. Publication tooling checks those first.
 module recording_engine_session::recording_engine_session;
 
-use musicos::recording::{Self, Recording, RecordingAdminCap};
-use sui::bcs;
+use musicos::recording::{Recording, RecordingAdminCap};
 use sui::dynamic_field as df;
 use sui::event::emit;
 
@@ -35,20 +31,12 @@ const DIGEST_LENGTH: u64 = 32;
 
 // === Errors ===
 
-/// A stem digest is not exactly 32 bytes.
-#[error]
-const EInvalidStemDigest: vector<u8> =
-    b"A stem digest must be a 32-byte SHA-256 digest";
-
-/// Stems are not in strictly increasing digest order.
-#[error]
-const EUnsortedStems: vector<u8> =
-    b"Stems must be sorted by digest and contain no duplicates";
-
 /// No Miso Engine session is attached to this recording.
-#[error]
-const ENoEngineSession: vector<u8> =
-    b"No Miso Engine session is attached to this Recording";
+const ENoEngineSession: u64 = 1;
+/// A stem digest is not exactly 32 bytes.
+const EInvalidStemDigest: u64 = 2;
+/// Stems are not in strictly increasing digest order.
+const EUnsortedStems: u64 = 3;
 
 // === Structs ===
 
@@ -57,13 +45,11 @@ public struct ExtensionKey() has copy, drop, store;
 
 /// One stem the session plays: its identity and where its bytes live.
 public struct Stem has copy, drop, store {
-    /// SHA-256 digest of the stem's canonical PCM serialization (engine
-    /// `STEM_IDENTITY_V1`), 32 raw bytes in natural order. Equals the source's
-    /// `content` identity in the Session V1 document without its `sha256:`
-    /// prefix.
+    /// SHA-256 digest of the stem's canonical PCM (engine `STEM_IDENTITY_V1`),
+    /// 32 raw bytes: the source's `content` identity in the Session V1
+    /// document without its `sha256:` prefix.
     digest: vector<u8>,
-    /// Standalone Walrus blob ID holding the stem's FLAC delivery object,
-    /// which decodes to the PCM the digest commits to.
+    /// Standalone Walrus blob ID holding the stem's FLAC delivery object.
     blob_id: u256,
 }
 
@@ -78,44 +64,33 @@ public struct EngineSession has copy, drop, store {
 
 // === Events ===
 
-/// Compact change notifications; content remains in the dynamic field.
-/// See EVENT_PAYLOADS.md for retained context and BCS bounds.
-public struct EngineSessionSetEvent<phantom RecordingShare, phantom CompositionShare>
-    has copy, drop {
+/// Emitted when the session is set to a value it did not already hold.
+/// Carries the session document's blob ID; the stem list is unbounded and is
+/// read from the recording, so a set event with an unchanged blob ID means
+/// the stems changed.
+public struct RecordingEngineSessionSetEvent<phantom RecordingShare> has copy, drop {
     recording_id: address,
-    composition_id: address,
-    admin_cap_id: address,
-    had_previous: bool,
-    value_changed: bool,
-    previous_session_blob_id: u256,
-    previous_stem_count: u64,
-    session_blob_id: u256,
-    stem_count: u64,
+    blob_id: u256,
 }
 
-/// Emitted when a Miso Engine session is removed.
-public struct EngineSessionUnsetEvent<phantom RecordingShare, phantom CompositionShare>
-    has copy, drop {
+/// Emitted when an attached session is removed.
+public struct RecordingEngineSessionClearedEvent<phantom RecordingShare> has copy, drop {
     recording_id: address,
-    composition_id: address,
-    admin_cap_id: address,
-    removed_session_blob_id: u256,
-    removed_stem_count: u64,
 }
 
 // === Public Functions ===
 
-/// Creates a stem reference from a 32-byte PCM digest and a blob ID.
+/// Creates a stem reference. Aborts `EInvalidStemDigest` unless `digest` is
+/// exactly 32 bytes.
 public fun new_stem(digest: vector<u8>, blob_id: u256): Stem {
     assert!(digest.length() == DIGEST_LENGTH, EInvalidStemDigest);
     Stem { digest, blob_id }
 }
 
-/// Creates an engine session from a session blob ID and its stems.
-///
-/// `stems` must be in strictly increasing digest order, which also forbids
-/// duplicates. An empty vector is valid: a Session V1 document may declare no
-/// sources.
+/// Creates a session from a session blob ID and its stems. Aborts
+/// `EUnsortedStems` unless `stems` is in strictly increasing digest order,
+/// which also forbids duplicates. An empty vector is valid: a Session V1
+/// document may declare no sources.
 public fun new(blob_id: u256, stems: vector<Stem>): EngineSession {
     let mut i = 1;
     while (i < stems.length()) {
@@ -125,108 +100,70 @@ public fun new(blob_id: u256, stems: vector<Stem>): EngineSession {
     EngineSession { blob_id, stems }
 }
 
-/// Returns the Walrus blob ID containing the Session V1 document.
-public fun blob_id(self: &EngineSession): u256 {
-    self.blob_id
-}
-
-/// Returns the session's stems, sorted by digest.
-public fun stems(self: &EngineSession): &vector<Stem> {
-    &self.stems
-}
-
-/// Returns a stem's 32-byte canonical PCM digest.
-public fun stem_digest(self: &Stem): &vector<u8> {
-    &self.digest
-}
-
-/// Returns the Walrus blob ID holding a stem's FLAC delivery object.
-public fun stem_blob_id(self: &Stem): u256 {
-    self.blob_id
-}
-
-/// Sets or replaces the recording's Miso Engine session.
-public fun set_engine_session<RecordingShare, CompositionShare>(
-    self: &mut Recording<RecordingShare, CompositionShare>,
+/// Sets (or replaces) the recording's session. Setting the value already
+/// held neither writes nor emits.
+public fun set_engine_session<RecordingShare>(
+    self: &mut Recording<RecordingShare>,
     cap: &RecordingAdminCap<RecordingShare>,
     session: EngineSession,
 ) {
     let recording_id = object::id(self).to_address();
-    let composition_id = recording::composition_id(self).to_address();
-    let admin_cap_id = object::id(cap).to_address();
+    let blob_id = session.blob_id;
     let uid = self.uid_mut(cap);
-    let had_previous = df::exists(uid, ExtensionKey());
-    let (previous_session_blob_id, previous_stem_count, value_changed) = if (had_previous) {
-        let previous: &EngineSession = df::borrow(uid, ExtensionKey());
-        (
-            previous.blob_id,
-            previous.stems.length(),
-            *previous != session,
-        )
-    } else {
-        (0, 0, true)
-    };
-    let (session_blob_id, stem_count) = event_snapshot(&session);
-    if (had_previous) {
-        *df::borrow_mut(uid, ExtensionKey()) = session;
+    if (df::exists(uid, ExtensionKey())) {
+        let current: &mut EngineSession = df::borrow_mut(uid, ExtensionKey());
+        if (*current == session) return;
+        *current = session;
     } else {
         df::add(uid, ExtensionKey(), session);
     };
-    if (value_changed) {
-        emit(EngineSessionSetEvent<RecordingShare, CompositionShare> {
-            recording_id,
-            composition_id,
-            admin_cap_id,
-            had_previous,
-            value_changed,
-            previous_session_blob_id,
-            previous_stem_count,
-            session_blob_id,
-            stem_count,
-        });
-    };
+    emit(RecordingEngineSessionSetEvent<RecordingShare> { recording_id, blob_id });
 }
 
-/// Removes the recording's Miso Engine session, if present. Idempotent.
-public fun unset_engine_session<RecordingShare, CompositionShare>(
-    self: &mut Recording<RecordingShare, CompositionShare>,
+/// Removes the recording's session, if any. Silent when nothing is attached.
+public fun clear_engine_session<RecordingShare>(
+    self: &mut Recording<RecordingShare>,
     cap: &RecordingAdminCap<RecordingShare>,
 ) {
     let recording_id = object::id(self).to_address();
-    let composition_id = recording::composition_id(self).to_address();
-    let admin_cap_id = object::id(cap).to_address();
     let uid = self.uid_mut(cap);
     if (df::exists(uid, ExtensionKey())) {
-        let (removed_session_blob_id, removed_stem_count) = {
-            let previous = df::borrow(uid, ExtensionKey());
-            event_snapshot(previous)
-        };
         let _: EngineSession = df::remove(uid, ExtensionKey());
-        emit(EngineSessionUnsetEvent<RecordingShare, CompositionShare> {
-            recording_id,
-            composition_id,
-            admin_cap_id,
-            removed_session_blob_id,
-            removed_stem_count,
-        });
+        emit(RecordingEngineSessionClearedEvent<RecordingShare> { recording_id });
     }
 }
 
 // === View Functions ===
 
 /// Whether a Miso Engine session is attached to the recording.
-public fun has_engine_session<RecordingShare, CompositionShare>(
-    self: &Recording<RecordingShare, CompositionShare>,
-): bool {
+public fun has_engine_session<RecordingShare>(self: &Recording<RecordingShare>): bool {
     df::exists(self.uid(), ExtensionKey())
 }
 
-/// The recording's Miso Engine session. Aborts when none is attached.
-public fun engine_session<RecordingShare, CompositionShare>(
-    self: &Recording<RecordingShare, CompositionShare>,
-): &EngineSession {
+/// The recording's session. Aborts `ENoEngineSession` when none is attached.
+public fun engine_session<RecordingShare>(self: &Recording<RecordingShare>): &EngineSession {
     assert!(has_engine_session(self), ENoEngineSession);
     df::borrow(self.uid(), ExtensionKey())
+}
+
+/// The Walrus blob ID holding the Session V1 document.
+public fun blob_id(self: &EngineSession): u256 {
+    self.blob_id
+}
+
+/// The session's stems, sorted by digest.
+public fun stems(self: &EngineSession): &vector<Stem> {
+    &self.stems
+}
+
+/// A stem's 32-byte canonical PCM digest.
+public fun stem_digest(self: &Stem): &vector<u8> {
+    &self.digest
+}
+
+/// The Walrus blob ID holding a stem's FLAC delivery object.
+public fun stem_blob_id(self: &Stem): u256 {
+    self.blob_id
 }
 
 // === Private Functions ===
@@ -241,31 +178,18 @@ fun digest_lt(a: &vector<u8>, b: &vector<u8>): bool {
     false
 }
 
-/// Projects only the fixed-size identity and count used by mutation events.
-fun event_snapshot(session: &EngineSession): (u256, u64) {
-    (session.blob_id, session.stems.length())
-}
-
 // === Test Functions ===
 
 #[test_only]
-public fun set_event_fields<R, C>(e: &EngineSessionSetEvent<R, C>):
-    (address, address, address, bool, bool, u256, u64, u256, u64) {
-    (e.recording_id, e.composition_id, e.admin_cap_id, e.had_previous, e.value_changed, e.previous_session_blob_id, e.previous_stem_count, e.session_blob_id, e.stem_count)
+public fun set_event_fields<RecordingShare>(
+    e: &RecordingEngineSessionSetEvent<RecordingShare>,
+): (address, u256) {
+    (e.recording_id, e.blob_id)
 }
 
 #[test_only]
-public fun unset_event_fields<R, C>(e: &EngineSessionUnsetEvent<R, C>):
-    (address, address, address, u256, u64) {
-    (e.recording_id, e.composition_id, e.admin_cap_id, e.removed_session_blob_id, e.removed_stem_count)
-}
-
-#[test_only]
-public fun set_event_bcs<R, C>(e: &EngineSessionSetEvent<R, C>): vector<u8> {
-    bcs::to_bytes(e)
-}
-
-#[test_only]
-public fun unset_event_bcs<R, C>(e: &EngineSessionUnsetEvent<R, C>): vector<u8> {
-    bcs::to_bytes(e)
+public fun cleared_event_fields<RecordingShare>(
+    e: &RecordingEngineSessionClearedEvent<RecordingShare>,
+): address {
+    e.recording_id
 }

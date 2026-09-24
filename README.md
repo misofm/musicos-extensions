@@ -41,18 +41,22 @@ First-party, platform-neutral metadata extensions.
 |---------|--------|---------|
 | [`composition_credits`](./composition_credits) | Composition | Songwriting and publishing attribution keyed by Party ID. |
 | [`composition_lyrics`](./composition_lyrics) | Composition | Zstd-compressed lyrics keyed by ISO 639-1 language code. |
-| [`composition_metadata`](./composition_metadata) | Composition | Canonical descriptive metadata: the composition's title. |
+| [`composition_title`](./composition_title) | Composition | The composition's preferred title. |
+| [`recording_advisory`](./recording_advisory) | Recording | Explicit, not-explicit, or cleaned advisory classification. |
 | [`recording_credits`](./recording_credits) | Recording | Performance and production credits with primary and featured artist designations. |
-| [`recording_metadata`](./recording_metadata) | Recording | Canonical descriptive metadata: ordered genres (primary first), ISO 639-1 languages (an empty list denotes instrumental), explicit/not-explicit/cleaned advisory, and version name (e.g. Live, Radio Edit). |
+| [`recording_genre`](./recording_genre) | Recording | Ordered genre classification of the master, primary first. |
+| [`recording_language`](./recording_language) | Recording | Ordered ISO 639-1 language metadata; an empty list explicitly denotes instrumental content. |
+| [`recording_version`](./recording_version) | Recording | Name of this particular take, such as Live or Radio Edit. |
 | [`release_cover_art`](./release_cover_art) | Release | Release-level cover art with optional per-track overrides. |
 | [`release_credits`](./release_credits) | Release | Primary and featured top-line artist billing keyed by Party ID. |
-| [`release_metadata`](./release_metadata) | Release | Canonical descriptive metadata: title, ordered genres (primary first), kind (e.g. Album, EP, Mixtape), and editorial description. |
+| [`release_description`](./release_description) | Release | Bounded free-text editorial description. |
+| [`release_genre`](./release_genre) | Release | Ordered release-level genre classification, primary first. |
+| [`release_kind`](./release_kind) | Release | Bounded free-text release classification such as Album, EP, or Mixtape. |
+| [`release_title`](./release_title) | Release | The release's preferred title. |
 
-Each `*_metadata` package stores one metadata record per object under a single
-`ExtensionKey()`. They supersede the former single-attribute packages
-`recording_genre`, `recording_language`, `recording_advisory`,
-`release_genre`, `release_kind`, and `release_description`, whose deployment
-records remain in this repository's history.
+Each package covers one concern and stores one value under a single
+`ExtensionKey()`, so changing one attribute's schema never forces a data
+migration of another. Titles live here because musicos core stores none.
 
 ### Platform extensions
 
@@ -72,7 +76,7 @@ Reference an extension by repository subdirectory and exact commit:
 
 ```toml
 [dependencies]
-release_metadata = { git = "https://github.com/misofm/musicos-extensions.git", subdir = "release_metadata", rev = "<40-character-commit>" }
+release_genre = { git = "https://github.com/misofm/musicos-extensions.git", subdir = "release_genre", rev = "<40-character-commit>" }
 ```
 
 Each package's `Move.toml` pins its own protocol and supporting dependencies.
@@ -98,7 +102,7 @@ block.
 Run build and test commands from an individual package directory:
 
 ```sh
-cd release_metadata
+cd release_genre
 sui move build
 sui move test --coverage
 ```

@@ -1,35 +1,25 @@
 // Copyright (c) Miso Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-/// Streaming deep links for a musicos release, one Digital Service Provider (DSP)
-/// at a time. Attaches `DspLinkData` records to a `musicos::release::Release`: an
-/// album-level link per DSP, plus an optional per-track link per DSP.
+/// Streaming deep links for a musicos release, one Digital Service Provider
+/// (DSP) at a time: an album-level link per DSP, plus an optional per-track
+/// link per DSP, attached to a `musicos::release::Release`.
 ///
-/// `DspLinkData` is a single built-in enum with one variant per DSP, holding
-/// that DSP's native identifier(s) — e.g. a Spotify album id, or Apple Music's
-/// `(storefront, album_id, track_id)`. URLs are never stored: a client rebuilds
-/// the public URL from the variant it reads back, so a DSP reshaping its URLs
-/// needs no on-chain change. Storage is keyed by the variant's platform code (a
-/// `u8` discriminant matching declaration order, via `platform()`), so each DSP
-/// occupies its own independent dynamic field on the release's `UID` — adding
-/// or clearing one DSP's link never touches another's.
+/// `DspLinkData` is a single enum with one variant per DSP holding that DSP's
+/// native identifier(s); URLs are never stored, a client rebuilds them from
+/// the variant it reads back. Storage is keyed by the variant's `Platform`
+/// (`platform()`), so each DSP occupies its own dynamic field: the album-level link under `ReleaseLinkKey`, the
+/// per-track links as a `PerTrack<Option<DspLinkData>>` under `TrackLinksKey`
+/// (one slot per track, aligned to the tracklist by construction). A track
+/// whose slot is `none` inherits the album-level link at the frontend.
 ///
-/// Two levels per DSP: the album-level link is the single `DspLinkData` stored
-/// under `ReleaseLinkKey(platform)`; the per-track links are a
-/// `PerTrack<Option<DspLinkData>>` stored under `TrackLinksKey(platform)` (one
-/// slot per track, aligned to the tracklist by construction). A track whose
-/// slot is `none` inherits the album-level link at the frontend.
-///
-/// Streaming presence is presentation, not protocol-verifiable state, so it
-/// lives on the release (the consumer object), not the recording. All writes
-/// are gated by the `ReleaseAdminCap` via `uid_mut`; views are permissionless.
+/// Streaming presence is presentation, not protocol state, so it lives on the
+/// release (the consumer object), not the recording. Writes are gated by the
+/// `ReleaseAdminCap` via `uid_mut`; views are permissionless.
 module release_dsp_link::release_dsp_link;
 
 use musicos::release::{Release, ReleaseAdminCap};
-use musicos::track;
 use per_track::per_track::{Self, PerTrack};
-use std::option;
-use std::string;
 use std::string::String;
 use sui::dynamic_field as df;
 use sui::event::emit;
@@ -128,11 +118,10 @@ const MAX_YOUTUBE_MUSIC_ID_LENGTH: u64 = 64;
 /// most DSPs use the same identifier shape for both, which is why a variant
 /// doesn't carry an explicit album/track flag.
 ///
-/// **Variant order is frozen.** Storage keys off `platform()`, a `u8`
-/// discriminant matching declaration order (`Spotify = 0` … `YouTubeMusic =
-/// 7`). This immutable package never changes those indices. Supporting another
-/// platform requires a new immutable package identity and an explicit
-/// client/data migration; existing variants are never reordered.
+/// **Variant order is frozen** and shared with `Platform`: it is the BCS tag
+/// order of both enums. Supporting another platform requires a new immutable
+/// package identity and an explicit client/data migration; existing variants
+/// are never reordered.
 public enum DspLinkData has copy, drop, store {
     /// Spotify addresses both albums and tracks by a single 22-char base62 id
     /// (`open.spotify.com/album/{id}` or `/track/{id}`); album-vs-track is
@@ -182,47 +171,50 @@ public enum DspLinkData has copy, drop, store {
     YouTubeMusic { id: String },
 }
 
-// === Platform Codes ===
+// === Platforms ===
 
-/// The link's platform code — the `u8` discriminant clients pass to
-/// `clear_release_link`, `clear_track_link`, `clear_track_links`, and the view
-/// functions below.
-public fun platform(self: &DspLinkData): u8 {
+/// The DSP a link belongs to: the storage key and event key for one service.
+/// Variants are constructed through the `platform_*` functions.
+public enum Platform has copy, drop, store {
+    Spotify,
+    AppleMusic,
+    AmazonMusic,
+    Bandcamp,
+    Deezer,
+    SoundCloud,
+    Tidal,
+    YouTubeMusic,
+}
+
+/// The platform this link belongs to.
+public fun platform(self: &DspLinkData): Platform {
     match (self) {
-        DspLinkData::Spotify { .. } => 0,
-        DspLinkData::AppleMusic { .. } => 1,
-        DspLinkData::AmazonMusic { .. } => 2,
-        DspLinkData::Bandcamp { .. } => 3,
-        DspLinkData::Deezer { .. } => 4,
-        DspLinkData::SoundCloud { .. } => 5,
-        DspLinkData::Tidal { .. } => 6,
-        DspLinkData::YouTubeMusic { .. } => 7,
+        DspLinkData::Spotify { .. } => Platform::Spotify,
+        DspLinkData::AppleMusic { .. } => Platform::AppleMusic,
+        DspLinkData::AmazonMusic { .. } => Platform::AmazonMusic,
+        DspLinkData::Bandcamp { .. } => Platform::Bandcamp,
+        DspLinkData::Deezer { .. } => Platform::Deezer,
+        DspLinkData::SoundCloud { .. } => Platform::SoundCloud,
+        DspLinkData::Tidal { .. } => Platform::Tidal,
+        DspLinkData::YouTubeMusic { .. } => Platform::YouTubeMusic,
     }
 }
 
-/// Platform code for `Spotify`.
-public fun platform_spotify(): u8 { 0 }
+public fun platform_spotify(): Platform { Platform::Spotify }
 
-/// Platform code for `AppleMusic`.
-public fun platform_apple_music(): u8 { 1 }
+public fun platform_apple_music(): Platform { Platform::AppleMusic }
 
-/// Platform code for `AmazonMusic`.
-public fun platform_amazon_music(): u8 { 2 }
+public fun platform_amazon_music(): Platform { Platform::AmazonMusic }
 
-/// Platform code for `Bandcamp`.
-public fun platform_bandcamp(): u8 { 3 }
+public fun platform_bandcamp(): Platform { Platform::Bandcamp }
 
-/// Platform code for `Deezer`.
-public fun platform_deezer(): u8 { 4 }
+public fun platform_deezer(): Platform { Platform::Deezer }
 
-/// Platform code for `SoundCloud`.
-public fun platform_soundcloud(): u8 { 5 }
+public fun platform_soundcloud(): Platform { Platform::SoundCloud }
 
-/// Platform code for `Tidal`.
-public fun platform_tidal(): u8 { 6 }
+public fun platform_tidal(): Platform { Platform::Tidal }
 
-/// Platform code for `YouTubeMusic`.
-public fun platform_youtube_music(): u8 { 7 }
+public fun platform_youtube_music(): Platform { Platform::YouTubeMusic }
 
 // === Constructors ===
 
@@ -337,277 +329,161 @@ public fun new_youtube_music(id: String): DspLinkData {
 
 // === Structs ===
 
-/// Dynamic-field key for a DSP's album-level link, keyed by platform code —
-/// each platform occupies its own field on the release's `UID`.
-public struct ReleaseLinkKey(u8) has copy, drop, store;
+/// Dynamic-field key for a DSP's album-level link — each platform occupies
+/// its own field on the release's `UID`.
+public struct ReleaseLinkKey(Platform) has copy, drop, store;
 
 /// Dynamic-field key for a DSP's per-track links: a `PerTrack` of optional
-/// links, one slot per track, keyed by platform code.
-public struct TrackLinksKey(u8) has copy, drop, store;
+/// links, one slot per track.
+public struct TrackLinksKey(Platform) has copy, drop, store;
 
 // === Events ===
+//
+// Each event carries the release, the track index where one applies, and
+// either the new link (whose variant identifies the platform) or, on clear,
+// the platform, so an event-only indexer can maintain which
+// (release, platform[, track]) slots are set and what they hold.
 
+/// Emitted when a DSP's album-level link is set or replaced with a different
+/// value.
 public struct ReleaseDspLinkSetEvent has copy, drop {
     release_id: address,
-    admin_cap_id: address,
-    platform: u8,
-    track_count: u64,
-    field_existed_before: bool,
-    field_exists_after: bool,
-    previous_present: bool,
-    current_present: bool,
+    link: DspLinkData,
 }
 
+/// Emitted when a DSP's album-level link is removed.
 public struct ReleaseDspLinkClearedEvent has copy, drop {
     release_id: address,
-    admin_cap_id: address,
-    platform: u8,
-    track_count: u64,
-    field_existed_before: bool,
-    field_exists_after: bool,
-    previous_present: bool,
-    current_present: bool,
+    platform: Platform,
 }
 
+/// Emitted when a DSP's link for one track is set or replaced with a
+/// different value.
 public struct ReleaseTrackDspLinkSetEvent has copy, drop {
     release_id: address,
-    admin_cap_id: address,
-    platform: u8,
-    track_count: u64,
-    field_existed_before: bool,
-    field_exists_after: bool,
     track_index: u64,
-    recording_id: address,
-    composition_id: address,
-    previous_present: bool,
-    current_present: bool,
-    album_present: bool,
+    link: DspLinkData,
 }
 
+/// Emitted when a DSP's link for one track is removed (the track falls back
+/// to the album-level link).
 public struct ReleaseTrackDspLinkClearedEvent has copy, drop {
     release_id: address,
-    admin_cap_id: address,
-    platform: u8,
-    track_count: u64,
-    field_existed_before: bool,
-    field_exists_after: bool,
+    platform: Platform,
     track_index: u64,
-    recording_id: address,
-    composition_id: address,
-    previous_present: bool,
-    current_present: bool,
-    album_present: bool,
 }
 
+/// Emitted when a DSP's per-track links are removed all at once; every track
+/// of the release is cleared for this platform.
 public struct ReleaseTrackDspLinksClearedEvent has copy, drop {
     release_id: address,
-    admin_cap_id: address,
-    platform: u8,
-    track_count: u64,
-    field_existed_before: bool,
-    field_exists_after: bool,
-    removed_link_count: u64,
-    album_present: bool,
+    platform: Platform,
 }
 
 // === Album-level Write API ===
 
-/// Sets (or replaces) a DSP's album-level link. The platform is derived from
-/// `link` itself. Per-track links are untouched.
+/// Sets (or replaces) a DSP's album-level link; the platform is derived from
+/// `link`. Per-track links are untouched. Setting the value already stored
+/// neither writes nor emits.
 public fun set_release_link(self: &mut Release, cap: &ReleaseAdminCap, link: DspLinkData) {
     let release_id = object::id(self).to_address();
-    let admin_cap_id = object::id(cap).to_address();
     let platform = link.platform();
-    let track_count = self.tracks().length();
-    let (field_existed_before, previous_present, value_changed) = {
-        let uid = self.uid_mut(cap);
-        let field_existed_before = df::exists(uid, ReleaseLinkKey(platform));
-        let previous_present = field_existed_before;
-        let value_changed = if (field_existed_before) {
-            *df::borrow(uid, ReleaseLinkKey(platform)) != link
-        } else {
-            true
-        };
-        if (field_existed_before) {
-            *df::borrow_mut(uid, ReleaseLinkKey(platform)) = link;
-        } else {
-            df::add(uid, ReleaseLinkKey(platform), link);
-        };
-        (field_existed_before, previous_present, value_changed)
+    let uid = self.uid_mut(cap);
+    let key = ReleaseLinkKey(platform);
+    if (df::exists(uid, key)) {
+        let stored: &mut DspLinkData = df::borrow_mut(uid, key);
+        if (*stored == link) return;
+        *stored = link;
+    } else {
+        df::add(uid, key, link);
     };
-    let current_present = true;
-    if (value_changed) {
-        emit(ReleaseDspLinkSetEvent {
-            release_id,
-            admin_cap_id,
-            platform,
-            track_count,
-            field_existed_before,
-            field_exists_after: true,
-            previous_present,
-            current_present,
-        });
-    };
+    emit(ReleaseDspLinkSetEvent { release_id, link });
 }
 
-/// Clears a DSP's album-level link. No-op if unset.
-public fun clear_release_link(self: &mut Release, cap: &ReleaseAdminCap, platform: u8) {
-    self.authorize(cap);
-    if (df::exists(self.uid(), ReleaseLinkKey(platform))) {
-        let release_id = object::id(self).to_address();
-        let admin_cap_id = object::id(cap).to_address();
-        let track_count = self.tracks().length();
-        let _: DspLinkData = df::remove(self.uid_mut(cap), ReleaseLinkKey(platform));
-        let previous_present = true;
-        emit(ReleaseDspLinkClearedEvent {
-            release_id,
-            admin_cap_id,
-            platform,
-            track_count,
-            field_existed_before: true,
-            field_exists_after: false,
-            previous_present,
-            current_present: false,
-        });
+/// Clears a DSP's album-level link. Authorizes first; an unset link is a
+/// silent no-op.
+public fun clear_release_link(self: &mut Release, cap: &ReleaseAdminCap, platform: Platform) {
+    let release_id = object::id(self).to_address();
+    let uid = self.uid_mut(cap);
+    let key = ReleaseLinkKey(platform);
+    if (df::exists(uid, key)) {
+        let _: DspLinkData = df::remove(uid, key);
+        emit(ReleaseDspLinkClearedEvent { release_id, platform });
     }
 }
 
 // === Per-track Write API ===
 
-/// Sets (or replaces) a DSP's link for one track (by tracklist index). The
-/// platform is derived from `link` itself. Aborts if the index is out of
-/// range.
+/// Sets (or replaces) a DSP's link for one track (by tracklist index); the
+/// platform is derived from `link`. Authorizes first, then aborts
+/// `ETrackIndexOutOfBounds` past the tracklist. Setting the value already
+/// stored neither writes nor emits.
 public fun set_track_link(
     self: &mut Release,
     cap: &ReleaseAdminCap,
     track_index: u64,
     link: DspLinkData,
 ) {
+    self.authorize(cap);
     assert!(track_index < self.tracks().length(), ETrackIndexOutOfBounds);
+
     let release_id = object::id(self).to_address();
-    let admin_cap_id = object::id(cap).to_address();
     let platform = link.platform();
-    let track_count = self.tracks().length();
-    let field_existed_before = df::exists(self.uid(), TrackLinksKey(platform));
-    let album_present = album_snapshot(self.uid(), platform);
-    let (previous_present, value_changed) = {
-        let track_links = track_links_mut_or_init(self, cap, platform);
-        let previous = *track_links.borrow(track_index);
-        let previous_present = previous.is_some();
-        let value_changed = previous != option::some(link);
-        *track_links.borrow_mut(track_index) = option::some(link);
-        (previous_present, value_changed)
-    };
-    let current_present = true;
-    let track = &self.tracks()[track_index];
-    if (value_changed) {
-        emit(ReleaseTrackDspLinkSetEvent {
-            release_id,
-            admin_cap_id,
-            platform,
-            track_count,
-            field_existed_before,
-            field_exists_after: true,
-            track_index,
-            recording_id: track::recording_id(track).to_address(),
-            composition_id: track::composition_id(track).to_address(),
-            previous_present,
-            current_present,
-            album_present,
-        });
-    };
+    let slot = track_slot_mut_or_init(self, cap, platform, track_index);
+    if (slot.contains(&link)) return;
+    slot.swap_or_fill(link);
+    emit(ReleaseTrackDspLinkSetEvent { release_id, track_index, link });
 }
 
 /// Clears a DSP's link for one track (the track falls back to the album-level
-/// link). No-op if no per-track array exists for this platform. Aborts if the
-/// index is out of range (when an array exists).
+/// link). Authorizes first; with no per-track array for this platform it is a
+/// silent no-op, otherwise aborts `ETrackIndexOutOfBounds` past the tracklist
+/// and is silent when the slot is already empty.
 public fun clear_track_link(
     self: &mut Release,
     cap: &ReleaseAdminCap,
-    platform: u8,
+    platform: Platform,
     track_index: u64,
 ) {
-    self.authorize(cap);
-    if (df::exists(self.uid(), TrackLinksKey(platform))) {
-        assert!(track_index < self.tracks().length(), ETrackIndexOutOfBounds);
-        let release_id = object::id(self).to_address();
-        let admin_cap_id = object::id(cap).to_address();
-        let track_count = self.tracks().length();
-        let album_present = album_snapshot(self.uid(), platform);
-        let (previous_present, value_changed) = {
-            let track_links = borrow_track_links_mut(self.uid_mut(cap), platform);
-            let previous = *track_links.borrow(track_index);
-            let previous_present = previous.is_some();
-            let value_changed = previous != option::none();
-            *track_links.borrow_mut(track_index) = option::none();
-            (previous_present, value_changed)
-        };
-        let track = &self.tracks()[track_index];
-        if (value_changed) {
-            emit(ReleaseTrackDspLinkClearedEvent {
-                release_id,
-                admin_cap_id,
-                platform,
-                track_count,
-                field_existed_before: true,
-                field_exists_after: true,
-                track_index,
-                recording_id: track::recording_id(track).to_address(),
-                composition_id: track::composition_id(track).to_address(),
-                previous_present,
-                current_present: false,
-                album_present,
-            });
-        };
-    }
+    let release_id = object::id(self).to_address();
+    let uid = self.uid_mut(cap);
+    let key = TrackLinksKey(platform);
+    if (!df::exists(uid, key)) return;
+    let slots: &mut PerTrack<Option<DspLinkData>> = df::borrow_mut(uid, key);
+    assert!(track_index < slots.length(), ETrackIndexOutOfBounds);
+    let slot = slots.borrow_mut(track_index);
+    if (slot.is_none()) return;
+    *slot = option::none();
+    emit(ReleaseTrackDspLinkClearedEvent { release_id, platform, track_index });
 }
 
-/// Removes a DSP's entire per-track array. Reclaims an attached but empty
-/// array without emitting; emits only when one or more links were removed.
-public fun clear_track_links(self: &mut Release, cap: &ReleaseAdminCap, platform: u8) {
-    self.authorize(cap);
-    if (df::exists(self.uid(), TrackLinksKey(platform))) {
-        let release_id = object::id(self).to_address();
-        let admin_cap_id = object::id(cap).to_address();
-        let track_count = self.tracks().length();
-        let album_present = album_snapshot(self.uid(), platform);
-        let removed: PerTrack<Option<DspLinkData>> = df::remove(
-            self.uid_mut(cap),
-            TrackLinksKey(platform),
-        );
-        let mut removed_link_count = 0;
-        let removed_track_count = per_track::length(&removed);
-        let mut track_index = 0;
-        while (track_index < removed_track_count) {
-            if (per_track::borrow(&removed, track_index).is_some()) {
-                removed_link_count = removed_link_count + 1;
-            };
-            track_index = track_index + 1;
-        };
-        if (removed_link_count > 0) {
-            emit(ReleaseTrackDspLinksClearedEvent {
-                release_id,
-                admin_cap_id,
-                platform,
-                track_count,
-                field_existed_before: true,
-                field_exists_after: false,
-                removed_link_count,
-                album_present,
-            });
-        };
-    }
+/// Removes a DSP's entire per-track array. Authorizes first; reclaims an
+/// attached but empty array without emitting, and emits only when one or
+/// more links were removed.
+public fun clear_track_links(self: &mut Release, cap: &ReleaseAdminCap, platform: Platform) {
+    let release_id = object::id(self).to_address();
+    let uid = self.uid_mut(cap);
+    let key = TrackLinksKey(platform);
+    if (!df::exists(uid, key)) return;
+    let removed: PerTrack<Option<DspLinkData>> = df::remove(uid, key);
+    let mut any_link = false;
+    let mut track_index = 0;
+    while (track_index < removed.length()) {
+        if (removed.borrow(track_index).is_some()) any_link = true;
+        track_index = track_index + 1;
+    };
+    if (any_link) emit(ReleaseTrackDspLinksClearedEvent { release_id, platform });
 }
 
 // === Views ===
 
 /// Whether a DSP's album-level link is set.
-public fun has_release_link(self: &Release, platform: u8): bool {
+public fun has_release_link(self: &Release, platform: Platform): bool {
     df::exists(self.uid(), ReleaseLinkKey(platform))
 }
 
 /// A DSP's album-level link, if set.
-public fun release_link(self: &Release, platform: u8): Option<DspLinkData> {
+public fun release_link(self: &Release, platform: Platform): Option<DspLinkData> {
     let uid = self.uid();
     if (df::exists(uid, ReleaseLinkKey(platform))) {
         option::some(*df::borrow(uid, ReleaseLinkKey(platform)))
@@ -617,76 +493,63 @@ public fun release_link(self: &Release, platform: u8): Option<DspLinkData> {
 }
 
 /// A DSP's link for one track, if set. An unset slot — or no array at all —
-/// yields `none`, meaning the track inherits the album-level link. Aborts if
-/// the index is out of range (when an array exists).
-public fun track_link(self: &Release, platform: u8, track_index: u64): Option<DspLinkData> {
+/// yields `none`, meaning the track inherits the album-level link. Aborts
+/// `ETrackIndexOutOfBounds` past the tracklist when an array exists.
+public fun track_link(self: &Release, platform: Platform, track_index: u64): Option<DspLinkData> {
     let uid = self.uid();
     if (!df::exists(uid, TrackLinksKey(platform))) return option::none();
-    assert!(track_index < self.tracks().length(), ETrackIndexOutOfBounds);
-    *borrow_track_links(uid, platform).borrow(track_index)
+    let slots: &PerTrack<Option<DspLinkData>> = df::borrow(uid, TrackLinksKey(platform));
+    assert!(track_index < slots.length(), ETrackIndexOutOfBounds);
+    *slots.borrow(track_index)
 }
 
 // === Private Functions ===
 
-fun borrow_track_links(uid: &UID, platform: u8): &PerTrack<Option<DspLinkData>> {
-    df::borrow(uid, TrackLinksKey(platform))
-}
-
-fun borrow_track_links_mut(uid: &mut UID, platform: u8): &mut PerTrack<Option<DspLinkData>> {
-    df::borrow_mut(uid, TrackLinksKey(platform))
-}
-
-fun track_links_mut_or_init(
+/// Borrows one track's slot, attaching an all-empty array for this platform
+/// first if none exists. The caller has authorized and bounds-checked.
+fun track_slot_mut_or_init(
     self: &mut Release,
     cap: &ReleaseAdminCap,
-    platform: u8,
-): &mut PerTrack<Option<DspLinkData>> {
-    if (!df::exists(self.uid(), TrackLinksKey(platform))) {
-        // Size the array to the tracklist up front (all empty); the release's
-        // track count is fixed at creation, so this stays valid.
-        let tracks = per_track::filled(self, option::none<DspLinkData>());
-        df::add(self.uid_mut(cap), TrackLinksKey(platform), tracks);
+    platform: Platform,
+    track_index: u64,
+): &mut Option<DspLinkData> {
+    let key = TrackLinksKey(platform);
+    if (!df::exists(self.uid(), key)) {
+        // Sized to the tracklist up front; a release's track count is fixed.
+        let slots = per_track::filled(self, option::none<DspLinkData>());
+        df::add(self.uid_mut(cap), key, slots);
     };
-    borrow_track_links_mut(self.uid_mut(cap), platform)
-}
-
-fun album_snapshot(uid: &UID, platform: u8): bool {
-    df::exists(uid, ReleaseLinkKey(platform))
+    let slots: &mut PerTrack<Option<DspLinkData>> = df::borrow_mut(self.uid_mut(cap), key);
+    slots.borrow_mut(track_index)
 }
 
 // === Test Functions ===
 
 #[test_only]
-public fun release_link_set_event_fields(
-    event: &ReleaseDspLinkSetEvent,
-): (address, address, u8, u64, bool, bool, bool, bool) {
-    (event.release_id, event.admin_cap_id, event.platform, event.track_count, event.field_existed_before, event.field_exists_after, event.previous_present, event.current_present)
+public fun release_link_set_event_fields(e: &ReleaseDspLinkSetEvent): (address, DspLinkData) {
+    (e.release_id, e.link)
 }
 
 #[test_only]
-public fun release_link_cleared_event_fields(
-    event: &ReleaseDspLinkClearedEvent,
-): (address, address, u8, u64, bool, bool, bool, bool) {
-    (event.release_id, event.admin_cap_id, event.platform, event.track_count, event.field_existed_before, event.field_exists_after, event.previous_present, event.current_present)
+public fun release_link_cleared_event_fields(e: &ReleaseDspLinkClearedEvent): (address, Platform) {
+    (e.release_id, e.platform)
 }
 
 #[test_only]
 public fun track_link_set_event_fields(
-    event: &ReleaseTrackDspLinkSetEvent,
-): (address, address, u8, u64, bool, bool, u64, address, address, bool, bool, bool) {
-    (event.release_id, event.admin_cap_id, event.platform, event.track_count, event.field_existed_before, event.field_exists_after, event.track_index, event.recording_id, event.composition_id, event.previous_present, event.current_present, event.album_present)
+    e: &ReleaseTrackDspLinkSetEvent,
+): (address, u64, DspLinkData) {
+    (e.release_id, e.track_index, e.link)
 }
 
 #[test_only]
 public fun track_link_cleared_event_fields(
-    event: &ReleaseTrackDspLinkClearedEvent,
-): (address, address, u8, u64, bool, bool, u64, address, address, bool, bool, bool) {
-    (event.release_id, event.admin_cap_id, event.platform, event.track_count, event.field_existed_before, event.field_exists_after, event.track_index, event.recording_id, event.composition_id, event.previous_present, event.current_present, event.album_present)
+    e: &ReleaseTrackDspLinkClearedEvent,
+): (address, Platform, u64) {
+    (e.release_id, e.platform, e.track_index)
 }
 
 #[test_only]
-public fun track_links_cleared_event_fields(
-    event: &ReleaseTrackDspLinksClearedEvent,
-): (address, address, u8, u64, bool, bool, u64, bool) {
-    (event.release_id, event.admin_cap_id, event.platform, event.track_count, event.field_existed_before, event.field_exists_after, event.removed_link_count, event.album_present)
+public fun track_links_cleared_event_fields(e: &ReleaseTrackDspLinksClearedEvent): (address, Platform) {
+    (e.release_id, e.platform)
 }

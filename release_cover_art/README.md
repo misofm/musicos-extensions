@@ -1,70 +1,90 @@
 # `release_cover_art`
 
-> Album-level cover art plus optional per-track cover overrides for a musicos release, stored off the frozen protocol core.
+Cover art for a `musicos::release::Release`: an album-level cover plus
+optional per-track overrides, stored as one `ReleaseCoverArt` record under a
+dynamic field on the release and written through its cap-gated `uid_mut`.
+Cover art is presentation, not objective recording data, so it lives on the
+release rather than the recording. The `CoverArt` value type comes from the
+independently versioned [`misofm/cover-art`](https://github.com/misofm/cover-art)
+package.
 
-**Attaches to:** `Release` (musicos core) as a dynamic field on its `&mut UID`, reached through the release's cap-gated `uid_mut`.
+## What it stores
 
-Cover art is presentation, not objective recording data, so it lives on the **release** (the consumer object), not the recording — a recording carries only objective facts about its underlying sound file.
+- Key: `ExtensionKey()` — a unit struct local to this package.
+- Value: one `ReleaseCoverArt { cover: Option<CoverArt>, track_covers:
+  PerTrack<Option<CoverArt>> }`. The overrides are one slot per track,
+  aligned to the tracklist by construction and sized when the record is first
+  attached; the tracklist is fixed at release creation, so they stay aligned.
+  A track's effective cover resolves to its override if set, otherwise the
+  album cover. The record is attached by the first set and is never removed;
+  a clear empties the slot.
 
-The release holds a single `ReleaseCoverArt` record: an **album-level cover** plus **per-track overrides**, a `PerTrack<Option<CoverArt>>` (one slot per track, aligned to the tracklist by construction). A track's effective cover resolves as its override if set, otherwise the album cover. All writes are gated by the `ReleaseAdminCap`; views are permissionless.
+## API
 
-The `CoverArt` value type is provided by the independently versioned
-[`misofm/cover-art`](https://github.com/misofm/cover-art) package.
+Writes require the release's `&ReleaseAdminCap` and go through
+`release::uid_mut(cap)`, which aborts `release::EUnauthorized` on a
+mismatched cap before any stored-state check. Index validation precedes the
+cap check. Views are permissionless.
 
-## Entry points
-
-- **`release_cover_art::set_cover`** — cap-gated; sets or replaces the album-level cover (lazily initializing the record).
-- **`release_cover_art::unset_cover`** — cap-gated; clears the album-level cover; aborts if no record is attached.
-- **`release_cover_art::set_track_cover`** — cap-gated; sets or replaces a track's cover override, aborting if the track index is out of range for the release.
-- **`release_cover_art::unset_track_cover`** — cap-gated; removes a track's override (the track falls back to the album cover); aborts if no record is attached or the index is out of range.
+| Function | Description | Aborts |
+|---|---|---|
+| `set_cover(rel, cap, art)` | Sets or replaces the album cover, attaching the record on first use; setting the value already held neither writes nor emits | none |
+| `clear_cover(rel, cap)` | Removes the album cover; overrides are untouched; silent when absent | none |
+| `set_track_cover(rel, cap, i, art)` | Sets or replaces track `i`'s override, attaching the record on first use; equal set is silent | `ETrackIndexOutOfBounds` (2) |
+| `clear_track_cover(rel, cap, i)` | Removes track `i`'s override so it falls back to the album cover; silent when absent | `ETrackIndexOutOfBounds` (2) |
+| `has_cover_art(rel)` | Whether the record is attached | none |
+| `cover(rel)` | The album cover, `&Option<CoverArt>` | `ENoCoverArt` (1) |
+| `track_cover(rel, i)` | Track `i`'s effective cover | `ETrackIndexOutOfBounds` (2), `ENoCoverArt` (1) |
 
 ## Events
 
-Each successful write compares the complete before and after cover values after
-the storage write. The four event types are `ReleaseCoverArtSetEvent`,
-`ReleaseCoverArtUnsetEvent`, `ReleaseTrackCoverArtSetEvent`, and
-`ReleaseTrackCoverArtUnsetEvent`; an event is emitted only when that value
-changes. Every
-event begins with `release_id`, `admin_cap_id`, `track_count`,
-`field_existed_before`, and `field_exists_after`. Track events then include
-`track_index`, the immutable track `recording_id`, and `composition_id`.
+Events are monomorphic and carry what an event-only indexer would otherwise
+have to look up: the release, the track index on per-track writes, and the
+blob IDs of the new value on a set.
 
-Album events contain flat `previous_` and `current_` snapshots. Track events
-contain flat `previous_`, `current_`, and unchanged `album_` snapshots. Each
-snapshot contains `present`, the still blob ID, encryption flag, sealed-DEK
-length and digest, then the corresponding five animation fields. A snapshot
-uses zero IDs, false flags, zero lengths, and an empty digest when absent. A
-present plaintext blob uses the same canonical encryption fields. For an
-encrypted blob, the event retains the full blob ID and records the raw
-sealed-DEK length and `blake2b256` digest; the sealed-DEK bytes remain in the
-stored value and the digest cannot reconstruct them.
+| Event | Fields | BCS bytes |
+|---|---|---|
+| `ReleaseCoverArtSetEvent` | `release_id: address`, `still_blob_id: u256`, `animated_blob_id: Option<u256>` | 65 (no animation) or 97 |
+| `ReleaseCoverArtClearedEvent` | `release_id: address` | 32 |
+| `ReleaseTrackCoverArtSetEvent` | `release_id: address`, `track_index: u64`, `still_blob_id: u256`, `animated_blob_id: Option<u256>` | 73 (no animation) or 105 |
+| `ReleaseTrackCoverArtClearedEvent` | `release_id: address`, `track_index: u64` | 40 |
 
-The track snapshots describe the stored override, not the resolved cover. A
-consumer uses the override when `present` and otherwise the album snapshot.
-Album and track unsets keep the dynamic-field record and are silent when the
-value was already empty, so replay observes actual value transitions.
-`field_exists_after` is always true; views do not emit events. The fixed BCS sizes are 246 bytes
-for an album event with plaintext/absent snapshots and 404 bytes for a track
-event, plus 32 bytes per encrypted blob (maximums are 374/310 for album
-set/unset and 596/532 for track set/unset).
+A blob's confidentiality envelope (whether it is encrypted and its sealed
+DEK) is unbounded and stays in the stored value; an indexer that needs it
+reads the release. Event size does not depend on it. An equal set and an
+absent clear emit nothing, so every event is a real state transition.
 
-## Views
+## Errors
 
-- **`release_cover_art::has_cover_art`** — whether a `ReleaseCoverArt` record is attached to the release.
-- **`release_cover_art::cover`** — borrows the album-level cover `Option<CoverArt>`; aborts if no record is attached.
-- **`release_cover_art::track_cover`** — a track's effective cover (override if set, else the album cover); aborts if no record is attached or the index is out of range.
+| Code | Constant | Condition |
+|---|---|---|
+| 1 | `ENoCoverArt` | `cover` or `track_cover` with no record attached |
+| 2 | `ETrackIndexOutOfBounds` | A track index at or past the tracklist length |
 
 ## Dependencies
 
-- **`cover_art`** — the external `CoverArt` value type package.
-- **`musicos`** — core protocol; provides `Release` and its admin cap + `uid_mut`/`uid` accessors.
-- **`per_track`** — the `PerTrack<Data>` primitive backing the per-track overrides.
+- [`musicos`](https://github.com/misofm/musicos) at
+  `6dff4deca5ced186989c064e152c92a06384750c` — `Release`, `ReleaseAdminCap`,
+  and `uid_mut`.
+- [`cover_art`](https://github.com/misofm/cover-art) at
+  `8c2de9971e092ae98b042634893cb4791548ffd0` — the `CoverArt` value type.
+- [`per_track`](https://github.com/misofm/per-track) at
+  `949e35651858a8fc5fc5c4949ceaa890a571d278` — the `PerTrack<Data>` array
+  behind the overrides, pinned to the same musicos.
+- [`ori`](https://github.com/unconfirmedlabs/ori) at
+  `367ed5fe92a8b62da02c1116537cf08d111e0789`, test mode only — blob fixtures.
 
-## Build & test
+## Publishing
+
+Every change is published as a fresh, immutable package identity; nothing is
+upgraded in place. `Published.toml` records the prior generation.
+
+## Build and test
 
 ```sh
-sui move build
-sui move test
-sui move test --coverage
-sui move coverage summary --summarize-functions
+sui move build --lint --warnings-are-errors
+sui move build --lint --warnings-are-errors --build-env mainnet
+sui move test --coverage --lint --warnings-are-errors
+sui move coverage summary
+sui move test --build-env mainnet
 ```
