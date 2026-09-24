@@ -40,8 +40,7 @@ public struct ReleaseCoverArt has store {
 // === Events ===
 
 /// Emitted when the album cover is set to a value it did not already hold.
-/// The blob IDs are the value; a blob's confidentiality envelope (sealed DEK)
-/// is unbounded and is read from the release.
+/// The blob IDs are the value (cover art is always unencrypted).
 public struct ReleaseCoverArtSetEvent has copy, drop {
     release_id: address,
     still_blob_id: u256,

@@ -49,10 +49,9 @@ blob IDs of the new value on a set.
 | `ReleaseTrackCoverArtSetEvent` | `release_id: address`, `track_index: u64`, `still_blob_id: u256`, `animated_blob_id: Option<u256>` | 73 (no animation) or 105 |
 | `ReleaseTrackCoverArtClearedEvent` | `release_id: address`, `track_index: u64` | 40 |
 
-A blob's confidentiality envelope (whether it is encrypted and its sealed
-DEK) is unbounded and stays in the stored value; an indexer that needs it
-reads the release. Event size does not depend on it. An equal set and an
-absent clear emit nothing, so every event is a real state transition.
+Cover art is always unencrypted: `cover_art::new` rejects encrypted blobs.
+An equal set and an absent clear emit nothing, so every event is a real
+state transition.
 
 ## Errors
 
@@ -67,7 +66,8 @@ absent clear emit nothing, so every event is a real state transition.
   `6dff4deca5ced186989c064e152c92a06384750c` — `Release`, `ReleaseAdminCap`,
   and `uid_mut`.
 - [`cover_art`](https://github.com/misofm/cover-art) at
-  `8c2de9971e092ae98b042634893cb4791548ffd0` — the `CoverArt` value type.
+  `948213d99f4e0a56064181d9318936beba95e138` — the `CoverArt` value type,
+  which rejects encrypted blobs.
 - [`per_track`](https://github.com/misofm/per-track) at
   `949e35651858a8fc5fc5c4949ceaa890a571d278` — the `PerTrack<Data>` array
   behind the overrides, pinned to the same musicos.

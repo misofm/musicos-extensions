@@ -5,7 +5,8 @@
 > index, party, genre) and the new value when it is small and bounded; large
 > content, cap ids, joinable ids, snapshots, counts and flags are left to the
 > object. See each package's README for current payloads and sizes. The rows
-> below describe the 2026-09-15 generation.
+> below describe the 2026-09-15 generation. `release_dsp_link` has since been
+> removed from the repository pending a redesign.
 
 All 15 packages and all 41 event types were reviewed. Events preserve useful
 business context: object/cap provenance, relationship IDs, ordering, counts,

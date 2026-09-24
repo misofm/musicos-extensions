@@ -8,7 +8,7 @@ storage, delivery, and distribution conventions.
 
 ## Project Structure
 
-18 packages, each an independently versioned and published top-level
+17 packages, each an independently versioned and published top-level
 directory; see the package tables in `README.md` for the full list, each
 package's target object, and its purpose.
 

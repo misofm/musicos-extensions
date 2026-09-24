@@ -40,7 +40,7 @@ stored state.
 | Function | Description | Aborts |
 |---|---|---|
 | `add_credit(rec, cap, party, credit)` | Credits a party, creating the record on first use | `EExceedsMaxRoles` (30), `EMaxCreditsExceeded` (32), `EPartyAlreadyCredited` (40) |
-| `remove_credit(rec, cap, party_id)` | Removes a party's credit and any designation it held; the empty record stays attached | `ENoCredits` (50), `EPartyNotCredited` (52) |
+| `remove_credit(rec, cap, party_id)` | Removes a party's credit and any designation it held (emitting the artist-removed event first); the empty record stays attached | `ENoCredits` (50), `EPartyNotCredited` (52) |
 | `add_primary_artist(rec, cap, party)` | Designates a credited party as primary | `ENoCredits` (50), `EMaxPrimaryArtistsExceeded` (34), `EPartyNotCredited` (52), `EAlreadyFeaturedArtist` (42), `EAlreadyPrimaryArtist` (41) |
 | `remove_primary_artist(rec, cap, party_id)` | Ends a primary designation; the credit stays | `ENoCredits` (50), `EPartyNotCredited` (52) when not primary |
 | `add_featured_artist(rec, cap, party)` | Designates a credited party as featured | `ENoCredits` (50), `EMaxFeaturedArtistsExceeded` (35), `EPartyNotCredited` (52), `EAlreadyPrimaryArtist` (41), `EAlreadyFeaturedArtist` (42) |
@@ -74,6 +74,13 @@ instrument names and levels included.
 | `RecordingFeaturedArtistAddedEvent<RecordingShare>` | `recording_id: address`, `party_id: address` | 64 |
 | `RecordingFeaturedArtistRemovedEvent<RecordingShare>` | `recording_id: address`, `party_id: address` | 64 |
 
+Billing designations are business-visible, so a cascade is not left to
+inference: when `remove_credit` removes a party who is a primary or featured
+artist, it emits the matching artist-removed event first and
+`RecordingCreditRemovedEvent` second, so the stream never shows a designated
+party who is uncredited. Explicit `remove_primary_artist` /
+`remove_featured_artist` calls emit the same artist-removed events.
+
 `roles` is the credit's role vector in stored order, each role a BCS enum
 value: the variant index in declaration order, then the instrument name for
 `Instrumentalist` (ULEB128 length + bytes, at most 100), then the optional
@@ -85,11 +92,7 @@ instrument name and a level (104 bytes apiece), 1105 in total. The display
 name stays in storage (it normally duplicates the party's own name from
 `partyos` events).
 
-Removing a credit that held a designation emits only
-`RecordingCreditRemovedEvent`: the designation sets are subsets of the
-credits by invariant, so the cascade is inferable and the artist-removed
-events are reserved for explicit `remove_primary_artist` /
-`remove_featured_artist` calls. The events do not carry the composition id
+The events do not carry the composition id
 (joinable via core's `RecordingPublishedEvent`), the admin cap (derived from
 the recording), counts or indices (replayable from the ordered add/remove
 stream), or presence and cascade flags.

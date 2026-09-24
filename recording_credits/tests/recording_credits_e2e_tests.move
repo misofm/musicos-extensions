@@ -147,8 +147,8 @@ fun full_credit_lifecycle_on_published_shared_recording() {
 }
 
 /// Post-publish, cross-transaction removal: the admin removes a party's
-/// credit on the shared recording (silently cascading their primary
-/// designation), a stranger confirms the removal is visible, and then a
+/// credit on the shared recording (cascading their primary designation with
+/// its own event), a stranger confirms the removal is visible, and then a
 /// later attempt to re-designate that same party as primary fails — the
 /// credit is gone, not merely the designation, so "operate after remove"
 /// cannot be worked around by any actor, including the admin.
@@ -184,9 +184,17 @@ fun remove_credit_then_add_primary_fails_on_published_recording() {
     assert_eq!(event_party, featured_id.to_address());
     assert_eq!(events_by_type<credits::RecordingCreditRemovedEvent<bool>>().length(), 0);
 
-    // The cascade ends both designations without further events.
-    assert_eq!(events_by_type<credits::RecordingPrimaryArtistRemovedEvent<RecordingShare>>().length(), 0);
-    assert_eq!(events_by_type<credits::RecordingFeaturedArtistRemovedEvent<RecordingShare>>().length(), 0);
+    // The cascade ends both designations, each with its own event.
+    let primary_removed = events_by_type<credits::RecordingPrimaryArtistRemovedEvent<RecordingShare>>();
+    assert_eq!(primary_removed.length(), 1);
+    let (event_object, event_party) = credits::primary_artist_removed_event_fields(&primary_removed[0]);
+    assert_eq!(event_object, recording_id);
+    assert_eq!(event_party, pid.to_address());
+    let featured_removed = events_by_type<credits::RecordingFeaturedArtistRemovedEvent<RecordingShare>>();
+    assert_eq!(featured_removed.length(), 1);
+    let (event_object, event_party) = credits::featured_artist_removed_event_fields(&featured_removed[0]);
+    assert_eq!(event_object, recording_id);
+    assert_eq!(event_party, featured_id.to_address());
     assert!(!credits::is_primary_artist(&rec, pid));
     assert!(!credits::is_featured_artist(&rec, featured_id));
 

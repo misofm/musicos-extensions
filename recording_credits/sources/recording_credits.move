@@ -87,8 +87,8 @@ public struct RecordingCreditAddedEvent<phantom RecordingShare> has copy, drop {
     roles: vector<RecordingPartyRole>,
 }
 
-/// Emitted when a party's credit is removed. Any primary or featured
-/// designation the party held ends with it; the cascade emits nothing more.
+/// Emitted when a party's credit is removed, after the artist-removed event
+/// for any designation the party held.
 public struct RecordingCreditRemovedEvent<phantom RecordingShare> has copy, drop {
     recording_id: address,
     party_id: address,
@@ -100,7 +100,8 @@ public struct RecordingPrimaryArtistAddedEvent<phantom RecordingShare> has copy,
     party_id: address,
 }
 
-/// Emitted when a primary artist is explicitly un-designated.
+/// Emitted when a primary artist is un-designated, explicitly or because
+/// their credit is removed (then before `RecordingCreditRemovedEvent`).
 public struct RecordingPrimaryArtistRemovedEvent<phantom RecordingShare> has copy, drop {
     recording_id: address,
     party_id: address,
@@ -112,7 +113,8 @@ public struct RecordingFeaturedArtistAddedEvent<phantom RecordingShare> has copy
     party_id: address,
 }
 
-/// Emitted when a featured artist is explicitly un-designated.
+/// Emitted when a featured artist is un-designated, explicitly or because
+/// their credit is removed (then before `RecordingCreditRemovedEvent`).
 public struct RecordingFeaturedArtistRemovedEvent<phantom RecordingShare> has copy, drop {
     recording_id: address,
     party_id: address,
@@ -148,24 +150,31 @@ public fun add_credit<RecordingShare>(
 }
 
 /// Removes a party's credit and, with it, any primary or featured
-/// designation. Aborts when no record is attached or the party is not
-/// credited. Removing the last credit keeps the empty record attached.
+/// designation. A cleared designation emits its artist-removed event first,
+/// then the credit removal is emitted, so the stream never shows a
+/// designated party who is uncredited. Aborts when no record is attached or
+/// the party is not credited. Removing the last credit keeps the empty record
+/// attached.
 public fun remove_credit<RecordingShare>(
     self: &mut Recording<RecordingShare>,
     cap: &RecordingAdminCap<RecordingShare>,
     party_id: ID,
 ) {
     let recording_id = object::id(self).to_address();
+    let party_address = party_id.to_address();
     let rc = borrow_mut(self.uid_mut(cap));
     assert!(rc.credits.contains(&party_id), EPartyNotCredited);
+    if (rc.primary_artist_ids.contains(&party_id)) {
+        rc.primary_artist_ids.remove(&party_id);
+        emit(RecordingPrimaryArtistRemovedEvent<RecordingShare> { recording_id, party_id: party_address });
+    };
+    if (rc.featured_artist_ids.contains(&party_id)) {
+        rc.featured_artist_ids.remove(&party_id);
+        emit(RecordingFeaturedArtistRemovedEvent<RecordingShare> { recording_id, party_id: party_address });
+    };
     let (_, _) = rc.credits.remove(&party_id);
-    if (rc.primary_artist_ids.contains(&party_id)) rc.primary_artist_ids.remove(&party_id);
-    if (rc.featured_artist_ids.contains(&party_id)) rc.featured_artist_ids.remove(&party_id);
 
-    emit(RecordingCreditRemovedEvent<RecordingShare> {
-        recording_id,
-        party_id: party_id.to_address(),
-    });
+    emit(RecordingCreditRemovedEvent<RecordingShare> { recording_id, party_id: party_address });
 }
 
 /// Designates a credited party as a primary artist. Aborts if the party is

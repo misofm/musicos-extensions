@@ -21,7 +21,7 @@ use recording_credits::recording_party_role::{Self as rpr, RecordingPartyRole};
 use std::string::String;
 use std::unit_test::{assert_eq, destroy};
 use sui::bcs::to_bytes;
-use sui::event::events_by_type;
+use sui::event::{events_by_type, num_events};
 use sui::test_scenario;
 
 const ARTIST: address = @0xA1;
@@ -211,6 +211,11 @@ fun remove_credit_cascades_to_primary_and_featured() {
     assert!(!credits::is_primary_artist(&rec, pid));
     assert_eq!(credits::primary_artist_ids(&rec).length(), 0);
     assert_eq!(credits::credits(&rec).length(), 0);
+    let primary_removed = events_by_type<credits::RecordingPrimaryArtistRemovedEvent<RecordingShare>>();
+    assert_eq!(primary_removed.length(), 1);
+    let (_, event_party) = credits::primary_artist_removed_event_fields(&primary_removed[0]);
+    assert_eq!(event_party, pid.to_address());
+    assert_eq!(events_by_type<credits::RecordingCreditRemovedEvent<RecordingShare>>().length(), 1);
 
     destroy(rec); destroy(cap); destroy(p); destroy(_pc);
     ts.end();
@@ -282,7 +287,7 @@ fun remove_credit_emits_the_removed_party() {
     assert_eq!(to_bytes(&events[0]).length(), 64);
     assert_eq!(events_by_type<credits::RecordingCreditRemovedEvent<bool>>().length(), 0);
 
-    // The party held no designation, and the cascade is silent either way.
+    // The party held no designation, so no artist-removed event cascades.
     assert_eq!(events_by_type<credits::RecordingPrimaryArtistRemovedEvent<RecordingShare>>().length(), 0);
     assert_eq!(events_by_type<credits::RecordingFeaturedArtistRemovedEvent<RecordingShare>>().length(), 0);
 
@@ -290,12 +295,14 @@ fun remove_credit_emits_the_removed_party() {
     ts.end();
 }
 
-/// Removing a credited primary or featured artist ends that designation, but
-/// the designation sets are subsets of the credits by invariant, so an
-/// indexer infers the cascade from `RecordingCreditRemovedEvent` alone and
-/// no artist-removed event is emitted.
+/// Removing a credited primary or featured artist ends that designation and
+/// emits the matching artist-removed event before the credit removal —
+/// billing changes are business-visible, so the cascade is not left for the
+/// indexer to infer. The test framework exposes events per type, so the
+/// intra-call order is fixed by `remove_credit` and asserted here through
+/// exact per-type counts and the per-call event delta.
 #[test]
-fun remove_credit_cascade_emits_no_artist_removal_events() {
+fun remove_credit_cascade_emits_artist_removals_before_the_credit_removal() {
     let mut ts = test_scenario::begin(ARTIST);
     let (mut rec, cap) = mk_recording(ts.ctx());
     let (p1, p1c) = mk_party(b"Lead Party", ts.ctx());
@@ -316,11 +323,18 @@ fun remove_credit_cascade_emits_no_artist_removal_events() {
     credits::add_primary_artist(&mut rec, &cap, &p2);
     credits::add_featured_artist(&mut rec, &cap, &p3);
 
+    // Removing a primary artist's credit emits exactly two events: the
+    // primary removal, then the credit removal.
+    let before = num_events();
     credits::remove_credit(&mut rec, &cap, object::id(&p2));
+    assert_eq!(num_events() - before, 2);
     // Removing the middle credit shifts the surviving guest from index 2 to 1.
     assert_eq!(credits::credits(&rec).get_idx(&object::id(&p1)), 0);
     assert_eq!(credits::credits(&rec).get_idx(&object::id(&p3)), 1);
+    // Likewise for a featured artist: the featured removal, then the credit.
+    let before = num_events();
     credits::remove_credit(&mut rec, &cap, object::id(&p3));
+    assert_eq!(num_events() - before, 2);
 
     assert!(credits::is_primary_artist(&rec, object::id(&p1)));
     assert!(!credits::is_primary_artist(&rec, object::id(&p2)));
@@ -328,8 +342,18 @@ fun remove_credit_cascade_emits_no_artist_removal_events() {
     assert_eq!(credits::primary_artist_ids(&rec).length(), 1);
     assert_eq!(credits::featured_artist_ids(&rec).length(), 0);
 
-    assert_eq!(events_by_type<credits::RecordingPrimaryArtistRemovedEvent<RecordingShare>>().length(), 0);
-    assert_eq!(events_by_type<credits::RecordingFeaturedArtistRemovedEvent<RecordingShare>>().length(), 0);
+    // Only the removed parties cascade; the surviving primary (p1) does not.
+    let primary_removed = events_by_type<credits::RecordingPrimaryArtistRemovedEvent<RecordingShare>>();
+    assert_eq!(primary_removed.length(), 1);
+    let (event_object, event_party) = credits::primary_artist_removed_event_fields(&primary_removed[0]);
+    assert_eq!(event_object, recording_id);
+    assert_eq!(event_party, p2_id);
+    let featured_removed = events_by_type<credits::RecordingFeaturedArtistRemovedEvent<RecordingShare>>();
+    assert_eq!(featured_removed.length(), 1);
+    let (event_object, event_party) = credits::featured_artist_removed_event_fields(&featured_removed[0]);
+    assert_eq!(event_object, recording_id);
+    assert_eq!(event_party, p3_id);
+    assert_eq!(events_by_type<credits::RecordingFeaturedArtistRemovedEvent<bool>>().length(), 0);
     let removed = events_by_type<credits::RecordingCreditRemovedEvent<RecordingShare>>();
     assert_eq!(removed.length(), 2);
     let (event_object, event_party) = credits::credit_removed_event_fields(&removed[0]);

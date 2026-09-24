@@ -42,7 +42,8 @@ decoding, and event cardinality.
 Re-reviewed for republication against `musicos` at
 `6dff4deca5ced186989c064e152c92a06384750c`, where `release::new` takes no
 title, `publish` takes no Clock, and `Track` carries no composition id.
-`cover_art` stays at `8c2de9971e092ae98b042634893cb4791548ffd0`, `per_track`
+`cover_art` re-pinned to `948213d99f4e0a56064181d9318936beba95e138`
+(cover art must be unencrypted; the encrypted-fixture test was removed), `per_track`
 at `949e35651858a8fc5fc5c4949ceaa890a571d278` (re-pinned to the same musicos), and `ori` (test only) at
 `367ed5fe92a8b62da02c1116537cf08d111e0789`. Verdict on the reviewed source:
 no exploitable findings.

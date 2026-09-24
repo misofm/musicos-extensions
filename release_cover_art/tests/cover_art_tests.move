@@ -216,31 +216,6 @@ fun animated_cover_event_carries_both_blob_ids() {
     destroy(cap);
 }
 
-/// An encrypted blob's sealed DEK stays in storage: the event carries the
-/// blob ID alone and its size does not depend on the key.
-#[test]
-fun encrypted_cover_event_excludes_the_sealed_dek() {
-    let ctx = &mut tx_context::dummy();
-    let (mut rel, cap) = mk_release(ctx);
-    let rel_id = object::id(&rel).to_address();
-
-    release_cover_art::set_cover(&mut rel, &cap, fixtures::encrypted(100, 512));
-    release_cover_art::set_track_cover(&mut rel, &cap, 2, fixtures::encrypted(200, 1024));
-
-    let album_events = events_by_type<ReleaseCoverArtSetEvent>();
-    assert_set_event(&album_events[0], rel_id, 100, option::none());
-    assert_eq!(to_bytes(&album_events[0]).length(), 65);
-    let track_events = events_by_type<ReleaseTrackCoverArtSetEvent>();
-    assert_track_set_event(&track_events[0], rel_id, 2, 200, option::none());
-    assert_eq!(to_bytes(&track_events[0]).length(), 73);
-    // The stored value still carries the key.
-    let stored = release_cover_art::track_cover(&rel, 2).destroy_some();
-    assert_eq!(stored.still().blob_confidentiality().sealed_dek().length(), 1024);
-
-    destroy(rel);
-    destroy(cap);
-}
-
 #[test]
 fun clear_cover_emits_only_the_release() {
     let ctx = &mut tx_context::dummy();

@@ -77,10 +77,13 @@ Changes in this generation:
   presence flags, and the `was_primary_artist` / `was_featured_artist` /
   `caused_by_credit_removal` cascade flags. The display name stays in
   storage.
-- Removing a credit that held a designation no longer emits an artist-removed
-  event: the designation sets are subsets of the credits by invariant, so the
-  cascade is inferable from `RecordingCreditRemovedEvent` alone. The
-  artist-removed events now mark explicit un-designation only.
+- Removing a credit that held a designation still cascades with its own
+  event, because billing designations are business-visible: `remove_credit`
+  emits `RecordingPrimaryArtistRemovedEvent` and/or
+  `RecordingFeaturedArtistRemovedEvent` for the designation(s) it clears,
+  before `RecordingCreditRemovedEvent`, so the stream never shows a
+  designated party who is uncredited (previously the credit event came
+  first and the cascade events carried a `caused_by_credit_removal` flag).
 - No silent no-op path exists: re-crediting a party (identical credit
   included), re-designating an artist, and removing an absent credit or
   designation all abort, as before.
