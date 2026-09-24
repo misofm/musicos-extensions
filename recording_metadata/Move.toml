@@ -1,0 +1,17 @@
+[package]
+name = "recording_metadata"
+edition = "2024"
+license = "Apache 2.0"
+authors = ["Miso Labs, Inc. (build@miso.network)"]
+
+# The canonical, platform-neutral home for a recording's basic descriptive
+# metadata: genres, languages, advisory rating and version, held in one record
+# under one dynamic field and written through musicos core's cap-gated
+# `uid_mut`. `genre` supplies the canonical genre vocabulary (every stored id
+# is proven by a `&Genre` at write time) and `language_code` supplies ISO
+# 639-1 codes that are valid by construction, so this package validates only
+# what construction cannot: order, count, duplicates and bounds.
+[dependencies]
+musicos = { git = "https://github.com/misofm/musicos.git", rev = "676dbd801583761b7e5ab53b4476e8606a12a8d7" }
+genre = { git = "https://github.com/misofm/genre.git", rev = "268d4bc45eecdaf7b75dc443e4974b9469912513" }
+language_code = { git = "https://github.com/unconfirmedlabs/language_code.git", rev = "61542357f3d2ff989d120185046def7cf6c8bdcb" }

@@ -1,0 +1,14 @@
+[package]
+name = "release_metadata"
+edition = "2024"
+license = "Apache 2.0"
+authors = ["Miso Labs, Inc. (build@miso.network)"]
+
+# The release's basic descriptive metadata — title, genres, kind, description
+# — in one record under one dynamic field. It needs musicos core to reach
+# `Release` through its cap-gated `uid_mut`, and the shared genre vocabulary
+# to prove that every id entering the genre list was actually minted by the
+# registry. Nothing else.
+[dependencies]
+genre = { git = "https://github.com/misofm/genre.git", rev = "268d4bc45eecdaf7b75dc443e4974b9469912513" }
+musicos = { git = "https://github.com/misofm/musicos.git", rev = "676dbd801583761b7e5ab53b4476e8606a12a8d7" }
