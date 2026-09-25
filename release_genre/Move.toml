@@ -2,7 +2,7 @@
 name = "release_genre"
 edition = "2024"
 license = "Apache 2.0"
-authors = ["Miso Labs, Inc. (build@miso.network)"]
+authors = ["Miso Labs, Inc. (build@miso.fm)"]
 
 # One concern, one package: the release's own genre classification and
 # nothing else. It needs only the shared genre vocabulary and musicos core, to

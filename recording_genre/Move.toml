@@ -2,7 +2,7 @@
 name = "recording_genre"
 edition = "2024"
 license = "Apache 2.0"
-authors = ["Miso Labs, Inc. (build@miso.network)"]
+authors = ["Miso Labs, Inc. (build@miso.fm)"]
 
 # One concern, one package: which genres classify a recording, primary first.
 # `genre` supplies the canonical vocabulary — every stored id is proven by a

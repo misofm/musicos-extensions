@@ -2,7 +2,7 @@
 name = "release_title"
 edition = "2024"
 license = "Apache 2.0"
-authors = ["Miso Labs, Inc. (build@miso.network)"]
+authors = ["Miso Labs, Inc. (build@miso.fm)"]
 
 # The release's preferred title: presentation, not protocol state, so core
 # carries none. Self-asserted with no vocabulary to enforce — hence no

@@ -2,7 +2,7 @@
 name = "release_description"
 edition = "2024"
 license = "Apache 2.0"
-authors = ["Miso Labs, Inc. (build@miso.network)"]
+authors = ["Miso Labs, Inc. (build@miso.fm)"]
 
 # Free-form prose with no vocabulary to enforce and nothing to validate against,
 # so there is nothing to depend on beyond musicos core — needed only to reach
