@@ -1,4 +1,4 @@
-> Historical audit record: the dated findings below describe earlier published
+> Historical audit record: the dated findings below describe earlier reviewed
 > generations and their pinned dependencies. The current unpublished migration
 > targets musicos `0b3eb07c9cb1af29c877b66cddfdcc9ef32fc721`;
 > `sui move test --lint --warnings-are-errors` passed 21/21 tests on
