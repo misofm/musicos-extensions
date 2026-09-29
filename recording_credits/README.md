@@ -1,6 +1,6 @@
 # `recording_credits`
 
-Credits for a `musicos::recording::Recording<RecordingShare>`: one
+Credits for a `musicos::recording::Recording`: one
 `Credit<RecordingPartyRole>` (display name plus 1-10 roles) per credited
 `partyos` `Party`, plus primary and featured artist designations, kept in a
 single `RecordingCredits` record stored as a dynamic field on the recording
@@ -32,8 +32,8 @@ will arrive in a future package generation.
 
 ## API
 
-Writes require the recording's `&RecordingAdminCap<RecordingShare>` and go
-through `recording::uid_mut(cap)`, which matches the cap by type only. Views
+Writes require the recording's `&RecordingAdminCap` and go
+through `recording::uid_mut(cap)`, which checks that the cap belongs to the recording object. Views
 are permissionless. Guard order is argument validation, then the cap, then
 stored state.
 
@@ -60,19 +60,19 @@ absent credit or designation all abort.
 
 ## Events
 
-All six events are generic over `RecordingShare` only and carry what an
+All six events carry what an
 event-only indexer would otherwise have to look up: the target, the party
 that keys the entry, and — on credit add — the roles exactly as stored,
 instrument names and levels included.
 
 | Event | Fields | BCS bytes |
 |---|---|---|
-| `RecordingCreditAddedEvent<RecordingShare>` | `recording_id: ID`, `party_id: ID`, `roles: vector<RecordingPartyRole>` | 66 – 1105 (typically 67: one levelless role) |
-| `RecordingCreditRemovedEvent<RecordingShare>` | `recording_id: ID`, `party_id: ID` | 64 |
-| `RecordingPrimaryArtistAddedEvent<RecordingShare>` | `recording_id: ID`, `party_id: ID` | 64 |
-| `RecordingPrimaryArtistRemovedEvent<RecordingShare>` | `recording_id: ID`, `party_id: ID` | 64 |
-| `RecordingFeaturedArtistAddedEvent<RecordingShare>` | `recording_id: ID`, `party_id: ID` | 64 |
-| `RecordingFeaturedArtistRemovedEvent<RecordingShare>` | `recording_id: ID`, `party_id: ID` | 64 |
+| `RecordingCreditAddedEvent` | `recording_id: ID`, `party_id: ID`, `roles: vector<RecordingPartyRole>` | 66 – 1105 (typically 67: one levelless role) |
+| `RecordingCreditRemovedEvent` | `recording_id: ID`, `party_id: ID` | 64 |
+| `RecordingPrimaryArtistAddedEvent` | `recording_id: ID`, `party_id: ID` | 64 |
+| `RecordingPrimaryArtistRemovedEvent` | `recording_id: ID`, `party_id: ID` | 64 |
+| `RecordingFeaturedArtistAddedEvent` | `recording_id: ID`, `party_id: ID` | 64 |
+| `RecordingFeaturedArtistRemovedEvent` | `recording_id: ID`, `party_id: ID` | 64 |
 
 Billing designations are business-visible, so a cascade is not left to
 inference: when `remove_credit` removes a party who is a primary or featured
@@ -116,8 +116,7 @@ stream), or presence and cascade flags.
 ## Dependencies
 
 - [`musicos`](https://github.com/misofm/musicos) at
-  `6dff4deca5ced186989c064e152c92a06384750c` — `Recording<RecordingShare>` and
-  `RecordingAdminCap<RecordingShare>`.
+  `0b3eb07c9cb1af29c877b66cddfdcc9ef32fc721` — concrete `Recording` and object-bound `RecordingAdminCap`.
 - [`partyos`](https://github.com/misofm/partyos) at
   `88c2e40353dbee8d8f98272069b4d836b02b12ae` — `Party`, the credited identity.
 - [`credit`](https://github.com/misofm/credit) at

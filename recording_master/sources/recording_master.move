@@ -31,13 +31,13 @@ public struct ExtensionKey() has copy, drop, store;
 
 /// Emitted when the master is set to a value it did not already hold. The
 /// `Audio` is bounded technical metadata plus a blob ID, so it is the value.
-public struct RecordingMasterSetEvent<phantom RecordingShare> has copy, drop {
+public struct RecordingMasterSetEvent has copy, drop {
     recording_id: ID,
     master: Audio,
 }
 
 /// Emitted when an attached master is removed.
-public struct RecordingMasterClearedEvent<phantom RecordingShare> has copy, drop {
+public struct RecordingMasterClearedEvent has copy, drop {
     recording_id: ID,
 }
 
@@ -45,9 +45,9 @@ public struct RecordingMasterClearedEvent<phantom RecordingShare> has copy, drop
 
 /// Sets (or replaces) the master. Setting the value already held neither
 /// writes nor emits.
-public fun set_master<RecordingShare>(
-    self: &mut Recording<RecordingShare>,
-    cap: &RecordingAdminCap<RecordingShare>,
+public fun set_master(
+    self: &mut Recording,
+    cap: &RecordingAdminCap,
     master: Audio,
 ) {
     let recording_id = object::id(self);
@@ -59,31 +59,31 @@ public fun set_master<RecordingShare>(
     } else {
         df::add(uid, ExtensionKey(), master);
     };
-    emit(RecordingMasterSetEvent<RecordingShare> { recording_id, master });
+    emit(RecordingMasterSetEvent { recording_id, master });
 }
 
 /// Removes the master, if any. Silent when nothing is attached.
-public fun clear_master<RecordingShare>(
-    self: &mut Recording<RecordingShare>,
-    cap: &RecordingAdminCap<RecordingShare>,
+public fun clear_master(
+    self: &mut Recording,
+    cap: &RecordingAdminCap,
 ) {
     let recording_id = object::id(self);
     let uid = self.uid_mut(cap);
     if (df::exists(uid, ExtensionKey())) {
         let _: Audio = df::remove(uid, ExtensionKey());
-        emit(RecordingMasterClearedEvent<RecordingShare> { recording_id });
+        emit(RecordingMasterClearedEvent { recording_id });
     }
 }
 
 // === View Functions ===
 
 /// Whether a master is attached to this recording.
-public fun has_master<RecordingShare>(self: &Recording<RecordingShare>): bool {
+public fun has_master(self: &Recording): bool {
     df::exists(self.uid(), ExtensionKey())
 }
 
 /// The recording's master. Aborts `ENoMaster` when none is attached.
-public fun master<RecordingShare>(self: &Recording<RecordingShare>): &Audio {
+public fun master(self: &Recording): &Audio {
     assert!(has_master(self), ENoMaster);
     df::borrow(self.uid(), ExtensionKey())
 }
@@ -91,15 +91,15 @@ public fun master<RecordingShare>(self: &Recording<RecordingShare>): &Audio {
 // === Test Functions ===
 
 #[test_only]
-public fun set_event_fields<RecordingShare>(
-    e: &RecordingMasterSetEvent<RecordingShare>,
+public fun set_event_fields(
+    e: &RecordingMasterSetEvent,
 ): (ID, Audio) {
     (e.recording_id, e.master)
 }
 
 #[test_only]
-public fun cleared_event_fields<RecordingShare>(
-    e: &RecordingMasterClearedEvent<RecordingShare>,
+public fun cleared_event_fields(
+    e: &RecordingMasterClearedEvent,
 ): ID {
     e.recording_id
 }

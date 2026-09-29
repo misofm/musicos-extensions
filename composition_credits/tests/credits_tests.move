@@ -13,7 +13,7 @@ use composition_credits::composition_party_role as cpr;
 use composition_credits::composition_credits as credits;
 use credit::credit;
 use musicos::composition::{Self, Composition, CompositionAdminCap};
-use musicos::test_helpers::{Self, CompositionShare};
+use musicos::test_helpers;
 use partyos::party::{Self, Party, PartyAdminCap};
 use std::string::String;
 use std::unit_test::{assert_eq, destroy};
@@ -23,18 +23,17 @@ use sui::test_scenario;
 
 const ARTIST: address = @0xA1;
 
-public struct OtherCompositionShare has copy, drop, store {}
 
 fun mk_composition(
     ctx: &mut TxContext,
-): (Composition<CompositionShare>, CompositionAdminCap<CompositionShare>) {
-    composition::new_for_testing(1500, ctx)
+): (Composition, CompositionAdminCap) {
+    composition::new(ctx)
 }
 
 fun mk_other_composition(
     ctx: &mut TxContext,
-): (Composition<OtherCompositionShare>, CompositionAdminCap<OtherCompositionShare>) {
-    composition::new_for_testing<OtherCompositionShare>(1500, ctx)
+): (Composition, CompositionAdminCap) {
+    composition::new(ctx)
 }
 
 fun mk_party(name: vector<u8>, ctx: &mut TxContext): (Party, PartyAdminCap) {
@@ -60,7 +59,7 @@ fun add_credit_attaches_and_reads_back() {
     assert!(credits::has_credits(&comp));
     assert_eq!(credits::credits(&comp).length(), 1);
     assert_eq!(credits::credits(&comp)[&object::id(&p1)], alice);
-    let added = events_by_type<credits::CompositionCreditAddedEvent<CompositionShare>>();
+    let added = events_by_type<credits::CompositionCreditAddedEvent>();
     assert_eq!(added.length(), 1);
     let (_, first_party, first_roles) = credits::added_event_fields(&added[0]);
     assert_eq!(first_party, object::id(&p1));
@@ -70,7 +69,7 @@ fun add_credit_attaches_and_reads_back() {
     let bob = credit::new(b"Bob".to_string(), vector[cpr::new_lyricist_role()]);
     credits::add_credit(&mut comp, &cap, &p2, bob);
     assert_eq!(credits::credits(&comp).length(), 2);
-    let added = events_by_type<credits::CompositionCreditAddedEvent<CompositionShare>>();
+    let added = events_by_type<credits::CompositionCreditAddedEvent>();
     assert_eq!(added.length(), 2);
     let (_, second_party, second_roles) = credits::added_event_fields(&added[1]);
     assert_eq!(second_party, object::id(&p2));
@@ -168,7 +167,7 @@ fun remove_credit_round_trip() {
     assert_eq!(credits::credits(&comp).length(), 2);
     assert_eq!(credits::credits(&comp).get_idx(&object::id(&p1)), 0);
     assert_eq!(credits::credits(&comp).get_idx(&object::id(&p3)), 1);
-    let removed = events_by_type<credits::CompositionCreditRemovedEvent<CompositionShare>>();
+    let removed = events_by_type<credits::CompositionCreditRemovedEvent>();
     assert_eq!(removed.length(), 1);
     let (_, event_party) = credits::removed_event_fields(&removed[0]);
     assert_eq!(event_party, object::id(&p2));
@@ -176,7 +175,7 @@ fun remove_credit_round_trip() {
     credits::remove_credit(&mut comp, &cap, object::id(&p1));
     credits::remove_credit(&mut comp, &cap, object::id(&p3));
     assert_eq!(credits::credits(&comp).length(), 0);
-    let removed = events_by_type<credits::CompositionCreditRemovedEvent<CompositionShare>>();
+    let removed = events_by_type<credits::CompositionCreditRemovedEvent>();
     assert_eq!(removed.length(), 3);
     let (_, event_party) = credits::removed_event_fields(&removed[1]);
     assert_eq!(event_party, object::id(&p1));
@@ -189,7 +188,7 @@ fun remove_credit_round_trip() {
     credits::add_credit(&mut comp, &cap, &p2, bob_again);
     assert_eq!(credits::credits(&comp).length(), 1);
     assert_eq!(credits::credits(&comp).get_idx(&object::id(&p2)), 0);
-    let added = events_by_type<credits::CompositionCreditAddedEvent<CompositionShare>>();
+    let added = events_by_type<credits::CompositionCreditAddedEvent>();
     let (_, event_party, event_roles) = credits::added_event_fields(&added[3]);
     assert_eq!(event_party, object::id(&p2));
     assert_eq!(event_roles, vector[cpr::new_translator_role()]);
@@ -197,8 +196,8 @@ fun remove_credit_round_trip() {
     // Views and test accessors are pure reads and do not add event records.
     assert!(credits::has_credits(&comp));
     assert_eq!(credits::credits(&comp).length(), 1);
-    assert_eq!(events_by_type<credits::CompositionCreditAddedEvent<CompositionShare>>().length(), 4);
-    assert_eq!(events_by_type<credits::CompositionCreditRemovedEvent<CompositionShare>>().length(), 3);
+    assert_eq!(events_by_type<credits::CompositionCreditAddedEvent>().length(), 4);
+    assert_eq!(events_by_type<credits::CompositionCreditRemovedEvent>().length(), 3);
 
     destroy(comp); destroy(cap); destroy(p1); destroy(p1c); destroy(p2); destroy(p2c);
     destroy(p3); destroy(p3c);
@@ -230,7 +229,7 @@ fun add_credit_emits_full_record() {
 
     credits::add_credit(&mut comp, &cap, &p, credit);
 
-    let events = events_by_type<credits::CompositionCreditAddedEvent<CompositionShare>>();
+    let events = events_by_type<credits::CompositionCreditAddedEvent>();
     assert_eq!(events.length(), 1);
     let (event_composition_id, event_party_id, event_roles) = credits::added_event_fields(&events[0]);
     assert_eq!(event_composition_id, composition_id);
@@ -239,8 +238,7 @@ fun add_credit_emits_full_record() {
     // Two ids and five unit-variant roles (one byte each): the maximum.
     assert_eq!(to_bytes(&events[0]).length(), 32 + 32 + 1 + 5);
 
-    // The phantom share type keeps independent composition event streams
-    // separate even when their payload layouts are identical.
+    // Events from separate compositions share a type and carry their IDs.
     let (mut other_comp, other_cap) = mk_other_composition(ctx);
     let (other_party, other_party_cap) = mk_party(b"Other", ctx);
     credits::add_credit(
@@ -249,14 +247,13 @@ fun add_credit_emits_full_record() {
         &other_party,
         credit::new(b"Other".to_string(), vector[cpr::new_lyricist_role()]),
     );
-    assert_eq!(events_by_type<credits::CompositionCreditAddedEvent<CompositionShare>>().length(), 1);
-    assert_eq!(events_by_type<credits::CompositionCreditAddedEvent<OtherCompositionShare>>().length(), 1);
+    assert_eq!(events_by_type<credits::CompositionCreditAddedEvent>().length(), 2);
 
     // A 200-byte display name stays in storage and leaves the size alone.
     let (max_party, max_party_cap) = mk_party(b"Max", ctx);
     credits::add_credit(&mut comp, &cap, &max_party, credit::new(long_string(200), roles));
-    let max_events = events_by_type<credits::CompositionCreditAddedEvent<CompositionShare>>();
-    assert_eq!(to_bytes(&max_events[1]).length(), 70);
+    let max_events = events_by_type<credits::CompositionCreditAddedEvent>();
+    assert_eq!(to_bytes(&max_events[2]).length(), 70);
     assert_eq!(credits::credits(&comp)[&object::id(&max_party)].display_name().length(), 200);
 
     destroy(comp); destroy(cap); destroy(p); destroy(pc);
@@ -276,13 +273,13 @@ fun remove_credit_emits_the_removed_party() {
 
     credits::remove_credit(&mut comp, &cap, party_id);
 
-    let events = events_by_type<credits::CompositionCreditRemovedEvent<CompositionShare>>();
+    let events = events_by_type<credits::CompositionCreditRemovedEvent>();
     assert_eq!(events.length(), 1);
     let (event_composition_id, event_party_id) = credits::removed_event_fields(&events[0]);
     assert_eq!(event_composition_id, composition_id);
     assert_eq!(event_party_id, party_id);
     assert_eq!(to_bytes(&events[0]).length(), 64);
-    assert_eq!(events_by_type<credits::CompositionCreditRemovedEvent<OtherCompositionShare>>().length(), 0);
+    assert_eq!(events_by_type<credits::CompositionCreditRemovedEvent>().length(), 1);
 
     destroy(comp); destroy(cap); destroy(p); destroy(pc);
 }
@@ -299,7 +296,7 @@ fun add_credit_against_published_and_shared_composition() {
     comp.publish(&cap);
 
     ts.next_tx(ARTIST);
-    let mut comp = ts.take_shared<Composition<CompositionShare>>();
+    let mut comp = ts.take_shared<Composition>();
     let (p, pc) = mk_party(b"Alice", ts.ctx());
     credits::add_credit(
         &mut comp,
@@ -384,5 +381,30 @@ fun remove_credit_rejects_uncredited_party() {
 
     let fake_party_id = test_helpers::fake_id(ctx);
     credits::remove_credit(&mut comp, &cap, fake_party_id);
+    abort
+}
+
+#[test, expected_failure(abort_code = composition::EUnauthorized)]
+fun wrong_composition_cap_rejected_on_add() {
+    let ctx = &mut tx_context::dummy();
+    let (mut target, _target_cap) = mk_composition(ctx);
+    let (_foreign_comp, foreign_cap) = mk_composition(ctx);
+    let (party, _party_cap) = mk_party(b"Alice", ctx);
+    credits::add_credit(
+        &mut target,
+        &foreign_cap,
+        &party,
+        credit::new(b"Alice".to_string(), vector[cpr::new_composer_role()]),
+    );
+    abort
+}
+
+#[test, expected_failure(abort_code = composition::EUnauthorized)]
+fun wrong_composition_cap_rejected_on_remove_of_nothing() {
+    let ctx = &mut tx_context::dummy();
+    let (mut target, _target_cap) = mk_composition(ctx);
+    let (_foreign_comp, foreign_cap) = mk_composition(ctx);
+    let party_id = test_helpers::fake_id(ctx);
+    credits::remove_credit(&mut target, &foreign_cap, party_id);
     abort
 }

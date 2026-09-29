@@ -41,13 +41,13 @@ public struct StreamingTranscode has copy, drop, store {
 // === Events ===
 
 /// Emitted when the transcode is set to a value it did not already hold.
-public struct RecordingStreamingTranscodeSetEvent<phantom RecordingShare> has copy, drop {
+public struct RecordingStreamingTranscodeSetEvent has copy, drop {
     recording_id: ID,
     quilt_id: u256,
 }
 
 /// Emitted when an attached transcode is removed.
-public struct RecordingStreamingTranscodeClearedEvent<phantom RecordingShare> has copy, drop {
+public struct RecordingStreamingTranscodeClearedEvent has copy, drop {
     recording_id: ID,
 }
 
@@ -60,9 +60,9 @@ public fun new(quilt: WalrusQuilt): StreamingTranscode {
 
 /// Sets (or replaces) the recording's transcode. Setting the value already
 /// held neither writes nor emits.
-public fun set_streaming_transcode<RecordingShare>(
-    self: &mut Recording<RecordingShare>,
-    cap: &RecordingAdminCap<RecordingShare>,
+public fun set_streaming_transcode(
+    self: &mut Recording,
+    cap: &RecordingAdminCap,
     transcode: StreamingTranscode,
 ) {
     let recording_id = object::id(self);
@@ -75,32 +75,32 @@ public fun set_streaming_transcode<RecordingShare>(
     } else {
         df::add(uid, ExtensionKey(), transcode);
     };
-    emit(RecordingStreamingTranscodeSetEvent<RecordingShare> { recording_id, quilt_id });
+    emit(RecordingStreamingTranscodeSetEvent { recording_id, quilt_id });
 }
 
 /// Removes the recording's transcode, if any. Silent when nothing is attached.
-public fun clear_streaming_transcode<RecordingShare>(
-    self: &mut Recording<RecordingShare>,
-    cap: &RecordingAdminCap<RecordingShare>,
+public fun clear_streaming_transcode(
+    self: &mut Recording,
+    cap: &RecordingAdminCap,
 ) {
     let recording_id = object::id(self);
     let uid = self.uid_mut(cap);
     if (df::exists(uid, ExtensionKey())) {
         let _: StreamingTranscode = df::remove(uid, ExtensionKey());
-        emit(RecordingStreamingTranscodeClearedEvent<RecordingShare> { recording_id });
+        emit(RecordingStreamingTranscodeClearedEvent { recording_id });
     }
 }
 
 // === View Functions ===
 
 /// Whether a streaming transcode reference is attached to the recording.
-public fun has_streaming_transcode<RecordingShare>(self: &Recording<RecordingShare>): bool {
+public fun has_streaming_transcode(self: &Recording): bool {
     df::exists(self.uid(), ExtensionKey())
 }
 
 /// The recording's transcode. Aborts `ENoStreamingTranscode` when none is attached.
-public fun streaming_transcode<RecordingShare>(
-    self: &Recording<RecordingShare>,
+public fun streaming_transcode(
+    self: &Recording,
 ): &StreamingTranscode {
     assert!(has_streaming_transcode(self), ENoStreamingTranscode);
     df::borrow(self.uid(), ExtensionKey())
@@ -114,15 +114,15 @@ public fun quilt(self: &StreamingTranscode): &WalrusQuilt {
 // === Test Functions ===
 
 #[test_only]
-public fun set_event_fields<RecordingShare>(
-    e: &RecordingStreamingTranscodeSetEvent<RecordingShare>,
+public fun set_event_fields(
+    e: &RecordingStreamingTranscodeSetEvent,
 ): (ID, u256) {
     (e.recording_id, e.quilt_id)
 }
 
 #[test_only]
-public fun cleared_event_fields<RecordingShare>(
-    e: &RecordingStreamingTranscodeClearedEvent<RecordingShare>,
+public fun cleared_event_fields(
+    e: &RecordingStreamingTranscodeClearedEvent,
 ): ID {
     e.recording_id
 }

@@ -1,3 +1,9 @@
+> Historical audit record: the dated findings below describe earlier published
+> generations and their pinned dependencies. The current unpublished migration
+> targets musicos `0b3eb07c9cb1af29c877b66cddfdcc9ef32fc721`;
+> `sui move test --lint --warnings-are-errors` passed 13/13 tests on
+> 2026-09-29. See `Move.toml`, `README.md`, and tests for the current API.
+
 > Historical audit below predates the 2026-09-15 payload revision. Current event contracts and size bounds are documented in [EVENT_PAYLOADS.md](../EVENT_PAYLOADS.md). Storage, authority, and mutation behavior remain unchanged.
 
 # Implementation review — composition_lyrics

@@ -1,4 +1,10 @@
 # Security review — `release_cover_art`
+> Historical audit record: the dated findings below describe earlier published
+> generations and their pinned dependencies. The current unpublished migration
+> targets musicos `0b3eb07c9cb1af29c877b66cddfdcc9ef32fc721`;
+> `sui move test --lint --warnings-are-errors` passed 20/20 tests on
+> 2026-09-29. See `Move.toml`, `README.md`, and tests for the current API.
+
 
 Reviewed 2026-09-11 for immutable publication and rich event payloads. Verdict:
 no exploitable findings in the reviewed source.

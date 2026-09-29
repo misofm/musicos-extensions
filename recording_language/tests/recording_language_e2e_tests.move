@@ -9,6 +9,7 @@
 module recording_language::recording_language_e2e_tests;
 
 use language_code::language_code::{Self, LanguageCode};
+use musicos::composition;
 use musicos::recording::{Self, Recording};
 use recording_language::recording_language::{
     Self as rl,
@@ -23,18 +24,17 @@ use sui::test_scenario::{Self as ts, Scenario};
 const ADMIN: address = @0xAD;
 const STRANGER: address = @0x51;
 
-public struct REC {}
 
 fun lang(code: vector<u8>): LanguageCode {
     language_code::new(code.to_string())
 }
 
 /// Creates and publishes (shares) a recording as the current sender.
-fun publish_recording(ts: &mut Scenario): (ID, recording::RecordingAdminCap<REC>) {
-    let (rec, cap) = recording::new_for_testing<REC>(
-        object::id_from_address(@0xC0FFEE),
-        ts.ctx(),
-    );
+fun publish_recording(ts: &mut Scenario): (ID, recording::RecordingAdminCap) {
+    let (comp, comp_cap) = composition::new(ts.ctx());
+    let (rec, cap) = recording::new(&comp, ts.ctx());
+    comp.publish(&comp_cap);
+    destroy(comp_cap);
     let rec_id = object::id(&rec);
     rec.publish(&cap);
     (rec_id, cap)
@@ -49,12 +49,12 @@ fun admin_sets_languages_on_a_published_shared_recording_and_a_stranger_reads_it
 
     // === Tx 2 (ADMIN): take the shared recording, attach languages ===
     ts.next_tx(ADMIN);
-    let mut rec = ts.take_shared<Recording<REC>>();
+    let mut rec = ts.take_shared<Recording>();
     assert!(!rl::has_languages(&rec));
 
     rl::set_languages(&mut rec, &rec_cap, vector[lang(b"en"), lang(b"fr")]);
 
-    let events = events_by_type<RecordingLanguagesSetEvent<REC>>();
+    let events = events_by_type<RecordingLanguagesSetEvent>();
     assert_eq!(events.length(), 1);
     let (event_id, languages) = rl::set_event_fields(&events[0]);
     assert_eq!(event_id, rec_id);
@@ -64,7 +64,7 @@ fun admin_sets_languages_on_a_published_shared_recording_and_a_stranger_reads_it
 
     // === Tx 3 (STRANGER): reads are open to anyone, no cap required ===
     ts.next_tx(STRANGER);
-    let rec = ts.take_shared<Recording<REC>>();
+    let rec = ts.take_shared<Recording>();
     assert!(rl::has_languages(&rec));
     let got = rl::languages(&rec);
     assert_eq!(got.length(), 2);
@@ -74,14 +74,14 @@ fun admin_sets_languages_on_a_published_shared_recording_and_a_stranger_reads_it
 
     // === Tx 4 (ADMIN): equal set is silent; instrumental claim; then clear ===
     ts.next_tx(ADMIN);
-    let mut rec = ts.take_shared<Recording<REC>>();
+    let mut rec = ts.take_shared<Recording>();
     rl::set_languages(&mut rec, &rec_cap, vector[lang(b"en"), lang(b"fr")]);
-    assert_eq!(events_by_type<RecordingLanguagesSetEvent<REC>>().length(), 0);
+    assert_eq!(events_by_type<RecordingLanguagesSetEvent>().length(), 0);
 
     rl::set_languages(&mut rec, &rec_cap, vector[]);
     assert!(rl::has_languages(&rec));
     assert!(rl::languages(&rec).is_empty());
-    let events = events_by_type<RecordingLanguagesSetEvent<REC>>();
+    let events = events_by_type<RecordingLanguagesSetEvent>();
     assert_eq!(events.length(), 1);
     let (_, languages) = rl::set_event_fields(&events[0]);
     assert!(languages.is_empty());
@@ -89,7 +89,7 @@ fun admin_sets_languages_on_a_published_shared_recording_and_a_stranger_reads_it
 
     rl::clear_languages(&mut rec, &rec_cap);
     assert!(!rl::has_languages(&rec));
-    let cleared = events_by_type<RecordingLanguagesClearedEvent<REC>>();
+    let cleared = events_by_type<RecordingLanguagesClearedEvent>();
     assert_eq!(cleared.length(), 1);
     assert_eq!(rl::cleared_event_fields(&cleared[0]), rec_id);
     assert_eq!(to_bytes(&cleared[0]).length(), 32);
@@ -97,7 +97,7 @@ fun admin_sets_languages_on_a_published_shared_recording_and_a_stranger_reads_it
 
     // === Tx 5 (STRANGER): removal is visible to any reader ===
     ts.next_tx(STRANGER);
-    let rec = ts.take_shared<Recording<REC>>();
+    let rec = ts.take_shared<Recording>();
     assert!(!rl::has_languages(&rec));
     ts::return_shared(rec);
 
@@ -113,13 +113,13 @@ fun reading_after_clear_aborts_for_any_reader() {
     let (_, rec_cap) = publish_recording(&mut ts);
 
     ts.next_tx(ADMIN);
-    let mut rec = ts.take_shared<Recording<REC>>();
+    let mut rec = ts.take_shared<Recording>();
     rl::set_languages(&mut rec, &rec_cap, vector[lang(b"en")]);
     rl::clear_languages(&mut rec, &rec_cap);
     ts::return_shared(rec);
 
     ts.next_tx(STRANGER);
-    let rec = ts.take_shared<Recording<REC>>();
+    let rec = ts.take_shared<Recording>();
     let _ = rl::languages(&rec); // aborts: ENoLanguages
 
     ts::return_shared(rec);
@@ -134,7 +134,7 @@ fun duplicate_language_aborts_against_a_shared_recording() {
     let (_, rec_cap) = publish_recording(&mut ts);
 
     ts.next_tx(ADMIN);
-    let mut rec = ts.take_shared<Recording<REC>>();
+    let mut rec = ts.take_shared<Recording>();
     rl::set_languages(&mut rec, &rec_cap, vector[lang(b"en"), lang(b"en")]);
 
     ts::return_shared(rec);

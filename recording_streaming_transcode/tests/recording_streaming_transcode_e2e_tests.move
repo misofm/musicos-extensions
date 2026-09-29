@@ -8,6 +8,7 @@
 #[test_only]
 module recording_streaming_transcode::recording_streaming_transcode_e2e_tests;
 
+use musicos::composition;
 use musicos::recording::{Self, Recording, RecordingAdminCap};
 use ori::data;
 use recording_streaming_transcode::recording_streaming_transcode::{
@@ -21,7 +22,6 @@ use sui::bcs::to_bytes;
 use sui::event::events_by_type;
 use sui::test_scenario::{Self as ts, Scenario};
 
-public struct REC {}
 
 const ADMIN: address = @0xAD;
 const READER: address = @0x51;
@@ -35,18 +35,18 @@ fun quilt_id(value: &StreamingTranscode): u256 {
 }
 
 /// Creates and publishes (shares) a recording as the current sender.
-fun publish_and_share_recording(ts: &mut Scenario): RecordingAdminCap<REC> {
-    let (rec, cap) = recording::new_for_testing<REC>(
-        object::id_from_address(@0xC0FFEE),
-        ts.ctx(),
-    );
+fun publish_and_share_recording(ts: &mut Scenario): RecordingAdminCap {
+    let (comp, comp_cap) = composition::new(ts.ctx());
+    let (rec, cap) = recording::new(&comp, ts.ctx());
+    comp.publish(&comp_cap);
+    destroy(comp_cap);
     rec.publish(&cap);
     cap
 }
 
 /// The set event's fields, compared one at a time.
-fun assert_set_event<RecordingShare>(
-    e: &RecordingStreamingTranscodeSetEvent<RecordingShare>,
+fun assert_set_event(
+    e: &RecordingStreamingTranscodeSetEvent,
     recording_id: ID,
     quilt_id: u256,
 ) {
@@ -62,12 +62,12 @@ fun lifecycle_works_on_a_published_shared_recording() {
 
     // === Tx 2 (ADMIN): attach a transcode to the shared recording ===
     ts.next_tx(ADMIN);
-    let mut rec = ts.take_shared<Recording<REC>>();
+    let mut rec = ts.take_shared<Recording>();
     let rec_id = object::id(&rec);
     transcode::set_streaming_transcode(&mut rec, &cap, new_transcode(111));
     assert_eq!(quilt_id(transcode::streaming_transcode(&rec)), 111);
 
-    let set_events = events_by_type<RecordingStreamingTranscodeSetEvent<REC>>();
+    let set_events = events_by_type<RecordingStreamingTranscodeSetEvent>();
     assert_eq!(set_events.length(), 1);
     assert_set_event(&set_events[0], rec_id, 111);
     assert_eq!(to_bytes(&set_events[0]).length(), 64);
@@ -75,24 +75,24 @@ fun lifecycle_works_on_a_published_shared_recording() {
 
     // === Tx 3 (READER): views are permissionless ===
     ts.next_tx(READER);
-    let rec = ts.take_shared<Recording<REC>>();
+    let rec = ts.take_shared<Recording>();
     assert!(transcode::has_streaming_transcode(&rec));
     assert_eq!(quilt_id(transcode::streaming_transcode(&rec)), 111);
     ts::return_shared(rec);
 
     // === Tx 4 (ADMIN): equal set is silent; replace; then clear ===
     ts.next_tx(ADMIN);
-    let mut rec = ts.take_shared<Recording<REC>>();
+    let mut rec = ts.take_shared<Recording>();
     transcode::set_streaming_transcode(&mut rec, &cap, new_transcode(111));
-    assert_eq!(events_by_type<RecordingStreamingTranscodeSetEvent<REC>>().length(), 0);
+    assert_eq!(events_by_type<RecordingStreamingTranscodeSetEvent>().length(), 0);
 
     transcode::set_streaming_transcode(&mut rec, &cap, new_transcode(222));
     assert_eq!(quilt_id(transcode::streaming_transcode(&rec)), 222);
-    assert_eq!(events_by_type<RecordingStreamingTranscodeSetEvent<REC>>().length(), 1);
+    assert_eq!(events_by_type<RecordingStreamingTranscodeSetEvent>().length(), 1);
 
     transcode::clear_streaming_transcode(&mut rec, &cap);
     assert!(!transcode::has_streaming_transcode(&rec));
-    let cleared = events_by_type<RecordingStreamingTranscodeClearedEvent<REC>>();
+    let cleared = events_by_type<RecordingStreamingTranscodeClearedEvent>();
     assert_eq!(cleared.length(), 1);
     assert_eq!(transcode::cleared_event_fields(&cleared[0]), rec_id);
     assert_eq!(to_bytes(&cleared[0]).length(), 32);
@@ -100,7 +100,7 @@ fun lifecycle_works_on_a_published_shared_recording() {
 
     // === Tx 5 (READER): removal is visible to any reader ===
     ts.next_tx(READER);
-    let rec = ts.take_shared<Recording<REC>>();
+    let rec = ts.take_shared<Recording>();
     assert!(!transcode::has_streaming_transcode(&rec));
     ts::return_shared(rec);
 

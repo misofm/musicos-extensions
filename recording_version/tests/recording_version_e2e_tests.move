@@ -8,6 +8,7 @@
 #[test_only]
 module recording_version::recording_version_e2e_tests;
 
+use musicos::composition;
 use musicos::recording::{Self, Recording};
 use recording_version::recording_version::{
     Self as rv,
@@ -22,14 +23,13 @@ use sui::test_scenario::{Self as ts, Scenario};
 const ADMIN: address = @0xAD;
 const STRANGER: address = @0x51;
 
-public struct REC {}
 
 /// Creates and publishes (shares) a recording as the current sender.
-fun publish_recording(ts: &mut Scenario): (ID, recording::RecordingAdminCap<REC>) {
-    let (rec, cap) = recording::new_for_testing<REC>(
-        object::id_from_address(@0xC0FFEE),
-        ts.ctx(),
-    );
+fun publish_recording(ts: &mut Scenario): (ID, recording::RecordingAdminCap) {
+    let (comp, comp_cap) = composition::new(ts.ctx());
+    let (rec, cap) = recording::new(&comp, ts.ctx());
+    comp.publish(&comp_cap);
+    destroy(comp_cap);
     let rec_id = object::id(&rec);
     rec.publish(&cap);
     (rec_id, cap)
@@ -44,12 +44,12 @@ fun admin_names_a_published_shared_recording_and_a_stranger_reads_it() {
 
     // === Tx 2 (ADMIN): take the shared recording, attach a version name ===
     ts.next_tx(ADMIN);
-    let mut rec = ts.take_shared<Recording<REC>>();
+    let mut rec = ts.take_shared<Recording>();
     assert!(!rv::has_version(&rec));
 
     rv::set_version(&mut rec, &rec_cap, b"Live".to_string());
 
-    let events = events_by_type<RecordingVersionSetEvent<REC>>();
+    let events = events_by_type<RecordingVersionSetEvent>();
     assert_eq!(events.length(), 1);
     let (event_id, version) = rv::set_event_fields(&events[0]);
     assert_eq!(event_id, rec_id);
@@ -59,24 +59,24 @@ fun admin_names_a_published_shared_recording_and_a_stranger_reads_it() {
 
     // === Tx 3 (STRANGER): reads are open to anyone, no cap required ===
     ts.next_tx(STRANGER);
-    let rec = ts.take_shared<Recording<REC>>();
+    let rec = ts.take_shared<Recording>();
     assert!(rv::has_version(&rec));
     assert_eq!(*rv::version(&rec), b"Live".to_string());
     ts::return_shared(rec);
 
     // === Tx 4 (ADMIN): equal set is silent; replace; then clear ===
     ts.next_tx(ADMIN);
-    let mut rec = ts.take_shared<Recording<REC>>();
+    let mut rec = ts.take_shared<Recording>();
     rv::set_version(&mut rec, &rec_cap, b"Live".to_string());
-    assert_eq!(events_by_type<RecordingVersionSetEvent<REC>>().length(), 0);
+    assert_eq!(events_by_type<RecordingVersionSetEvent>().length(), 0);
 
     rv::set_version(&mut rec, &rec_cap, b"Radio Edit".to_string());
     assert_eq!(*rv::version(&rec), b"Radio Edit".to_string());
-    assert_eq!(events_by_type<RecordingVersionSetEvent<REC>>().length(), 1);
+    assert_eq!(events_by_type<RecordingVersionSetEvent>().length(), 1);
 
     rv::clear_version(&mut rec, &rec_cap);
     assert!(!rv::has_version(&rec));
-    let cleared = events_by_type<RecordingVersionClearedEvent<REC>>();
+    let cleared = events_by_type<RecordingVersionClearedEvent>();
     assert_eq!(cleared.length(), 1);
     assert_eq!(rv::cleared_event_fields(&cleared[0]), rec_id);
     assert_eq!(to_bytes(&cleared[0]).length(), 32);
@@ -84,7 +84,7 @@ fun admin_names_a_published_shared_recording_and_a_stranger_reads_it() {
 
     // === Tx 5 (STRANGER): removal is visible to any reader ===
     ts.next_tx(STRANGER);
-    let rec = ts.take_shared<Recording<REC>>();
+    let rec = ts.take_shared<Recording>();
     assert!(!rv::has_version(&rec));
     ts::return_shared(rec);
 
@@ -100,13 +100,13 @@ fun reading_after_clear_aborts_for_any_reader() {
     let (_, rec_cap) = publish_recording(&mut ts);
 
     ts.next_tx(ADMIN);
-    let mut rec = ts.take_shared<Recording<REC>>();
+    let mut rec = ts.take_shared<Recording>();
     rv::set_version(&mut rec, &rec_cap, b"Live".to_string());
     rv::clear_version(&mut rec, &rec_cap);
     ts::return_shared(rec);
 
     ts.next_tx(STRANGER);
-    let rec = ts.take_shared<Recording<REC>>();
+    let rec = ts.take_shared<Recording>();
     let _ = rv::version(&rec); // aborts: ENoVersion
 
     ts::return_shared(rec);
@@ -121,7 +121,7 @@ fun empty_version_aborts_against_a_shared_recording() {
     let (_, rec_cap) = publish_recording(&mut ts);
 
     ts.next_tx(ADMIN);
-    let mut rec = ts.take_shared<Recording<REC>>();
+    let mut rec = ts.take_shared<Recording>();
     rv::set_version(&mut rec, &rec_cap, b"".to_string());
 
     ts::return_shared(rec);

@@ -41,13 +41,13 @@ public struct ExtensionKey() has copy, drop, store;
 // === Events ===
 
 /// Emitted when the version name is set to a value it did not already hold.
-public struct RecordingVersionSetEvent<phantom RecordingShare> has copy, drop {
+public struct RecordingVersionSetEvent has copy, drop {
     recording_id: ID,
     version: String,
 }
 
 /// Emitted when an attached version name is removed.
-public struct RecordingVersionClearedEvent<phantom RecordingShare> has copy, drop {
+public struct RecordingVersionClearedEvent has copy, drop {
     recording_id: ID,
 }
 
@@ -56,9 +56,9 @@ public struct RecordingVersionClearedEvent<phantom RecordingShare> has copy, dro
 /// Sets (or replaces) the recording's version name. Aborts `EEmptyVersion`
 /// on an empty string and `EVersionTooLong` past `MAX_VERSION_LENGTH` bytes.
 /// Setting the value already held neither writes nor emits.
-public fun set_version<RecordingShare>(
-    self: &mut Recording<RecordingShare>,
-    cap: &RecordingAdminCap<RecordingShare>,
+public fun set_version(
+    self: &mut Recording,
+    cap: &RecordingAdminCap,
     version: String,
 ) {
     assert!(!version.is_empty(), EEmptyVersion);
@@ -72,31 +72,31 @@ public fun set_version<RecordingShare>(
     } else {
         df::add(uid, ExtensionKey(), version);
     };
-    emit(RecordingVersionSetEvent<RecordingShare> { recording_id, version });
+    emit(RecordingVersionSetEvent { recording_id, version });
 }
 
 /// Removes the version name, if any. Silent when nothing is attached.
-public fun clear_version<RecordingShare>(
-    self: &mut Recording<RecordingShare>,
-    cap: &RecordingAdminCap<RecordingShare>,
+public fun clear_version(
+    self: &mut Recording,
+    cap: &RecordingAdminCap,
 ) {
     let recording_id = object::id(self);
     let uid = self.uid_mut(cap);
     if (df::exists(uid, ExtensionKey())) {
         let _: String = df::remove(uid, ExtensionKey());
-        emit(RecordingVersionClearedEvent<RecordingShare> { recording_id });
+        emit(RecordingVersionClearedEvent { recording_id });
     }
 }
 
 // === View Functions ===
 
 /// Whether a version name is attached to this recording.
-public fun has_version<RecordingShare>(self: &Recording<RecordingShare>): bool {
+public fun has_version(self: &Recording): bool {
     df::exists(self.uid(), ExtensionKey())
 }
 
 /// The recording's version name. Aborts `ENoVersion` when none is attached.
-public fun version<RecordingShare>(self: &Recording<RecordingShare>): &String {
+public fun version(self: &Recording): &String {
     assert!(has_version(self), ENoVersion);
     df::borrow(self.uid(), ExtensionKey())
 }
@@ -104,15 +104,15 @@ public fun version<RecordingShare>(self: &Recording<RecordingShare>): &String {
 // === Test Functions ===
 
 #[test_only]
-public fun set_event_fields<RecordingShare>(
-    e: &RecordingVersionSetEvent<RecordingShare>,
+public fun set_event_fields(
+    e: &RecordingVersionSetEvent,
 ): (ID, String) {
     (e.recording_id, e.version)
 }
 
 #[test_only]
-public fun cleared_event_fields<RecordingShare>(
-    e: &RecordingVersionClearedEvent<RecordingShare>,
+public fun cleared_event_fields(
+    e: &RecordingVersionClearedEvent,
 ): ID {
     e.recording_id
 }

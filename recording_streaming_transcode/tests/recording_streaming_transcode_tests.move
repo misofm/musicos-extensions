@@ -20,17 +20,15 @@ use std::unit_test::{assert_eq, destroy};
 use sui::bcs::to_bytes;
 use sui::event::events_by_type;
 
-public struct REC {}
-public struct OTHER_REC {}
 
 const MAX_U256: u256 =
     0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
 
 /// Only a `Recording` is needed, so a bare id stands in for its composition.
-fun new_rec<RecordingShare>(
+fun new_rec(
     ctx: &mut TxContext,
-): (Recording<RecordingShare>, RecordingAdminCap<RecordingShare>) {
-    recording::new_for_testing<RecordingShare>(object::id_from_address(@0xC0FFEE), ctx)
+): (Recording, RecordingAdminCap) {
+    recording::new_for_testing(object::id_from_address(@0xC0FFEE), ctx)
 }
 
 fun new_transcode(quilt_id: u256): StreamingTranscode {
@@ -45,7 +43,7 @@ fun quilt_id(value: &StreamingTranscode): u256 {
 fun project_set(
     projected_exists: &mut bool,
     projected_quilt_id: &mut u256,
-    event: &RecordingStreamingTranscodeSetEvent<REC>,
+    event: &RecordingStreamingTranscodeSetEvent,
 ) {
     let (_, event_quilt_id) = transcode::set_event_fields(event);
     *projected_exists = true;
@@ -59,7 +57,7 @@ fun project_cleared(projected_exists: &mut bool, projected_quilt_id: &mut u256) 
 }
 
 fun assert_projection_matches_view(
-    rec: &Recording<REC>,
+    rec: &Recording,
     projected_exists: bool,
     projected_quilt_id: u256,
 ) {
@@ -72,8 +70,8 @@ fun assert_projection_matches_view(
 /// Every write is replayed from its event alone and compared to the views,
 /// so the event stream is sufficient to track the field.
 /// The set event's fields, compared one at a time.
-fun assert_set_event<RecordingShare>(
-    e: &RecordingStreamingTranscodeSetEvent<RecordingShare>,
+fun assert_set_event(
+    e: &RecordingStreamingTranscodeSetEvent,
     recording_id: ID,
     quilt_id: u256,
 ) {
@@ -85,7 +83,7 @@ fun assert_set_event<RecordingShare>(
 #[test]
 fun set_read_replace_clear_lifecycle() {
     let ctx = &mut tx_context::dummy();
-    let (mut rec, cap) = new_rec<REC>(ctx);
+    let (mut rec, cap) = new_rec(ctx);
     let rec_id = object::id(&rec);
     let mut projected_exists = false;
     let mut projected_quilt_id = 0;
@@ -95,7 +93,7 @@ fun set_read_replace_clear_lifecycle() {
     transcode::set_streaming_transcode(&mut rec, &cap, new_transcode(111));
     assert!(transcode::has_streaming_transcode(&rec));
     assert_eq!(quilt_id(transcode::streaming_transcode(&rec)), 111);
-    let set_events = events_by_type<RecordingStreamingTranscodeSetEvent<REC>>();
+    let set_events = events_by_type<RecordingStreamingTranscodeSetEvent>();
     assert_eq!(set_events.length(), 1);
     assert_set_event(&set_events[0], rec_id, 111);
     project_set(&mut projected_exists, &mut projected_quilt_id, &set_events[0]);
@@ -103,7 +101,7 @@ fun set_read_replace_clear_lifecycle() {
 
     transcode::set_streaming_transcode(&mut rec, &cap, new_transcode(222));
     assert_eq!(quilt_id(transcode::streaming_transcode(&rec)), 222);
-    let set_events = events_by_type<RecordingStreamingTranscodeSetEvent<REC>>();
+    let set_events = events_by_type<RecordingStreamingTranscodeSetEvent>();
     assert_eq!(set_events.length(), 2);
     assert_set_event(&set_events[1], rec_id, 222);
     project_set(&mut projected_exists, &mut projected_quilt_id, &set_events[1]);
@@ -111,12 +109,12 @@ fun set_read_replace_clear_lifecycle() {
 
     // Equal replacement neither writes nor emits.
     transcode::set_streaming_transcode(&mut rec, &cap, new_transcode(222));
-    assert_eq!(events_by_type<RecordingStreamingTranscodeSetEvent<REC>>().length(), 2);
+    assert_eq!(events_by_type<RecordingStreamingTranscodeSetEvent>().length(), 2);
     assert_projection_matches_view(&rec, projected_exists, projected_quilt_id);
 
     transcode::clear_streaming_transcode(&mut rec, &cap);
     assert!(!transcode::has_streaming_transcode(&rec));
-    let cleared = events_by_type<RecordingStreamingTranscodeClearedEvent<REC>>();
+    let cleared = events_by_type<RecordingStreamingTranscodeClearedEvent>();
     assert_eq!(cleared.length(), 1);
     assert_eq!(transcode::cleared_event_fields(&cleared[0]), rec_id);
     project_cleared(&mut projected_exists, &mut projected_quilt_id);
@@ -125,18 +123,18 @@ fun set_read_replace_clear_lifecycle() {
     // Clear is idempotent and silent when absent.
     transcode::clear_streaming_transcode(&mut rec, &cap);
     assert!(!transcode::has_streaming_transcode(&rec));
-    assert_eq!(events_by_type<RecordingStreamingTranscodeClearedEvent<REC>>().length(), 1);
+    assert_eq!(events_by_type<RecordingStreamingTranscodeClearedEvent>().length(), 1);
     assert_projection_matches_view(&rec, projected_exists, projected_quilt_id);
 
     // Re-set after removal is a fresh attachment, then clear it again.
     transcode::set_streaming_transcode(&mut rec, &cap, new_transcode(333));
-    let set_events = events_by_type<RecordingStreamingTranscodeSetEvent<REC>>();
+    let set_events = events_by_type<RecordingStreamingTranscodeSetEvent>();
     assert_eq!(set_events.length(), 3);
     assert_set_event(&set_events[2], rec_id, 333);
     project_set(&mut projected_exists, &mut projected_quilt_id, &set_events[2]);
     assert_projection_matches_view(&rec, projected_exists, projected_quilt_id);
     transcode::clear_streaming_transcode(&mut rec, &cap);
-    let cleared = events_by_type<RecordingStreamingTranscodeClearedEvent<REC>>();
+    let cleared = events_by_type<RecordingStreamingTranscodeClearedEvent>();
     assert_eq!(cleared.length(), 2);
     project_cleared(&mut projected_exists, &mut projected_quilt_id);
     assert_projection_matches_view(&rec, projected_exists, projected_quilt_id);
@@ -152,7 +150,7 @@ fun set_read_replace_clear_lifecycle() {
 #[test]
 fun complete_u256_quilt_id_domain_is_preserved() {
     let ctx = &mut tx_context::dummy();
-    let (mut rec, cap) = new_rec<REC>(ctx);
+    let (mut rec, cap) = new_rec(ctx);
     let rec_id = object::id(&rec);
     let values = vector[0u256, 9007199254740993, 9223372036854775809, MAX_U256];
 
@@ -161,7 +159,7 @@ fun complete_u256_quilt_id_domain_is_preserved() {
         assert_eq!(quilt_id(transcode::streaming_transcode(&rec)), value);
     });
 
-    let set_events = events_by_type<RecordingStreamingTranscodeSetEvent<REC>>();
+    let set_events = events_by_type<RecordingStreamingTranscodeSetEvent>();
     assert_eq!(set_events.length(), 4);
     values.length().do!(|i| {
         assert_set_event(&set_events[i], rec_id, values[i]);
@@ -177,7 +175,7 @@ fun complete_u256_quilt_id_domain_is_preserved() {
     assert_eq!(quilt_id(transcode::streaming_transcode(&rec)), 0);
     transcode::clear_streaming_transcode(&mut rec, &cap);
     assert!(!transcode::has_streaming_transcode(&rec));
-    assert_eq!(events_by_type<RecordingStreamingTranscodeClearedEvent<REC>>().length(), 1);
+    assert_eq!(events_by_type<RecordingStreamingTranscodeClearedEvent>().length(), 1);
 
     destroy(rec);
     destroy(cap);
@@ -186,31 +184,28 @@ fun complete_u256_quilt_id_domain_is_preserved() {
 #[test]
 fun transcodes_are_isolated_per_recording() {
     let ctx = &mut tx_context::dummy();
-    let (mut a, a_cap) = new_rec<REC>(ctx);
-    let (mut b, b_cap) = new_rec<OTHER_REC>(ctx);
+    let (mut a, a_cap) = new_rec(ctx);
+    let (mut b, b_cap) = new_rec(ctx);
 
     // Constructors and permissionless views are silent.
     let _ = new_transcode(1);
-    assert_eq!(events_by_type<RecordingStreamingTranscodeSetEvent<REC>>().length(), 0);
-    assert_eq!(events_by_type<RecordingStreamingTranscodeSetEvent<OTHER_REC>>().length(), 0);
+    assert_eq!(events_by_type<RecordingStreamingTranscodeSetEvent>().length(), 0);
+    assert_eq!(events_by_type<RecordingStreamingTranscodeSetEvent>().length(), 0);
 
     transcode::set_streaming_transcode(&mut a, &a_cap, new_transcode(9));
     transcode::set_streaming_transcode(&mut b, &b_cap, new_transcode(10));
 
     assert_eq!(quilt_id(transcode::streaming_transcode(&a)), 9);
     assert_eq!(quilt_id(transcode::streaming_transcode(&b)), 10);
-    let a_events = events_by_type<RecordingStreamingTranscodeSetEvent<REC>>();
-    let b_events = events_by_type<RecordingStreamingTranscodeSetEvent<OTHER_REC>>();
-    assert_eq!(a_events.length(), 1);
-    assert_eq!(b_events.length(), 1);
-    assert_set_event(&a_events[0], object::id(&a), 9);
-    assert_set_event(&b_events[0], object::id(&b), 10);
+    let events = events_by_type<RecordingStreamingTranscodeSetEvent>();
+    assert_eq!(events.length(), 2);
+    assert_set_event(&events[0], object::id(&a), 9);
+    assert_set_event(&events[1], object::id(&b), 10);
 
     transcode::clear_streaming_transcode(&mut a, &a_cap);
     assert!(!transcode::has_streaming_transcode(&a));
     assert!(transcode::has_streaming_transcode(&b));
-    assert_eq!(events_by_type<RecordingStreamingTranscodeClearedEvent<REC>>().length(), 1);
-    assert_eq!(events_by_type<RecordingStreamingTranscodeClearedEvent<OTHER_REC>>().length(), 0);
+    assert_eq!(events_by_type<RecordingStreamingTranscodeClearedEvent>().length(), 1);
 
     destroy(a);
     destroy(a_cap);
@@ -221,12 +216,12 @@ fun transcodes_are_isolated_per_recording() {
 #[test]
 fun set_event_carries_recording_and_quilt_id() {
     let ctx = &mut tx_context::dummy();
-    let (mut rec, cap) = new_rec<REC>(ctx);
+    let (mut rec, cap) = new_rec(ctx);
     let rec_id = object::id(&rec);
 
     transcode::set_streaming_transcode(&mut rec, &cap, new_transcode(7));
 
-    let events = events_by_type<RecordingStreamingTranscodeSetEvent<REC>>();
+    let events = events_by_type<RecordingStreamingTranscodeSetEvent>();
     assert_eq!(events.length(), 1);
     assert_set_event(&events[0], rec_id, 7);
     let bytes = to_bytes(&events[0]);
@@ -240,16 +235,16 @@ fun set_event_carries_recording_and_quilt_id() {
 #[test]
 fun cleared_event_is_emitted_only_after_removal() {
     let ctx = &mut tx_context::dummy();
-    let (mut rec, cap) = new_rec<REC>(ctx);
+    let (mut rec, cap) = new_rec(ctx);
     let rec_id = object::id(&rec);
 
     transcode::clear_streaming_transcode(&mut rec, &cap);
-    assert_eq!(events_by_type<RecordingStreamingTranscodeClearedEvent<REC>>().length(), 0);
+    assert_eq!(events_by_type<RecordingStreamingTranscodeClearedEvent>().length(), 0);
 
     transcode::set_streaming_transcode(&mut rec, &cap, new_transcode(5));
     transcode::clear_streaming_transcode(&mut rec, &cap);
 
-    let events = events_by_type<RecordingStreamingTranscodeClearedEvent<REC>>();
+    let events = events_by_type<RecordingStreamingTranscodeClearedEvent>();
     assert_eq!(events.length(), 1);
     assert_eq!(transcode::cleared_event_fields(&events[0]), rec_id);
     assert_eq!(to_bytes(&events[0]).length(), 32);
@@ -261,8 +256,21 @@ fun cleared_event_is_emitted_only_after_removal() {
 #[test, expected_failure(abort_code = transcode::ENoStreamingTranscode)]
 fun streaming_transcode_aborts_when_absent() {
     let ctx = &mut tx_context::dummy();
-    let (rec, cap) = new_rec<REC>(ctx);
+    let (rec, cap) = new_rec(ctx);
     let _ = transcode::streaming_transcode(&rec);
     destroy(rec);
     destroy(cap);
+}
+
+/// Even an absent clear must verify that the cap belongs to this recording.
+#[test, expected_failure(abort_code = recording::EUnauthorized)]
+fun foreign_cap_cannot_clear_absent_value() {
+    let ctx = &mut tx_context::dummy();
+    let (mut rec, own_cap) = new_rec(ctx);
+    let (other, foreign_cap) = new_rec(ctx);
+    transcode::clear_streaming_transcode(&mut rec, &foreign_cap);
+    destroy(rec);
+    destroy(own_cap);
+    destroy(other);
+    destroy(foreign_cap);
 }

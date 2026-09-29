@@ -12,7 +12,6 @@ module composition_title::composition_title_tests;
 
 use composition_title::composition_title as ct;
 use musicos::composition::{Self, Composition, CompositionAdminCap};
-use musicos::test_helpers::CompositionShare;
 use std::string::String;
 use std::unit_test::{assert_eq, destroy};
 use sui::bcs::to_bytes;
@@ -21,8 +20,8 @@ use sui::event;
 
 fun mk_composition(
     ctx: &mut TxContext,
-): (Composition<CompositionShare>, CompositionAdminCap<CompositionShare>) {
-    composition::new_for_testing(1500, ctx)
+): (Composition, CompositionAdminCap) {
+    composition::new(ctx)
 }
 
 /// An ASCII title of exactly `length` bytes.
@@ -157,7 +156,7 @@ fun titles_are_per_composition() {
     assert_eq!(*ct::title(&b), b"Second".to_string());
 
     // Every event carries the composition's identity.
-    let sets = event::events_by_type<ct::CompositionTitleSetEvent<CompositionShare>>();
+    let sets = event::events_by_type<ct::CompositionTitleSetEvent>();
     assert_eq!(sets.length(), 2);
     let (id, title) = ct::set_event_fields(&sets[0]);
     assert_eq!(id, a_id);
@@ -165,38 +164,32 @@ fun titles_are_per_composition() {
     let (id, title) = ct::set_event_fields(&sets[1]);
     assert_eq!(id, b_id);
     assert_eq!(title, b"Second".to_string());
-    let clears = event::events_by_type<ct::CompositionTitleClearedEvent<CompositionShare>>();
+    let clears = event::events_by_type<ct::CompositionTitleClearedEvent>();
     assert_eq!(clears.length(), 1);
     assert_eq!(ct::cleared_event_fields(&clears[0]), a_id);
 
     destroy(a); destroy(a_cap); destroy(b); destroy(b_cap);
 }
 
-public struct OtherShare has copy, drop, store {}
 
-/// The share type is part of the composition's identity and of the event
-/// type: different share types keep separate state and event streams.
+/// Different composition IDs retain independent titles and events carry IDs.
 #[test]
-fun composition_share_types_have_separate_state_and_event_streams() {
+fun compositions_have_separate_state_and_identified_events() {
     let ctx = &mut tx_context::dummy();
     let (mut comp, cap) = mk_composition(ctx);
-    let (mut other, other_cap) = composition::new_for_testing<OtherShare>(1500, ctx);
-
+    let (mut other, other_cap) = mk_composition(ctx);
+    let comp_id = object::id(&comp);
+    let other_id = object::id(&other);
     ct::set_title(&mut comp, &cap, b"Ours".to_string());
     ct::set_title(&mut other, &other_cap, b"Theirs".to_string());
-    assert_eq!(*ct::title(&comp), b"Ours".to_string());
-    assert_eq!(*ct::title(&other), b"Theirs".to_string());
-    assert_eq!(event::events_by_type<ct::CompositionTitleSetEvent<CompositionShare>>().length(), 1);
-    assert_eq!(event::events_by_type<ct::CompositionTitleSetEvent<OtherShare>>().length(), 1);
-
+    let sets = event::events_by_type<ct::CompositionTitleSetEvent>();
+    assert_eq!(sets.length(), 2);
+    let (first_id, _) = ct::set_event_fields(&sets[0]);
+    assert_eq!(first_id, comp_id);
+    let (second_id, _) = ct::set_event_fields(&sets[1]);
+    assert_eq!(second_id, other_id);
     ct::clear_title(&mut comp, &cap);
     assert_eq!(*ct::title(&other), b"Theirs".to_string());
-    assert_eq!(
-        event::events_by_type<ct::CompositionTitleClearedEvent<CompositionShare>>().length(),
-        1,
-    );
-    assert!(event::events_by_type<ct::CompositionTitleClearedEvent<OtherShare>>().is_empty());
-
     destroy(comp); destroy(cap); destroy(other); destroy(other_cap);
 }
 
@@ -212,7 +205,7 @@ fun set_emits_each_transition() {
     ct::set_title(&mut comp, &cap, b"Second draft".to_string());
     ct::set_title(&mut comp, &cap, b"Second draft".to_string());
 
-    let events = event::events_by_type<ct::CompositionTitleSetEvent<CompositionShare>>();
+    let events = event::events_by_type<ct::CompositionTitleSetEvent>();
     assert_eq!(events.length(), 2);
     assert_eq!(event::num_events(), 2);
     let (id, first) = ct::set_event_fields(&events[0]);
@@ -236,11 +229,11 @@ fun first_set_is_never_a_no_op() {
 
     ct::set_title(&mut comp, &cap, b"So What".to_string());
     ct::set_title(&mut comp, &cap, b"So What".to_string());
-    assert_eq!(event::events_by_type<ct::CompositionTitleSetEvent<CompositionShare>>().length(), 1);
+    assert_eq!(event::events_by_type<ct::CompositionTitleSetEvent>().length(), 1);
 
     ct::clear_title(&mut comp, &cap);
     ct::set_title(&mut comp, &cap, b"So What".to_string());
-    assert_eq!(event::events_by_type<ct::CompositionTitleSetEvent<CompositionShare>>().length(), 2);
+    assert_eq!(event::events_by_type<ct::CompositionTitleSetEvent>().length(), 2);
 
     destroy(comp);
     destroy(cap);
@@ -259,7 +252,7 @@ fun clear_emits_only_when_something_was_removed() {
     ct::clear_title(&mut comp, &cap);
     ct::clear_title(&mut comp, &cap);
 
-    let events = event::events_by_type<ct::CompositionTitleClearedEvent<CompositionShare>>();
+    let events = event::events_by_type<ct::CompositionTitleClearedEvent>();
     assert_eq!(events.length(), 1);
     assert_eq!(ct::cleared_event_fields(&events[0]), comp_id);
     assert_eq!(event::num_events(), 2);
@@ -294,7 +287,7 @@ fun payloads_have_exact_bcs_sizes() {
     let (mut comp, cap) = mk_composition(ctx);
 
     ct::set_title(&mut comp, &cap, b"So What".to_string());
-    let sets = event::events_by_type<ct::CompositionTitleSetEvent<CompositionShare>>();
+    let sets = event::events_by_type<ct::CompositionTitleSetEvent>();
     assert_eq!(to_bytes(&sets[0]).length(), 32 + 1 + 7);
 
     // A full-size initial set and a full-size replacement are the same shape.
@@ -303,7 +296,7 @@ fun payloads_have_exact_bcs_sizes() {
     let mut different = b"B".to_string();
     different.append(title_of_length(299));
     ct::set_title(&mut comp, &cap, different);
-    let sets = event::events_by_type<ct::CompositionTitleSetEvent<CompositionShare>>();
+    let sets = event::events_by_type<ct::CompositionTitleSetEvent>();
     assert_eq!(sets.length(), 3);
     let (_, title) = ct::set_event_fields(&sets[1]);
     assert_eq!(title, max);
@@ -313,7 +306,7 @@ fun payloads_have_exact_bcs_sizes() {
     assert_eq!(to_bytes(&sets[2]).length(), 334);
 
     ct::clear_title(&mut comp, &cap);
-    let clears = event::events_by_type<ct::CompositionTitleClearedEvent<CompositionShare>>();
+    let clears = event::events_by_type<ct::CompositionTitleClearedEvent>();
     assert_eq!(clears.length(), 1);
     assert_eq!(to_bytes(&clears[0]).length(), 32);
 
@@ -331,7 +324,7 @@ fun events_preserve_whitespace_case_and_utf8() {
 
     ct::set_title(&mut comp, &cap, first);
     ct::set_title(&mut comp, &cap, second);
-    let sets = event::events_by_type<ct::CompositionTitleSetEvent<CompositionShare>>();
+    let sets = event::events_by_type<ct::CompositionTitleSetEvent>();
     let (_, after_first) = ct::set_event_fields(&sets[0]);
     let (_, after_second) = ct::set_event_fields(&sets[1]);
     assert_eq!(*after_first.as_bytes(), b"  MiXeD  spacing  ");
@@ -399,4 +392,22 @@ fun over_max_length_aborts_on_replace() {
     ct::set_title(&mut comp, &cap, title_of_length(301));
     destroy(comp);
     destroy(cap);
+}
+
+#[test, expected_failure(abort_code = composition::EUnauthorized)]
+fun wrong_composition_cap_rejected_on_set() {
+    let ctx = &mut tx_context::dummy();
+    let (mut target, _target_cap) = mk_composition(ctx);
+    let (_foreign_comp, foreign_cap) = mk_composition(ctx);
+    ct::set_title(&mut target, &foreign_cap, b"No".to_string());
+    abort
+}
+
+#[test, expected_failure(abort_code = composition::EUnauthorized)]
+fun wrong_composition_cap_rejected_on_clear_of_nothing() {
+    let ctx = &mut tx_context::dummy();
+    let (mut target, _target_cap) = mk_composition(ctx);
+    let (_foreign_comp, foreign_cap) = mk_composition(ctx);
+    ct::clear_title(&mut target, &foreign_cap);
+    abort
 }

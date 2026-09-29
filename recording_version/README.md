@@ -17,8 +17,8 @@ alone.
 
 ## API
 
-Writes require the recording's `&RecordingAdminCap<RecordingShare>` and go
-through `recording::uid_mut(cap)`, which matches the cap by type only. Views
+Writes require the recording's `&RecordingAdminCap` and go
+through `recording::uid_mut(cap)`, which checks that the cap belongs to the recording object. Views
 are permissionless.
 
 | Function | Description | Aborts |
@@ -33,12 +33,12 @@ stored value untouched. Equality is exact: case and whitespace are content.
 
 ## Events
 
-Both events are generic over `RecordingShare` only.
+Both events include the recording object ID.
 
 | Event | Fields | BCS bytes |
 |---|---|---|
-| `RecordingVersionSetEvent<RecordingShare>` | `recording_id: ID`, `version: String` | `32 + U(n) + n` for `n` bytes: 34 minimum, 334 maximum |
-| `RecordingVersionClearedEvent<RecordingShare>` | `recording_id: ID` | 32 |
+| `RecordingVersionSetEvent` | `recording_id: ID`, `version: String` | `32 + U(n) + n` for `n` bytes: 34 minimum, 334 maximum |
+| `RecordingVersionClearedEvent` | `recording_id: ID` | 32 |
 
 `U(n)` is the ULEB128 length prefix: one byte below 128 bytes, two at the
 300-byte maximum. An equal set and an absent clear emit nothing, so every
@@ -55,8 +55,7 @@ event is a real state transition.
 ## Dependencies
 
 - [`musicos`](https://github.com/misofm/musicos) at
-  `6dff4deca5ced186989c064e152c92a06384750c` — `Recording<RecordingShare>` and
-  `RecordingAdminCap<RecordingShare>`.
+  `0b3eb07c9cb1af29c877b66cddfdcc9ef32fc721` — concrete `Recording` and object-bound `RecordingAdminCap`.
 
 ## Publishing
 

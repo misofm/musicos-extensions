@@ -79,6 +79,13 @@ release_genre = { git = "https://github.com/misofm/musicos-extensions.git", subd
 ```
 
 Each package's `Move.toml` pins its own protocol and supporting dependencies.
+The current sources target musicos commit
+`0b3eb07c9cb1af29c877b66cddfdcc9ef32fc721`: Composition and Recording are
+non-generic identities. Their admin capabilities are bound to object IDs;
+core checks that binding when an extension requests mutable UID access.
+Metadata operations require no share currency or ownership issuance.
+Composition and Recording extension events no longer carry share type arguments;
+consumers identify the subject through the event's object ID.
 
 Existing `Published.toml` files are retained as records of the currently
 deployed, prior package generation, including the protocol extension packages'
@@ -116,4 +123,4 @@ protocol objects and focused invariant and authorization tests.
 ## Event payload policy
 
 See [EVENT_PAYLOADS.md](EVENT_PAYLOADS.md) for the complete event inventory,
-content omission policy, source-derived BCS bounds, and consumer migration notes.
+content omission policy and consumer integration notes.

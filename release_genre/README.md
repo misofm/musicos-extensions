@@ -67,7 +67,7 @@ from the frozen `Genre` objects, or derived offline with
 ## Dependencies
 
 - [`musicos`](https://github.com/misofm/musicos) at
-  `6dff4deca5ced186989c064e152c92a06384750c` — `Release`, `ReleaseAdminCap`,
+  `0b3eb07c9cb1af29c877b66cddfdcc9ef32fc721` — `Release`, `ReleaseAdminCap`,
   and cap-gated `uid_mut`.
 - [`genre`](https://github.com/misofm/genre) at
   `90baae2919f7272f6d4bbb245b643f7dba5dc0ba` — the canonical shared genre

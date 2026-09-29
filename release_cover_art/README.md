@@ -63,13 +63,13 @@ state transition.
 ## Dependencies
 
 - [`musicos`](https://github.com/misofm/musicos) at
-  `6dff4deca5ced186989c064e152c92a06384750c` — `Release`, `ReleaseAdminCap`,
+  `0b3eb07c9cb1af29c877b66cddfdcc9ef32fc721` — `Release`, `ReleaseAdminCap`,
   and `uid_mut`.
 - [`cover_art`](https://github.com/misofm/cover-art) at
   `948213d99f4e0a56064181d9318936beba95e138` — the `CoverArt` value type,
   which rejects encrypted blobs.
 - [`per_track`](https://github.com/misofm/per-track) at
-  `949e35651858a8fc5fc5c4949ceaa890a571d278` — the `PerTrack<Data>` array
+  `0077e47beb171eaffa3f1348bdc5332b31e1dc84` — the `PerTrack<Data>` array
   behind the overrides, pinned to the same musicos.
 - [`ori`](https://github.com/unconfirmedlabs/ori) at
   `367ed5fe92a8b62da02c1116537cf08d111e0789`, test mode only — blob fixtures.

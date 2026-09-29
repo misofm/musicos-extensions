@@ -48,13 +48,13 @@ public enum Advisory has copy, drop, store {
 // === Events ===
 
 /// Emitted when the advisory is set to a value it did not already hold.
-public struct RecordingAdvisorySetEvent<phantom RecordingShare> has copy, drop {
+public struct RecordingAdvisorySetEvent has copy, drop {
     recording_id: ID,
     advisory: Advisory,
 }
 
 /// Emitted when an attached advisory is removed.
-public struct RecordingAdvisoryClearedEvent<phantom RecordingShare> has copy, drop {
+public struct RecordingAdvisoryClearedEvent has copy, drop {
     recording_id: ID,
 }
 
@@ -71,9 +71,9 @@ public fun cleaned(): Advisory { Advisory::Cleaned }
 
 /// Sets (or replaces) the recording's advisory. Setting the value already
 /// held neither writes nor emits.
-public fun set_advisory<RecordingShare>(
-    self: &mut Recording<RecordingShare>,
-    cap: &RecordingAdminCap<RecordingShare>,
+public fun set_advisory(
+    self: &mut Recording,
+    cap: &RecordingAdminCap,
     advisory: Advisory,
 ) {
     let recording_id = object::id(self);
@@ -85,33 +85,33 @@ public fun set_advisory<RecordingShare>(
     } else {
         df::add(uid, ExtensionKey(), advisory);
     };
-    emit(RecordingAdvisorySetEvent<RecordingShare> { recording_id, advisory });
+    emit(RecordingAdvisorySetEvent { recording_id, advisory });
 }
 
 /// Removes the advisory, if any. Silent when nothing is attached. Leaves the
 /// recording having said nothing, which is distinct from `NotExplicit`.
-public fun clear_advisory<RecordingShare>(
-    self: &mut Recording<RecordingShare>,
-    cap: &RecordingAdminCap<RecordingShare>,
+public fun clear_advisory(
+    self: &mut Recording,
+    cap: &RecordingAdminCap,
 ) {
     let recording_id = object::id(self);
     let uid = self.uid_mut(cap);
     if (df::exists(uid, ExtensionKey())) {
         let _: Advisory = df::remove(uid, ExtensionKey());
-        emit(RecordingAdvisoryClearedEvent<RecordingShare> { recording_id });
+        emit(RecordingAdvisoryClearedEvent { recording_id });
     }
 }
 
 // === View Functions ===
 
 /// Whether an advisory is attached to this recording.
-public fun has_advisory<RecordingShare>(self: &Recording<RecordingShare>): bool {
+public fun has_advisory(self: &Recording): bool {
     df::exists(self.uid(), ExtensionKey())
 }
 
 /// The recording's advisory. Aborts `ENoAdvisory` when none is attached;
 /// absence must not be read as `NotExplicit`.
-public fun advisory<RecordingShare>(self: &Recording<RecordingShare>): Advisory {
+public fun advisory(self: &Recording): Advisory {
     assert!(has_advisory(self), ENoAdvisory);
     *df::borrow(self.uid(), ExtensionKey())
 }
@@ -134,15 +134,15 @@ public fun is_cleaned(self: &Advisory): bool {
 // === Test Functions ===
 
 #[test_only]
-public fun set_event_fields<RecordingShare>(
-    e: &RecordingAdvisorySetEvent<RecordingShare>,
+public fun set_event_fields(
+    e: &RecordingAdvisorySetEvent,
 ): (ID, Advisory) {
     (e.recording_id, e.advisory)
 }
 
 #[test_only]
-public fun cleared_event_fields<RecordingShare>(
-    e: &RecordingAdvisoryClearedEvent<RecordingShare>,
+public fun cleared_event_fields(
+    e: &RecordingAdvisoryClearedEvent,
 ): ID {
     e.recording_id
 }

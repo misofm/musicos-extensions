@@ -10,18 +10,14 @@
 /// stranger holding no capability at all can still read the resulting state
 /// back in a transaction of their own.
 ///
-/// `RecordingAdminCap<RecordingShare>` is a type-level capability parameter;
-/// the pinned `recording::uid_mut` ignores cap ID, sender, and recording
-/// lifecycle. This package therefore makes no per-recording cap-identity
-/// claim. Its storage isolation guarantee is that credits live on the
-/// recording's own UID rather than in any global table keyed by party ID — see
-/// `credits_tests::credits_are_scoped_to_their_own_recording`.
+/// `RecordingAdminCap` is bound to one recording object. The core checks
+/// this identity on each admin write; the credits live on that recording's UID.
 #[test_only]
 module recording_credits::recording_credits_e2e_tests;
 
 use credit::credit;
+use musicos::composition;
 use musicos::recording::{Self, Recording, RecordingAdminCap};
-use musicos::test_helpers::{Self, RecordingShare};
 use partyos::party;
 use recording_credits::recording_credits as credits;
 use recording_credits::recording_party_role as rpr;
@@ -39,9 +35,11 @@ const STRANGER: address = @0x51;
 /// across `next_tx` calls, following the `recording_advisory` precedent; only
 /// the `Recording` itself is genuinely shared and re-accessed via
 /// `take_shared`.
-fun publish_shared_recording(ts: &mut Scenario): RecordingAdminCap<RecordingShare> {
-    let comp_id = test_helpers::fake_id(ts.ctx());
-    let (rec, cap) = recording::new_for_testing<RecordingShare>(comp_id, ts.ctx());
+fun publish_shared_recording(ts: &mut Scenario): RecordingAdminCap {
+    let (comp, comp_cap) = composition::new(ts.ctx());
+    let (rec, cap) = recording::new(&comp, ts.ctx());
+    comp.publish(&comp_cap);
+    destroy(comp_cap);
     rec.publish(&cap);
     cap
 }
@@ -59,7 +57,7 @@ fun full_credit_lifecycle_on_published_shared_recording() {
     // --- Tx 2 (ADMIN): the recording is now a shared object; take it and
     // run the full write lifecycle against it ---
     ts.next_tx(ADMIN);
-    let mut rec = ts.take_shared<Recording<RecordingShare>>();
+    let mut rec = ts.take_shared<Recording>();
     let (lead, lead_cap) = party::new(party::new_individual_kind(), b"Lead Party".to_string(), ts.ctx());
     let (guest, guest_cap) = party::new(party::new_individual_kind(), b"Guest Party".to_string(), ts.ctx());
     let lead_id = object::id(&lead);
@@ -82,7 +80,7 @@ fun full_credit_lifecycle_on_published_shared_recording() {
     assert!(!credits::is_primary_artist(&rec, guest_id));
 
     // Full RecordingCreditAddedEvent payloads, not just presence.
-    let added = events_by_type<credits::RecordingCreditAddedEvent<RecordingShare>>();
+    let added = events_by_type<credits::RecordingCreditAddedEvent>();
     assert_eq!(added.length(), 2);
     let (event_object, event_party, event_roles) = credits::credit_added_event_fields(&added[0]);
     assert_eq!(event_object, recording_id);
@@ -99,28 +97,24 @@ fun full_credit_lifecycle_on_published_shared_recording() {
     // they were emitted in — `test_scenario::next_tx` finalizes the
     // transaction's effects, so `events_by_type` no longer sees them once
     // the scenario moves on.
-    let primary_added = events_by_type<credits::RecordingPrimaryArtistAddedEvent<RecordingShare>>();
+    let primary_added = events_by_type<credits::RecordingPrimaryArtistAddedEvent>();
     assert_eq!(primary_added.length(), 1);
     let (event_object, event_party) = credits::primary_artist_added_event_fields(&primary_added[0]);
     assert_eq!(event_object, recording_id);
     assert_eq!(event_party, lead_id);
-    let featured_added = events_by_type<credits::RecordingFeaturedArtistAddedEvent<RecordingShare>>();
+    let featured_added = events_by_type<credits::RecordingFeaturedArtistAddedEvent>();
     assert_eq!(featured_added.length(), 1);
     let (event_object, event_party) = credits::featured_artist_added_event_fields(&featured_added[0]);
     assert_eq!(event_object, recording_id);
     assert_eq!(event_party, guest_id);
 
-    // The phantom share type is part of the event type filter.
-    assert_eq!(events_by_type<credits::RecordingCreditAddedEvent<bool>>().length(), 0);
-    assert_eq!(events_by_type<credits::RecordingPrimaryArtistAddedEvent<bool>>().length(), 0);
-    assert_eq!(events_by_type<credits::RecordingFeaturedArtistAddedEvent<bool>>().length(), 0);
 
     test_scenario::return_shared(rec);
 
     // --- Tx 3 (STRANGER, holds no capability whatsoever): reads the shared
     // recording back — proving reads are permissionless ---
     ts.next_tx(STRANGER);
-    let rec = ts.take_shared<Recording<RecordingShare>>();
+    let rec = ts.take_shared<Recording>();
     assert_eq!(credits::credits(&rec).length(), 2);
     assert!(credits::is_primary_artist(&rec, lead_id));
     assert!(credits::is_featured_artist(&rec, guest_id));
@@ -129,12 +123,12 @@ fun full_credit_lifecycle_on_published_shared_recording() {
 
     // Read-only views are silent; the new transaction contains no mutation
     // events despite reading every exposed projection.
-    assert_eq!(events_by_type<credits::RecordingCreditAddedEvent<RecordingShare>>().length(), 0);
-    assert_eq!(events_by_type<credits::RecordingCreditRemovedEvent<RecordingShare>>().length(), 0);
-    assert_eq!(events_by_type<credits::RecordingPrimaryArtistAddedEvent<RecordingShare>>().length(), 0);
-    assert_eq!(events_by_type<credits::RecordingPrimaryArtistRemovedEvent<RecordingShare>>().length(), 0);
-    assert_eq!(events_by_type<credits::RecordingFeaturedArtistAddedEvent<RecordingShare>>().length(), 0);
-    assert_eq!(events_by_type<credits::RecordingFeaturedArtistRemovedEvent<RecordingShare>>().length(), 0);
+    assert_eq!(events_by_type<credits::RecordingCreditAddedEvent>().length(), 0);
+    assert_eq!(events_by_type<credits::RecordingCreditRemovedEvent>().length(), 0);
+    assert_eq!(events_by_type<credits::RecordingPrimaryArtistAddedEvent>().length(), 0);
+    assert_eq!(events_by_type<credits::RecordingPrimaryArtistRemovedEvent>().length(), 0);
+    assert_eq!(events_by_type<credits::RecordingFeaturedArtistAddedEvent>().length(), 0);
+    assert_eq!(events_by_type<credits::RecordingFeaturedArtistRemovedEvent>().length(), 0);
 
     test_scenario::return_shared(rec);
 
@@ -157,7 +151,7 @@ fun remove_credit_then_add_primary_fails_on_published_recording() {
 
     // --- Tx 2 (ADMIN): credits, designations, then removals ---
     ts.next_tx(ADMIN);
-    let mut rec = ts.take_shared<Recording<RecordingShare>>();
+    let mut rec = ts.take_shared<Recording>();
     let (p, _pc) = party::new(party::new_individual_kind(), b"Alice Party".to_string(), ts.ctx());
     let (featured, _featured_pc) = party::new(party::new_individual_kind(), b"Featured Party".to_string(), ts.ctx());
     let pid = object::id(&p);
@@ -172,7 +166,7 @@ fun remove_credit_then_add_primary_fails_on_published_recording() {
     credits::remove_credit(&mut rec, &cap, pid);
     credits::remove_credit(&mut rec, &cap, featured_id);
 
-    let removed = events_by_type<credits::RecordingCreditRemovedEvent<RecordingShare>>();
+    let removed = events_by_type<credits::RecordingCreditRemovedEvent>();
     assert_eq!(removed.length(), 2);
     let (event_object, event_party) = credits::credit_removed_event_fields(&removed[0]);
     assert_eq!(event_object, recording_id);
@@ -180,15 +174,14 @@ fun remove_credit_then_add_primary_fails_on_published_recording() {
     let (event_object, event_party) = credits::credit_removed_event_fields(&removed[1]);
     assert_eq!(event_object, recording_id);
     assert_eq!(event_party, featured_id);
-    assert_eq!(events_by_type<credits::RecordingCreditRemovedEvent<bool>>().length(), 0);
 
     // The cascade ends both designations, each with its own event.
-    let primary_removed = events_by_type<credits::RecordingPrimaryArtistRemovedEvent<RecordingShare>>();
+    let primary_removed = events_by_type<credits::RecordingPrimaryArtistRemovedEvent>();
     assert_eq!(primary_removed.length(), 1);
     let (event_object, event_party) = credits::primary_artist_removed_event_fields(&primary_removed[0]);
     assert_eq!(event_object, recording_id);
     assert_eq!(event_party, pid);
-    let featured_removed = events_by_type<credits::RecordingFeaturedArtistRemovedEvent<RecordingShare>>();
+    let featured_removed = events_by_type<credits::RecordingFeaturedArtistRemovedEvent>();
     assert_eq!(featured_removed.length(), 1);
     let (event_object, event_party) = credits::featured_artist_removed_event_fields(&featured_removed[0]);
     assert_eq!(event_object, recording_id);
@@ -201,13 +194,13 @@ fun remove_credit_then_add_primary_fails_on_published_recording() {
     // --- Tx 3 (STRANGER): confirms the removal is visible before the
     // adversarial re-operate attempt below ---
     ts.next_tx(STRANGER);
-    let rec = ts.take_shared<Recording<RecordingShare>>();
+    let rec = ts.take_shared<Recording>();
     assert_eq!(credits::credits(&rec).length(), 0);
     test_scenario::return_shared(rec);
 
     // --- Tx 4 (ADMIN): re-operating on the removed party must abort ---
     ts.next_tx(ADMIN);
-    let mut rec = ts.take_shared<Recording<RecordingShare>>();
+    let mut rec = ts.take_shared<Recording>();
     credits::add_primary_artist(&mut rec, &cap, &p);
     abort
 }

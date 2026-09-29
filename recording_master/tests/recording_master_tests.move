@@ -5,9 +5,8 @@
 /// crosses a transaction boundary, so `tx_context::dummy()` suffices; the
 /// published, shared shape is covered in `recording_master_e2e_tests`.
 ///
-/// `RecordingAdminCap<RecordingShare>` is bound to its recording by type —
-/// one share type backs exactly one recording — so a wrong-cap call is a
-/// compile error, not a runtime abort, and there is no such test here.
+/// `RecordingAdminCap` is bound to a recording object. A foreign cap aborts
+/// at runtime, including when the extension write would be a no-op.
 #[test_only]
 module recording_master::recording_master_tests;
 
@@ -22,20 +21,18 @@ use std::unit_test::{assert_eq, destroy};
 use sui::bcs::to_bytes;
 use sui::event::{events_by_type, num_events};
 
-public struct REC {}
-public struct OTHER_REC {}
 
 /// Only a `Recording` is needed, so a bare id stands in for its composition.
-fun new_rec<RecordingShare>(
+fun new_rec(
     ctx: &mut TxContext,
-): (Recording<RecordingShare>, RecordingAdminCap<RecordingShare>) {
-    recording::new_for_testing<RecordingShare>(object::id_from_address(@0xC0FFEE), ctx)
+): (Recording, RecordingAdminCap) {
+    recording::new_for_testing(object::id_from_address(@0xC0FFEE), ctx)
 }
 
 #[test]
 fun set_read_replace_clear_lifecycle() {
     let ctx = &mut tx_context::dummy();
-    let (mut rec, cap) = new_rec<REC>(ctx);
+    let (mut rec, cap) = new_rec(ctx);
 
     assert!(!master_ext::has_master(&rec));
 
@@ -63,8 +60,8 @@ fun set_read_replace_clear_lifecycle() {
 #[test]
 fun masters_are_per_recording() {
     let ctx = &mut tx_context::dummy();
-    let (mut a, a_cap) = new_rec<REC>(ctx);
-    let (b, b_cap) = new_rec<OTHER_REC>(ctx);
+    let (mut a, a_cap) = new_rec(ctx);
+    let (b, b_cap) = new_rec(ctx);
 
     master_ext::set_master(&mut a, &a_cap, new_audio(9));
 
@@ -78,26 +75,23 @@ fun masters_are_per_recording() {
 }
 
 #[test]
-fun master_events_are_partitioned_by_recording_share_type() {
+fun master_events_identify_each_recording() {
     let ctx = &mut tx_context::dummy();
-    let (mut a, a_cap) = new_rec<REC>(ctx);
-    let (mut b, b_cap) = new_rec<OTHER_REC>(ctx);
+    let (mut a, a_cap) = new_rec(ctx);
+    let (mut b, b_cap) = new_rec(ctx);
 
     master_ext::set_master(&mut a, &a_cap, new_audio(9));
     master_ext::set_master(&mut b, &b_cap, new_audio(10));
 
-    let a_events = events_by_type<RecordingMasterSetEvent<REC>>();
-    let b_events = events_by_type<RecordingMasterSetEvent<OTHER_REC>>();
-    assert_eq!(a_events.length(), 1);
-    assert_eq!(b_events.length(), 1);
-    let (a_id, _) = master_ext::set_event_fields(&a_events[0]);
-    let (b_id, _) = master_ext::set_event_fields(&b_events[0]);
+    let events = events_by_type<RecordingMasterSetEvent>();
+    assert_eq!(events.length(), 2);
+    let (a_id, _) = master_ext::set_event_fields(&events[0]);
+    let (b_id, _) = master_ext::set_event_fields(&events[1]);
     assert_eq!(a_id, object::id(&a));
     assert_eq!(b_id, object::id(&b));
 
     master_ext::clear_master(&mut a, &a_cap);
-    assert_eq!(events_by_type<RecordingMasterClearedEvent<REC>>().length(), 1);
-    assert_eq!(events_by_type<RecordingMasterClearedEvent<OTHER_REC>>().length(), 0);
+    assert_eq!(events_by_type<RecordingMasterClearedEvent>().length(), 1);
 
     destroy(a);
     destroy(a_cap);
@@ -110,7 +104,7 @@ fun master_events_are_partitioned_by_recording_share_type() {
 #[test]
 fun set_emits_the_audio_and_recording() {
     let ctx = &mut tx_context::dummy();
-    let (mut rec, cap) = new_rec<REC>(ctx);
+    let (mut rec, cap) = new_rec(ctx);
     let rec_id = object::id(&rec);
     let audio = new_audio(7);
 
@@ -121,7 +115,7 @@ fun set_emits_the_audio_and_recording() {
     master_ext::set_master(&mut rec, &cap, audio);
     assert_eq!(num_events(), 1);
 
-    let events = events_by_type<RecordingMasterSetEvent<REC>>();
+    let events = events_by_type<RecordingMasterSetEvent>();
     assert_eq!(events.length(), 1);
     let (id, master) = master_ext::set_event_fields(&events[0]);
     assert_eq!(id, rec_id);
@@ -139,7 +133,7 @@ fun set_emits_the_audio_and_recording() {
 #[test]
 fun set_event_is_at_most_128_bytes() {
     let ctx = &mut tx_context::dummy();
-    let (mut rec, cap) = new_rec<REC>(ctx);
+    let (mut rec, cap) = new_rec(ctx);
     let widest = audio::new(
         b"abcdefghijklmnop".to_string(),
         2,
@@ -152,7 +146,7 @@ fun set_event_is_at_most_128_bytes() {
 
     master_ext::set_master(&mut rec, &cap, widest);
 
-    let events = events_by_type<RecordingMasterSetEvent<REC>>();
+    let events = events_by_type<RecordingMasterSetEvent>();
     assert_eq!(to_bytes(&events[0]).length(), 128);
 
     destroy(rec);
@@ -162,13 +156,13 @@ fun set_event_is_at_most_128_bytes() {
 #[test]
 fun equal_set_neither_writes_nor_emits() {
     let ctx = &mut tx_context::dummy();
-    let (mut rec, cap) = new_rec<REC>(ctx);
+    let (mut rec, cap) = new_rec(ctx);
     let audio = new_audio(17);
 
     master_ext::set_master(&mut rec, &cap, audio);
-    assert_eq!(events_by_type<RecordingMasterSetEvent<REC>>().length(), 1);
+    assert_eq!(events_by_type<RecordingMasterSetEvent>().length(), 1);
     master_ext::set_master(&mut rec, &cap, audio);
-    assert_eq!(events_by_type<RecordingMasterSetEvent<REC>>().length(), 1);
+    assert_eq!(events_by_type<RecordingMasterSetEvent>().length(), 1);
     assert_eq!(master_ext::master(&rec).blob_id(), 17);
 
     destroy(rec);
@@ -179,7 +173,7 @@ fun equal_set_neither_writes_nor_emits() {
 #[test]
 fun same_blob_with_changed_audio_metadata_emits() {
     let ctx = &mut tx_context::dummy();
-    let (mut rec, cap) = new_rec<REC>(ctx);
+    let (mut rec, cap) = new_rec(ctx);
     let first = audio::new(
         b"flac".to_string(),
         2,
@@ -200,9 +194,9 @@ fun same_blob_with_changed_audio_metadata_emits() {
     );
 
     master_ext::set_master(&mut rec, &cap, first);
-    assert_eq!(events_by_type<RecordingMasterSetEvent<REC>>().length(), 1);
+    assert_eq!(events_by_type<RecordingMasterSetEvent>().length(), 1);
     master_ext::set_master(&mut rec, &cap, changed);
-    let events = events_by_type<RecordingMasterSetEvent<REC>>();
+    let events = events_by_type<RecordingMasterSetEvent>();
     assert_eq!(events.length(), 2);
     let (_, master) = master_ext::set_event_fields(&events[1]);
     assert_eq!(master, changed);
@@ -215,24 +209,24 @@ fun same_blob_with_changed_audio_metadata_emits() {
 #[test]
 fun clear_emits_only_when_something_was_removed() {
     let ctx = &mut tx_context::dummy();
-    let (mut rec, cap) = new_rec<REC>(ctx);
+    let (mut rec, cap) = new_rec(ctx);
     let rec_id = object::id(&rec);
 
     // Nothing attached — a no-op must stay silent.
     master_ext::clear_master(&mut rec, &cap);
-    assert_eq!(events_by_type<RecordingMasterClearedEvent<REC>>().length(), 0);
+    assert_eq!(events_by_type<RecordingMasterClearedEvent>().length(), 0);
 
     master_ext::set_master(&mut rec, &cap, new_audio(5));
     master_ext::clear_master(&mut rec, &cap);
 
-    let events = events_by_type<RecordingMasterClearedEvent<REC>>();
+    let events = events_by_type<RecordingMasterClearedEvent>();
     assert_eq!(events.length(), 1);
     assert_eq!(master_ext::cleared_event_fields(&events[0]), rec_id);
     assert_eq!(to_bytes(&events[0]).length(), 32);
 
     // A second clear has nothing to remove.
     master_ext::clear_master(&mut rec, &cap);
-    assert_eq!(events_by_type<RecordingMasterClearedEvent<REC>>().length(), 1);
+    assert_eq!(events_by_type<RecordingMasterClearedEvent>().length(), 1);
 
     destroy(rec);
     destroy(cap);
@@ -242,7 +236,7 @@ fun clear_emits_only_when_something_was_removed() {
 #[test]
 fun clear_allows_reattaching_master() {
     let ctx = &mut tx_context::dummy();
-    let (mut rec, cap) = new_rec<REC>(ctx);
+    let (mut rec, cap) = new_rec(ctx);
 
     master_ext::set_master(&mut rec, &cap, new_audio(42));
     master_ext::clear_master(&mut rec, &cap);
@@ -251,7 +245,7 @@ fun clear_allows_reattaching_master() {
     master_ext::set_master(&mut rec, &cap, new_audio(43));
     assert_eq!(master_ext::master(&rec).blob_id(), 43);
     assert_audio_metadata(master_ext::master(&rec));
-    assert_eq!(events_by_type<RecordingMasterSetEvent<REC>>().length(), 2);
+    assert_eq!(events_by_type<RecordingMasterSetEvent>().length(), 2);
 
     destroy(rec);
     destroy(cap);
@@ -260,7 +254,7 @@ fun clear_allows_reattaching_master() {
 #[test, expected_failure(abort_code = master_ext::ENoMaster)]
 fun master_aborts_when_absent() {
     let ctx = &mut tx_context::dummy();
-    let (rec, cap) = new_rec<REC>(ctx);
+    let (rec, cap) = new_rec(ctx);
     let _ = master_ext::master(&rec);
     destroy(rec);
     destroy(cap);
@@ -292,4 +286,17 @@ fun assert_audio_metadata(master: &Audio) {
         *master.pcm_digest(),
         if (alternate) vector::tabulate!(32, |_| 0x22u8) else vector::tabulate!(32, |_| 0x11u8),
     );
+}
+
+/// Even an absent clear must verify that the cap belongs to this recording.
+#[test, expected_failure(abort_code = recording::EUnauthorized)]
+fun foreign_cap_cannot_clear_absent_value() {
+    let ctx = &mut tx_context::dummy();
+    let (mut rec, own_cap) = new_rec(ctx);
+    let (other, foreign_cap) = new_rec(ctx);
+    master_ext::clear_master(&mut rec, &foreign_cap);
+    destroy(rec);
+    destroy(own_cap);
+    destroy(other);
+    destroy(foreign_cap);
 }

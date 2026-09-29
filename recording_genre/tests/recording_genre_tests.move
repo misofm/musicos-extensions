@@ -7,9 +7,8 @@
 /// changes hands between senders. The published, shared shape is covered in
 /// `recording_genre_e2e_tests`.
 ///
-/// `RecordingAdminCap<RecordingShare>` is bound to its recording by type —
-/// one share type backs exactly one recording — so a wrong-cap call is a
-/// compile error, not a runtime abort, and there is no such test here.
+/// `RecordingAdminCap` is bound to a recording object. A foreign cap aborts
+/// at runtime, including when the extension write would be a no-op.
 #[test_only]
 module recording_genre::recording_genre_tests;
 
@@ -29,15 +28,13 @@ use sui::test_scenario::{Self as ts, Scenario};
 
 const CREATOR: address = @0xC0;
 
-public struct REC {}
-public struct OTHER_REC {}
 public struct UnrelatedKey() has copy, drop, store;
 
 /// Only a `Recording` is needed, so a bare id stands in for its composition.
-fun new_rec<RecordingShare>(
+fun new_rec(
     ctx: &mut TxContext,
-): (Recording<RecordingShare>, RecordingAdminCap<RecordingShare>) {
-    recording::new_for_testing<RecordingShare>(object::id_from_address(@0xC0FFEE), ctx)
+): (Recording, RecordingAdminCap) {
+    recording::new_for_testing(object::id_from_address(@0xC0FFEE), ctx)
 }
 
 /// Stands up the vocabulary and creates one frozen genre per name, each in
@@ -62,14 +59,14 @@ fun return_genres(genres: vector<Genre>) {
     genres.destroy!(|genre| ts::return_immutable(genre));
 }
 
-fun assert_added(event: &RecordingGenreAddedEvent<REC>, rec: ID, genre: ID) {
+fun assert_added(event: &RecordingGenreAddedEvent, rec: ID, genre: ID) {
     let (event_rec, event_genre) = rg::added_event_fields(event);
     assert_eq!(event_rec, rec);
     assert_eq!(event_genre, genre);
     assert_eq!(to_bytes(event).length(), 64);
 }
 
-fun assert_removed(event: &RecordingGenreRemovedEvent<REC>, rec: ID, genre: ID) {
+fun assert_removed(event: &RecordingGenreRemovedEvent, rec: ID, genre: ID) {
     let (event_rec, event_genre) = rg::removed_event_fields(event);
     assert_eq!(event_rec, rec);
     assert_eq!(event_genre, genre);
@@ -79,7 +76,7 @@ fun assert_removed(event: &RecordingGenreRemovedEvent<REC>, rec: ID, genre: ID) 
 #[test]
 fun views_before_assignment_are_empty() {
     let ctx = &mut tx_context::dummy();
-    let (rec, cap) = new_rec<REC>(ctx);
+    let (rec, cap) = new_rec(ctx);
     assert!(rg::genres(&rec).is_empty());
     destroy(rec);
     destroy(cap);
@@ -93,13 +90,13 @@ fun add_remove_clear_lifecycle_with_events() {
 
     scenario.next_tx(CREATOR);
     let genres = take_genres(&scenario, &ids);
-    let (mut rec, cap) = new_rec<REC>(scenario.ctx());
+    let (mut rec, cap) = new_rec(scenario.ctx());
     let rec_id = object::id(&rec);
 
     // First add creates the field and establishes the primary.
     rg::add_genre(&mut rec, &cap, &genres[0]);
     assert_eq!(rg::genres(&rec), vector[a]);
-    let added = events_by_type<RecordingGenreAddedEvent<REC>>();
+    let added = events_by_type<RecordingGenreAddedEvent>();
     assert_eq!(added.length(), 1);
     assert_added(&added[0], rec_id, a);
 
@@ -107,7 +104,7 @@ fun add_remove_clear_lifecycle_with_events() {
     rg::add_genre(&mut rec, &cap, &genres[1]);
     rg::add_genre(&mut rec, &cap, &genres[2]);
     assert_eq!(rg::genres(&rec), vector[a, b, c]);
-    let added = events_by_type<RecordingGenreAddedEvent<REC>>();
+    let added = events_by_type<RecordingGenreAddedEvent>();
     assert_eq!(added.length(), 3);
     assert_added(&added[1], rec_id, b);
     assert_added(&added[2], rec_id, c);
@@ -115,24 +112,24 @@ fun add_remove_clear_lifecycle_with_events() {
     // Secondary removal keeps the primary and survivor order.
     rg::remove_genre(&mut rec, &cap, b);
     assert_eq!(rg::genres(&rec), vector[a, c]);
-    let removed = events_by_type<RecordingGenreRemovedEvent<REC>>();
+    let removed = events_by_type<RecordingGenreRemovedEvent>();
     assert_eq!(removed.length(), 1);
     assert_removed(&removed[0], rec_id, b);
 
     // Primary removal promotes the next entry.
     rg::remove_genre(&mut rec, &cap, a);
     assert_eq!(rg::genres(&rec), vector[c]);
-    let removed = events_by_type<RecordingGenreRemovedEvent<REC>>();
+    let removed = events_by_type<RecordingGenreRemovedEvent>();
     assert_eq!(removed.length(), 2);
     assert_removed(&removed[1], rec_id, a);
 
     // Last removal drops the field and emits only the Removed event.
     rg::remove_genre(&mut rec, &cap, c);
     assert!(rg::genres(&rec).is_empty());
-    let removed = events_by_type<RecordingGenreRemovedEvent<REC>>();
+    let removed = events_by_type<RecordingGenreRemovedEvent>();
     assert_eq!(removed.length(), 3);
     assert_removed(&removed[2], rec_id, c);
-    assert_eq!(events_by_type<RecordingGenresClearedEvent<REC>>().length(), 0);
+    assert_eq!(events_by_type<RecordingGenresClearedEvent>().length(), 0);
 
     // Re-attachment starts a fresh ordered list; an explicit clear drops it.
     rg::add_genre(&mut rec, &cap, &genres[2]);
@@ -140,12 +137,12 @@ fun add_remove_clear_lifecycle_with_events() {
     assert_eq!(rg::genres(&rec), vector[c, a]);
     rg::clear_genres(&mut rec, &cap);
     assert!(rg::genres(&rec).is_empty());
-    let cleared = events_by_type<RecordingGenresClearedEvent<REC>>();
+    let cleared = events_by_type<RecordingGenresClearedEvent>();
     assert_eq!(cleared.length(), 1);
     assert_eq!(rg::cleared_event_fields(&cleared[0]), rec_id);
     assert_eq!(to_bytes(&cleared[0]).length(), 32);
-    assert_eq!(events_by_type<RecordingGenreAddedEvent<REC>>().length(), 5);
-    assert_eq!(events_by_type<RecordingGenreRemovedEvent<REC>>().length(), 3);
+    assert_eq!(events_by_type<RecordingGenreAddedEvent>().length(), 5);
+    assert_eq!(events_by_type<RecordingGenreRemovedEvent>().length(), 3);
 
     return_genres(genres);
     destroy(rec);
@@ -162,11 +159,11 @@ fun exactly_max_genres_is_accepted() {
 
     scenario.next_tx(CREATOR);
     let genres = take_genres(&scenario, &ids);
-    let (mut rec, cap) = new_rec<REC>(scenario.ctx());
+    let (mut rec, cap) = new_rec(scenario.ctx());
 
     genres.do_ref!(|genre| rg::add_genre(&mut rec, &cap, genre));
     assert_eq!(rg::genres(&rec), ids);
-    assert_eq!(events_by_type<RecordingGenreAddedEvent<REC>>().length(), 6);
+    assert_eq!(events_by_type<RecordingGenreAddedEvent>().length(), 6);
 
     rg::remove_genre(&mut rec, &cap, ids[4]);
     assert_eq!(rg::genres(&rec), vector[ids[0], ids[1], ids[2], ids[3], ids[5]]);
@@ -188,22 +185,22 @@ fun clear_when_absent_is_silent() {
 
     scenario.next_tx(CREATOR);
     let genres = take_genres(&scenario, &ids);
-    let (mut rec, cap) = new_rec<REC>(scenario.ctx());
+    let (mut rec, cap) = new_rec(scenario.ctx());
 
     rg::clear_genres(&mut rec, &cap);
     assert!(rg::genres(&rec).is_empty());
-    assert_eq!(events_by_type<RecordingGenresClearedEvent<REC>>().length(), 0);
+    assert_eq!(events_by_type<RecordingGenresClearedEvent>().length(), 0);
 
     // Silent after the field was dropped by removal, and after a real clear.
     rg::add_genre(&mut rec, &cap, &genres[0]);
     rg::remove_genre(&mut rec, &cap, ids[0]);
     rg::clear_genres(&mut rec, &cap);
-    assert_eq!(events_by_type<RecordingGenresClearedEvent<REC>>().length(), 0);
+    assert_eq!(events_by_type<RecordingGenresClearedEvent>().length(), 0);
 
     rg::add_genre(&mut rec, &cap, &genres[0]);
     rg::clear_genres(&mut rec, &cap);
     rg::clear_genres(&mut rec, &cap);
-    assert_eq!(events_by_type<RecordingGenresClearedEvent<REC>>().length(), 1);
+    assert_eq!(events_by_type<RecordingGenresClearedEvent>().length(), 1);
 
     return_genres(genres);
     destroy(rec);
@@ -219,7 +216,7 @@ fun reorder_via_clear_and_re_add() {
 
     scenario.next_tx(CREATOR);
     let genres = take_genres(&scenario, &ids);
-    let (mut rec, cap) = new_rec<REC>(scenario.ctx());
+    let (mut rec, cap) = new_rec(scenario.ctx());
 
     genres.do_ref!(|genre| rg::add_genre(&mut rec, &cap, genre));
     assert_eq!(rg::genres(&rec), vector[a, b, c]);
@@ -243,14 +240,14 @@ fun views_are_silent() {
 
     scenario.next_tx(CREATOR);
     let genres = take_genres(&scenario, &ids);
-    let (mut rec, cap) = new_rec<REC>(scenario.ctx());
+    let (mut rec, cap) = new_rec(scenario.ctx());
 
     rg::add_genre(&mut rec, &cap, &genres[0]);
     let _ = rg::genres(&rec);
     let _ = rg::genres(&rec);
-    assert_eq!(events_by_type<RecordingGenreAddedEvent<REC>>().length(), 1);
-    assert_eq!(events_by_type<RecordingGenreRemovedEvent<REC>>().length(), 0);
-    assert_eq!(events_by_type<RecordingGenresClearedEvent<REC>>().length(), 0);
+    assert_eq!(events_by_type<RecordingGenreAddedEvent>().length(), 1);
+    assert_eq!(events_by_type<RecordingGenreRemovedEvent>().length(), 0);
+    assert_eq!(events_by_type<RecordingGenresClearedEvent>().length(), 0);
 
     return_genres(genres);
     destroy(rec);
@@ -259,7 +256,7 @@ fun views_are_silent() {
 }
 
 /// Genre lists live on their own recording's UID and in their own
-/// share-typed event stream.
+/// shared event stream, identified by recording ID.
 #[test]
 fun genres_are_per_recording() {
     let mut scenario = ts::begin(CREATOR);
@@ -268,27 +265,23 @@ fun genres_are_per_recording() {
 
     scenario.next_tx(CREATOR);
     let genres = take_genres(&scenario, &ids);
-    let (mut rec_a, cap_a) = new_rec<REC>(scenario.ctx());
-    let (mut rec_b, cap_b) = new_rec<OTHER_REC>(scenario.ctx());
+    let (mut rec_a, cap_a) = new_rec(scenario.ctx());
+    let (mut rec_b, cap_b) = new_rec(scenario.ctx());
 
     rg::add_genre(&mut rec_a, &cap_a, &genres[0]);
     assert!(rg::genres(&rec_b).is_empty());
-    assert_eq!(events_by_type<RecordingGenreAddedEvent<REC>>().length(), 1);
-    assert_eq!(events_by_type<RecordingGenreAddedEvent<OTHER_REC>>().length(), 0);
+    assert_eq!(events_by_type<RecordingGenreAddedEvent>().length(), 1);
 
     rg::add_genre(&mut rec_b, &cap_b, &genres[1]);
     rg::add_genre(&mut rec_b, &cap_b, &genres[0]);
     assert_eq!(rg::genres(&rec_a), vector[a]);
     assert_eq!(rg::genres(&rec_b), vector[b, a]);
-    assert_eq!(events_by_type<RecordingGenreAddedEvent<REC>>().length(), 1);
-    assert_eq!(events_by_type<RecordingGenreAddedEvent<OTHER_REC>>().length(), 2);
+    assert_eq!(events_by_type<RecordingGenreAddedEvent>().length(), 3);
 
     rg::remove_genre(&mut rec_a, &cap_a, a);
     rg::clear_genres(&mut rec_b, &cap_b);
-    assert_eq!(events_by_type<RecordingGenreRemovedEvent<REC>>().length(), 1);
-    assert_eq!(events_by_type<RecordingGenreRemovedEvent<OTHER_REC>>().length(), 0);
-    assert_eq!(events_by_type<RecordingGenresClearedEvent<REC>>().length(), 0);
-    assert_eq!(events_by_type<RecordingGenresClearedEvent<OTHER_REC>>().length(), 1);
+    assert_eq!(events_by_type<RecordingGenreRemovedEvent>().length(), 1);
+    assert_eq!(events_by_type<RecordingGenresClearedEvent>().length(), 1);
 
     return_genres(genres);
     destroy(rec_a);
@@ -305,7 +298,7 @@ fun unrelated_dynamic_field_survives_genre_mutations() {
 
     scenario.next_tx(CREATOR);
     let genres = take_genres(&scenario, &ids);
-    let (mut rec, cap) = new_rec<REC>(scenario.ctx());
+    let (mut rec, cap) = new_rec(scenario.ctx());
 
     df::add(rec.uid_mut(&cap), UnrelatedKey(), 77u64);
     rg::add_genre(&mut rec, &cap, &genres[0]);
@@ -330,7 +323,7 @@ fun add_genre_duplicate_aborts() {
 
     scenario.next_tx(CREATOR);
     let genres = take_genres(&scenario, &ids);
-    let (mut rec, cap) = new_rec<REC>(scenario.ctx());
+    let (mut rec, cap) = new_rec(scenario.ctx());
 
     rg::add_genre(&mut rec, &cap, &genres[0]);
     rg::add_genre(&mut rec, &cap, &genres[0]);
@@ -348,7 +341,7 @@ fun add_genre_at_capacity_aborts() {
 
     scenario.next_tx(CREATOR);
     let genres = take_genres(&scenario, &ids);
-    let (mut rec, cap) = new_rec<REC>(scenario.ctx());
+    let (mut rec, cap) = new_rec(scenario.ctx());
 
     6u64.do!(|i| rg::add_genre(&mut rec, &cap, &genres[i]));
     assert_eq!(rg::genres(&rec).length(), 6);
@@ -369,7 +362,7 @@ fun duplicate_at_capacity_keeps_duplicate_guard_first() {
 
     scenario.next_tx(CREATOR);
     let genres = take_genres(&scenario, &ids);
-    let (mut rec, cap) = new_rec<REC>(scenario.ctx());
+    let (mut rec, cap) = new_rec(scenario.ctx());
 
     genres.do_ref!(|genre| rg::add_genre(&mut rec, &cap, genre));
     assert_eq!(rg::genres(&rec).length(), 6);
@@ -388,7 +381,7 @@ fun remove_genre_not_present_aborts_when_field_exists() {
 
     scenario.next_tx(CREATOR);
     let genres = take_genres(&scenario, &ids);
-    let (mut rec, cap) = new_rec<REC>(scenario.ctx());
+    let (mut rec, cap) = new_rec(scenario.ctx());
 
     rg::add_genre(&mut rec, &cap, &genres[0]);
     rg::remove_genre(&mut rec, &cap, ids[1]); // never added
@@ -402,7 +395,7 @@ fun remove_genre_not_present_aborts_when_field_exists() {
 #[test, expected_failure(abort_code = rg::EGenreNotPresent)]
 fun remove_genre_not_present_aborts_when_nothing_attached() {
     let ctx = &mut tx_context::dummy();
-    let (mut rec, cap) = new_rec<REC>(ctx);
+    let (mut rec, cap) = new_rec(ctx);
     rg::remove_genre(&mut rec, &cap, object::id_from_address(@0xBEEF));
     destroy(rec);
     destroy(cap);
@@ -417,7 +410,7 @@ fun remove_genre_twice_aborts() {
 
     scenario.next_tx(CREATOR);
     let genres = take_genres(&scenario, &ids);
-    let (mut rec, cap) = new_rec<REC>(scenario.ctx());
+    let (mut rec, cap) = new_rec(scenario.ctx());
 
     rg::add_genre(&mut rec, &cap, &genres[0]);
     rg::remove_genre(&mut rec, &cap, ids[0]);
@@ -427,4 +420,17 @@ fun remove_genre_twice_aborts() {
     destroy(rec);
     destroy(cap);
     scenario.end();
+}
+
+/// Even an absent clear must verify that the cap belongs to this recording.
+#[test, expected_failure(abort_code = recording::EUnauthorized)]
+fun foreign_cap_cannot_clear_absent_value() {
+    let ctx = &mut tx_context::dummy();
+    let (mut rec, own_cap) = new_rec(ctx);
+    let (other, foreign_cap) = new_rec(ctx);
+    rg::clear_genres(&mut rec, &foreign_cap);
+    destroy(rec);
+    destroy(own_cap);
+    destroy(other);
+    destroy(foreign_cap);
 }

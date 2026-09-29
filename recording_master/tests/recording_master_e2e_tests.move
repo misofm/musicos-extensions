@@ -7,12 +7,12 @@
 /// holds the `RecordingAdminCap` and performs every write; STRANGER and
 /// PAYER own nothing and prove the views are permissionless once the
 /// recording is public. Writes are gated purely by possession of the cap
-/// object (there is no sender check to defeat with a different signer; see
-/// `recording_master_tests` on why a wrong-cap test is not expressible).
+/// object, whose recording ID is checked on each write.
 #[test_only]
 module recording_master::recording_master_e2e_tests;
 
 use audio::audio::{Self, Audio};
+use musicos::composition;
 use musicos::recording::{Self, Recording, RecordingAdminCap};
 use recording_master::recording_master::{
     Self as master_ext,
@@ -24,7 +24,6 @@ use sui::bcs::to_bytes;
 use sui::event::events_by_type;
 use sui::test_scenario::{Self as ts, Scenario};
 
-public struct REC {}
 
 const ADMIN: address = @0xAD;
 const PAYER: address = @0xFA;
@@ -32,11 +31,11 @@ const STRANGER: address = @0x51;
 
 /// Tx 1 (ADMIN): create a recording and publish it — `publish` shares it, the
 /// production shape every other transaction in this file operates against.
-fun publish_and_share_recording(ts: &mut Scenario): RecordingAdminCap<REC> {
-    let (rec, cap) = recording::new_for_testing<REC>(
-        object::id_from_address(@0xC0FFEE),
-        ts.ctx(),
-    );
+fun publish_and_share_recording(ts: &mut Scenario): RecordingAdminCap {
+    let (comp, comp_cap) = composition::new(ts.ctx());
+    let (rec, cap) = recording::new(&comp, ts.ctx());
+    comp.publish(&comp_cap);
+    destroy(comp_cap);
     rec.publish(&cap);
     cap
 }
@@ -52,7 +51,7 @@ fun full_lifecycle_on_published_and_shared_recording() {
 
     // --- Tx 2 (ADMIN): attach the master to the shared recording ---
     ts.next_tx(ADMIN);
-    let mut rec = ts.take_shared<Recording<REC>>();
+    let mut rec = ts.take_shared<Recording>();
     let rec_id = object::id(&rec);
     assert!(!master_ext::has_master(&rec));
 
@@ -61,7 +60,7 @@ fun full_lifecycle_on_published_and_shared_recording() {
     assert_eq!(master_ext::master(&rec).blob_id(), 111);
     assert_audio_metadata(master_ext::master(&rec));
 
-    let events = events_by_type<RecordingMasterSetEvent<REC>>();
+    let events = events_by_type<RecordingMasterSetEvent>();
     assert_eq!(events.length(), 1);
     let (id, master) = master_ext::set_event_fields(&events[0]);
     assert_eq!(id, rec_id);
@@ -71,7 +70,7 @@ fun full_lifecycle_on_published_and_shared_recording() {
 
     // --- Tx 3 (STRANGER, owns no cap): the master is publicly readable ---
     ts.next_tx(STRANGER);
-    let rec = ts.take_shared<Recording<REC>>();
+    let rec = ts.take_shared<Recording>();
     assert!(master_ext::has_master(&rec));
     assert_eq!(master_ext::master(&rec).blob_id(), 111);
     assert_audio_metadata(master_ext::master(&rec));
@@ -80,9 +79,9 @@ fun full_lifecycle_on_published_and_shared_recording() {
     // --- Tx 4 (ADMIN): equal set is silent; replace — the old value must
     // not survive the swap ---
     ts.next_tx(ADMIN);
-    let mut rec = ts.take_shared<Recording<REC>>();
+    let mut rec = ts.take_shared<Recording>();
     master_ext::set_master(&mut rec, &cap, new_audio(111));
-    assert_eq!(events_by_type<RecordingMasterSetEvent<REC>>().length(), 0);
+    assert_eq!(events_by_type<RecordingMasterSetEvent>().length(), 0);
 
     master_ext::set_master(&mut rec, &cap, new_audio(222));
     assert_eq!(master_ext::master(&rec).blob_id(), 222);
@@ -90,7 +89,7 @@ fun full_lifecycle_on_published_and_shared_recording() {
 
     // `next_tx` resets the recorded event log — a fresh single-element feed,
     // exactly as a real indexer would see one transaction's events at a time.
-    let events = events_by_type<RecordingMasterSetEvent<REC>>();
+    let events = events_by_type<RecordingMasterSetEvent>();
     assert_eq!(events.length(), 1);
     let (id, master) = master_ext::set_event_fields(&events[0]);
     assert_eq!(id, rec_id);
@@ -100,18 +99,18 @@ fun full_lifecycle_on_published_and_shared_recording() {
 
     // --- Tx 5 (PAYER, owns no cap): the replacement is visible to anyone ---
     ts.next_tx(PAYER);
-    let rec = ts.take_shared<Recording<REC>>();
+    let rec = ts.take_shared<Recording>();
     assert_eq!(master_ext::master(&rec).blob_id(), 222);
     assert_audio_metadata(master_ext::master(&rec));
     ts::return_shared(rec);
 
     // --- Tx 6 (ADMIN): remove and reattach the master ---
     ts.next_tx(ADMIN);
-    let mut rec = ts.take_shared<Recording<REC>>();
+    let mut rec = ts.take_shared<Recording>();
     master_ext::clear_master(&mut rec, &cap);
     assert!(!master_ext::has_master(&rec));
 
-    let cleared = events_by_type<RecordingMasterClearedEvent<REC>>();
+    let cleared = events_by_type<RecordingMasterClearedEvent>();
     assert_eq!(cleared.length(), 1);
     assert_eq!(master_ext::cleared_event_fields(&cleared[0]), rec_id);
     assert_eq!(to_bytes(&cleared[0]).length(), 32);
@@ -123,7 +122,7 @@ fun full_lifecycle_on_published_and_shared_recording() {
 
     // --- Tx 7 (STRANGER): the re-attached master is visible too ---
     ts.next_tx(STRANGER);
-    let rec = ts.take_shared<Recording<REC>>();
+    let rec = ts.take_shared<Recording>();
     assert_eq!(master_ext::master(&rec).blob_id(), 333);
     assert_audio_metadata(master_ext::master(&rec));
     ts::return_shared(rec);
@@ -141,7 +140,7 @@ fun master_aborts_when_absent_on_shared_recording() {
     let cap = publish_and_share_recording(&mut ts);
 
     ts.next_tx(STRANGER);
-    let rec = ts.take_shared<Recording<REC>>();
+    let rec = ts.take_shared<Recording>();
     let _ = master_ext::master(&rec);
 
     destroy(cap);

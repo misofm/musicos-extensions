@@ -49,13 +49,13 @@ public struct ExtensionKey() has copy, drop, store;
 
 /// Emitted when the language list is set to a value it did not already hold.
 /// `languages` holds the ordered ISO 639-1 codes; empty means instrumental.
-public struct RecordingLanguagesSetEvent<phantom RecordingShare> has copy, drop {
+public struct RecordingLanguagesSetEvent has copy, drop {
     recording_id: ID,
     languages: vector<String>,
 }
 
 /// Emitted when an attached language record is removed.
-public struct RecordingLanguagesClearedEvent<phantom RecordingShare> has copy, drop {
+public struct RecordingLanguagesClearedEvent has copy, drop {
     recording_id: ID,
 }
 
@@ -65,9 +65,9 @@ public struct RecordingLanguagesClearedEvent<phantom RecordingShare> has copy, d
 /// vector asserts it is instrumental. Aborts `ETooManyLanguages` past
 /// `MAX_LANGUAGES` and `EDuplicateLanguage` on a repeated code. Setting the
 /// list already held neither writes nor emits.
-public fun set_languages<RecordingShare>(
-    self: &mut Recording<RecordingShare>,
-    cap: &RecordingAdminCap<RecordingShare>,
+public fun set_languages(
+    self: &mut Recording,
+    cap: &RecordingAdminCap,
     languages: vector<LanguageCode>,
 ) {
     validate(&languages);
@@ -80,7 +80,7 @@ public fun set_languages<RecordingShare>(
     } else {
         df::add(uid, ExtensionKey(), languages);
     };
-    emit(RecordingLanguagesSetEvent<RecordingShare> {
+    emit(RecordingLanguagesSetEvent {
         recording_id,
         languages: languages.map_ref!(|language| language.code()),
     });
@@ -88,30 +88,30 @@ public fun set_languages<RecordingShare>(
 
 /// Removes the language record, if any — including an instrumental claim.
 /// Silent when nothing is attached.
-public fun clear_languages<RecordingShare>(
-    self: &mut Recording<RecordingShare>,
-    cap: &RecordingAdminCap<RecordingShare>,
+public fun clear_languages(
+    self: &mut Recording,
+    cap: &RecordingAdminCap,
 ) {
     let recording_id = object::id(self);
     let uid = self.uid_mut(cap);
     if (df::exists(uid, ExtensionKey())) {
         let _: vector<LanguageCode> = df::remove(uid, ExtensionKey());
-        emit(RecordingLanguagesClearedEvent<RecordingShare> { recording_id });
+        emit(RecordingLanguagesClearedEvent { recording_id });
     }
 }
 
 // === View Functions ===
 
 /// Whether a language record is attached to this recording.
-public fun has_languages<RecordingShare>(self: &Recording<RecordingShare>): bool {
+public fun has_languages(self: &Recording): bool {
     df::exists(self.uid(), ExtensionKey())
 }
 
 /// The recording's languages, in the order given; empty means instrumental.
 /// Aborts `ENoLanguages` when nothing is attached — absence is distinct from
 /// an empty list and must not collapse into it.
-public fun languages<RecordingShare>(
-    self: &Recording<RecordingShare>,
+public fun languages(
+    self: &Recording,
 ): &vector<LanguageCode> {
     assert!(has_languages(self), ENoLanguages);
     df::borrow(self.uid(), ExtensionKey())
@@ -120,15 +120,15 @@ public fun languages<RecordingShare>(
 // === Test Functions ===
 
 #[test_only]
-public fun set_event_fields<RecordingShare>(
-    e: &RecordingLanguagesSetEvent<RecordingShare>,
+public fun set_event_fields(
+    e: &RecordingLanguagesSetEvent,
 ): (ID, vector<String>) {
     (e.recording_id, e.languages)
 }
 
 #[test_only]
-public fun cleared_event_fields<RecordingShare>(
-    e: &RecordingLanguagesClearedEvent<RecordingShare>,
+public fun cleared_event_fields(
+    e: &RecordingLanguagesClearedEvent,
 ): ID {
     e.recording_id
 }

@@ -48,20 +48,20 @@ public struct ExtensionKey() has copy, drop, store;
 // === Events ===
 
 /// Emitted when a genre is appended; the first add makes it the primary.
-public struct RecordingGenreAddedEvent<phantom RecordingShare> has copy, drop {
+public struct RecordingGenreAddedEvent has copy, drop {
     recording_id: ID,
     genre_id: ID,
 }
 
 /// Emitted when a genre is removed. Removing the last genre drops the field
 /// and emits only this event.
-public struct RecordingGenreRemovedEvent<phantom RecordingShare> has copy, drop {
+public struct RecordingGenreRemovedEvent has copy, drop {
     recording_id: ID,
     genre_id: ID,
 }
 
 /// Emitted when `clear_genres` removes an attached list.
-public struct RecordingGenresClearedEvent<phantom RecordingShare> has copy, drop {
+public struct RecordingGenresClearedEvent has copy, drop {
     recording_id: ID,
 }
 
@@ -70,9 +70,9 @@ public struct RecordingGenresClearedEvent<phantom RecordingShare> has copy, drop
 /// Appends a genre to the recording's list, creating the field on first use
 /// so that genre becomes the primary. Aborts `EDuplicateGenre` if already
 /// present, then `EMaxGenres` if the recording is at capacity.
-public fun add_genre<RecordingShare>(
-    self: &mut Recording<RecordingShare>,
-    cap: &RecordingAdminCap<RecordingShare>,
+public fun add_genre(
+    self: &mut Recording,
+    cap: &RecordingAdminCap,
     genre: &Genre,
 ) {
     let recording_id = object::id(self);
@@ -86,7 +86,7 @@ public fun add_genre<RecordingShare>(
     } else {
         df::add(uid, ExtensionKey(), vector[genre_id]);
     };
-    emit(RecordingGenreAddedEvent<RecordingShare> {
+    emit(RecordingGenreAddedEvent {
         recording_id,
         genre_id,
     });
@@ -96,9 +96,9 @@ public fun add_genre<RecordingShare>(
 /// primary. Removing the last genre drops the field. Aborts
 /// `EGenreNotPresent` if the genre is not assigned, including when nothing is
 /// attached.
-public fun remove_genre<RecordingShare>(
-    self: &mut Recording<RecordingShare>,
-    cap: &RecordingAdminCap<RecordingShare>,
+public fun remove_genre(
+    self: &mut Recording,
+    cap: &RecordingAdminCap,
     genre_id: ID,
 ) {
     let recording_id = object::id(self);
@@ -111,22 +111,22 @@ public fun remove_genre<RecordingShare>(
     if (genres.is_empty()) {
         let _: vector<ID> = df::remove(uid, ExtensionKey());
     };
-    emit(RecordingGenreRemovedEvent<RecordingShare> {
+    emit(RecordingGenreRemovedEvent {
         recording_id,
         genre_id,
     });
 }
 
 /// Removes the recording's entire genre list. Silent when nothing is attached.
-public fun clear_genres<RecordingShare>(
-    self: &mut Recording<RecordingShare>,
-    cap: &RecordingAdminCap<RecordingShare>,
+public fun clear_genres(
+    self: &mut Recording,
+    cap: &RecordingAdminCap,
 ) {
     let recording_id = object::id(self);
     let uid = self.uid_mut(cap);
     if (df::exists(uid, ExtensionKey())) {
         let _: vector<ID> = df::remove(uid, ExtensionKey());
-        emit(RecordingGenresClearedEvent<RecordingShare> { recording_id });
+        emit(RecordingGenresClearedEvent { recording_id });
     }
 }
 
@@ -134,7 +134,7 @@ public fun clear_genres<RecordingShare>(
 
 /// The recording's genre ids in order, primary first. Empty when nothing is
 /// attached.
-public fun genres<RecordingShare>(self: &Recording<RecordingShare>): vector<ID> {
+public fun genres(self: &Recording): vector<ID> {
     let uid = self.uid();
     if (df::exists(uid, ExtensionKey())) {
         *df::borrow(uid, ExtensionKey())
@@ -146,22 +146,22 @@ public fun genres<RecordingShare>(self: &Recording<RecordingShare>): vector<ID> 
 // === Test Functions ===
 
 #[test_only]
-public fun added_event_fields<RecordingShare>(
-    e: &RecordingGenreAddedEvent<RecordingShare>,
+public fun added_event_fields(
+    e: &RecordingGenreAddedEvent,
 ): (ID, ID) {
     (e.recording_id, e.genre_id)
 }
 
 #[test_only]
-public fun removed_event_fields<RecordingShare>(
-    e: &RecordingGenreRemovedEvent<RecordingShare>,
+public fun removed_event_fields(
+    e: &RecordingGenreRemovedEvent,
 ): (ID, ID) {
     (e.recording_id, e.genre_id)
 }
 
 #[test_only]
-public fun cleared_event_fields<RecordingShare>(
-    e: &RecordingGenresClearedEvent<RecordingShare>,
+public fun cleared_event_fields(
+    e: &RecordingGenresClearedEvent,
 ): ID {
     e.recording_id
 }

@@ -46,8 +46,8 @@ fun create_genres(scenario: &mut Scenario, names: vector<vector<u8>>): vector<ID
 fun mk_release(ctx: &mut TxContext): (Release, ReleaseAdminCap) {
     let target_id = test_helpers::fake_id(ctx);
     let tracks = vector[
-        track::new_for_testing(test_helpers::fake_id(ctx), target_id, 5000u16),
-        track::new_for_testing(test_helpers::fake_id(ctx), target_id, 5000u16),
+        track::consent_for_testing(test_helpers::fake_id(ctx), target_id, 5000u16),
+        track::consent_for_testing(test_helpers::fake_id(ctx), target_id, 5000u16),
     ];
     release::new_for_testing(tracks, ctx)
 }

@@ -1,4 +1,10 @@
 # Security review — `composition_title`
+> Historical audit record: the dated findings below describe earlier published
+> generations and their pinned dependencies. The current unpublished migration
+> targets musicos `0b3eb07c9cb1af29c877b66cddfdcc9ef32fc721`;
+> `sui move test --lint --warnings-are-errors` passed 26/26 tests on
+> 2026-09-29. See `Move.toml`, `README.md`, and tests for the current API.
+
 
 Reviewed 2026-09-24 for immutable publication. Verdict: no exploitable
 findings in the reviewed source. This package is unpublished: there is no

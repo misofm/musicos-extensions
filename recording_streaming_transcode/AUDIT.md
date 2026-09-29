@@ -78,3 +78,15 @@ the views at each step.
 
 Event `recording_id` fields are typed `ID` rather than `address`, and emit
 sites pass the object id directly; BCS layout and sizes are unchanged.
+
+
+## 2026-09-29 — concrete MusicOS recording migration
+
+The package now pins MusicOS `0b3eb07c9cb1af29c877b66cddfdcc9ef32fc721`. `Recording` and
+`RecordingAdminCap` are concrete types, and the cap identifies one recording at
+runtime. Each write calls `recording::uid_mut(cap)` before reading or changing
+extension state, including an equal set or absent clear. Events are concrete
+types with `recording_id` for per-object filtering. Scenario tests construct a
+composition with `composition::new(ctx)`, then a recording with
+`recording::new(&composition, ctx)`, and publish both. The package tests verify
+that a foreign cap aborts. Earlier entries describe historical revisions.

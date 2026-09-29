@@ -1,6 +1,6 @@
 # `composition_credits`
 
-Writing credits for a `musicos::composition::Composition<CompositionShare>`:
+Writing credits for a `musicos::composition::Composition`:
 one `Credit<CompositionPartyRole>` (display name plus 1-5 roles) per credited
 `partyos` `Party`, kept in a single `CompositionCredits` record stored as a
 dynamic field on the composition and written through its cap-gated `uid_mut`.
@@ -26,8 +26,8 @@ generation.
 
 ## API
 
-Writes require the composition's `&CompositionAdminCap<CompositionShare>` and
-go through `composition::uid_mut(cap)`, which matches the cap by type only.
+Writes require the composition's `&CompositionAdminCap` and
+go through `composition::uid_mut(cap)`, which matches the cap to the composition object ID.
 Views are permissionless. Guard order is argument validation, then the cap,
 then stored state.
 
@@ -45,14 +45,13 @@ At capacity, a duplicate party reports `EMaxCreditsExceeded` rather than
 
 ## Events
 
-Both events are generic over `CompositionShare` only and carry what an
-event-only indexer would otherwise have to look up: the target, the party
+Both events carry what an event-only indexer would otherwise have to look up: the target, the party
 that keys the entry, and — on add — the roles exactly as stored.
 
 | Event | Fields | BCS bytes |
 |---|---|---|
-| `CompositionCreditAddedEvent<CompositionShare>` | `composition_id: ID`, `party_id: ID`, `roles: vector<CompositionPartyRole>` | 66 (one role) – 70 (five) |
-| `CompositionCreditRemovedEvent<CompositionShare>` | `composition_id: ID`, `party_id: ID` | 64 |
+| `CompositionCreditAddedEvent` | `composition_id: ID`, `party_id: ID`, `roles: vector<CompositionPartyRole>` | 66 (one role) – 70 (five) |
+| `CompositionCreditRemovedEvent` | `composition_id: ID`, `party_id: ID` | 64 |
 
 `roles` is the credit's role vector in stored order; every
 `CompositionPartyRole` is a unit variant, so each role is one byte (its
@@ -74,8 +73,8 @@ do not carry the admin cap (derived from the composition), counts or indices
 ## Dependencies
 
 - [`musicos`](https://github.com/misofm/musicos) at
-  `6dff4deca5ced186989c064e152c92a06384750c` — `Composition<CompositionShare>`
-  and `CompositionAdminCap<CompositionShare>`.
+  `0b3eb07c9cb1af29c877b66cddfdcc9ef32fc721` — `Composition`
+  and `CompositionAdminCap`.
 - [`partyos`](https://github.com/misofm/partyos) at
   `88c2e40353dbee8d8f98272069b4d836b02b12ae` — `Party`, the credited identity.
 - [`credit`](https://github.com/misofm/credit) at

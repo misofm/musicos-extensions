@@ -9,6 +9,7 @@
 module recording_genre::recording_genre_e2e_tests;
 
 use genre::genre::{Self as g, GenreRegistry, Genre};
+use musicos::composition;
 use musicos::recording::{Self, Recording};
 use recording_genre::recording_genre::{
     Self as rg,
@@ -25,7 +26,6 @@ const ADMIN: address = @0xAD;
 const STRANGER: address = @0x51;
 const CREATOR: address = @0xC0;
 
-public struct REC {}
 
 /// Creates a genre in the permissionless registry and returns its derived id.
 fun create_genre(scenario: &Scenario, name: vector<u8>): ID {
@@ -37,11 +37,11 @@ fun create_genre(scenario: &Scenario, name: vector<u8>): ID {
 }
 
 /// Creates and publishes (shares) a recording as the current sender.
-fun publish_recording(ts: &mut Scenario): (ID, recording::RecordingAdminCap<REC>) {
-    let (rec, cap) = recording::new_for_testing<REC>(
-        object::id_from_address(@0xC0FFEE),
-        ts.ctx(),
-    );
+fun publish_recording(ts: &mut Scenario): (ID, recording::RecordingAdminCap) {
+    let (comp, comp_cap) = composition::new(ts.ctx());
+    let (rec, cap) = recording::new(&comp, ts.ctx());
+    comp.publish(&comp_cap);
+    destroy(comp_cap);
     let rec_id = object::id(&rec);
     rec.publish(&cap);
     (rec_id, cap)
@@ -66,7 +66,7 @@ fun admin_classifies_a_published_shared_recording_and_a_stranger_reads_it() {
     ts.next_tx(ADMIN);
     let genre_a = ts.take_immutable_by_id<Genre>(a);
     let genre_b = ts.take_immutable_by_id<Genre>(b);
-    let mut rec = ts.take_shared<Recording<REC>>();
+    let mut rec = ts.take_shared<Recording>();
     assert!(rg::genres(&rec).is_empty());
 
     // Added in the desired final order — b is meant to be primary.
@@ -74,7 +74,7 @@ fun admin_classifies_a_published_shared_recording_and_a_stranger_reads_it() {
     rg::add_genre(&mut rec, &rec_cap, &genre_a);
     assert_eq!(rg::genres(&rec), vector[b, a]);
 
-    let added = events_by_type<RecordingGenreAddedEvent<REC>>();
+    let added = events_by_type<RecordingGenreAddedEvent>();
     assert_eq!(added.length(), 2);
     let (added_rec_0, added_genre_0) = rg::added_event_fields(&added[0]);
     assert_eq!(added_rec_0, rec_id);
@@ -87,16 +87,16 @@ fun admin_classifies_a_published_shared_recording_and_a_stranger_reads_it() {
 
     // === Tx (STRANGER): reads are open to anyone, no cap required ===
     ts.next_tx(STRANGER);
-    let rec = ts.take_shared<Recording<REC>>();
+    let rec = ts.take_shared<Recording>();
     assert_eq!(rg::genres(&rec), vector[b, a]);
     ts::return_shared(rec);
 
     // === Tx (ADMIN): remove the primary, then clear the rest ===
     ts.next_tx(ADMIN);
-    let mut rec = ts.take_shared<Recording<REC>>();
+    let mut rec = ts.take_shared<Recording>();
     rg::remove_genre(&mut rec, &rec_cap, b);
     assert_eq!(rg::genres(&rec), vector[a]);
-    let removed = events_by_type<RecordingGenreRemovedEvent<REC>>();
+    let removed = events_by_type<RecordingGenreRemovedEvent>();
     assert_eq!(removed.length(), 1);
     let (removed_rec, removed_genre) = rg::removed_event_fields(&removed[0]);
     assert_eq!(removed_rec, rec_id);
@@ -105,7 +105,7 @@ fun admin_classifies_a_published_shared_recording_and_a_stranger_reads_it() {
 
     rg::clear_genres(&mut rec, &rec_cap);
     assert!(rg::genres(&rec).is_empty());
-    let cleared = events_by_type<RecordingGenresClearedEvent<REC>>();
+    let cleared = events_by_type<RecordingGenresClearedEvent>();
     assert_eq!(cleared.length(), 1);
     assert_eq!(rg::cleared_event_fields(&cleared[0]), rec_id);
     assert_eq!(to_bytes(&cleared[0]).length(), 32);
@@ -113,7 +113,7 @@ fun admin_classifies_a_published_shared_recording_and_a_stranger_reads_it() {
 
     // === Tx (STRANGER): removal is visible to any reader ===
     ts.next_tx(STRANGER);
-    let rec = ts.take_shared<Recording<REC>>();
+    let rec = ts.take_shared<Recording>();
     assert!(rg::genres(&rec).is_empty());
     ts::return_shared(rec);
 
@@ -135,7 +135,7 @@ fun duplicate_genre_aborts_against_a_shared_recording() {
 
     ts.next_tx(ADMIN);
     let genre_a = ts.take_immutable_by_id<Genre>(a);
-    let mut rec = ts.take_shared<Recording<REC>>();
+    let mut rec = ts.take_shared<Recording>();
     rg::add_genre(&mut rec, &rec_cap, &genre_a);
     rg::add_genre(&mut rec, &rec_cap, &genre_a); // duplicate
 
@@ -156,7 +156,7 @@ fun removing_an_absent_genre_aborts_against_a_shared_recording() {
     let (_, rec_cap) = publish_recording(&mut ts);
 
     ts.next_tx(ADMIN);
-    let mut rec = ts.take_shared<Recording<REC>>();
+    let mut rec = ts.take_shared<Recording>();
     rg::remove_genre(&mut rec, &rec_cap, a); // never added
 
     ts::return_shared(rec);

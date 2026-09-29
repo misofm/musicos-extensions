@@ -72,7 +72,7 @@ from the ordered add/remove stream), or presence flags.
 ## Dependencies
 
 - [`musicos`](https://github.com/misofm/musicos) at
-  `6dff4deca5ced186989c064e152c92a06384750c` — `Release` and
+  `0b3eb07c9cb1af29c877b66cddfdcc9ef32fc721` — `Release` and
   `ReleaseAdminCap`.
 - [`partyos`](https://github.com/misofm/partyos) at
   `88c2e40353dbee8d8f98272069b4d836b02b12ae` — `Party`, the credited identity.

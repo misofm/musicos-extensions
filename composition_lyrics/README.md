@@ -1,7 +1,7 @@
 # composition_lyrics
 
 `composition_lyrics` stores language-specific song lyrics as compressed bytes
-on a `musicos::composition::Composition<CompositionShare>`, one entry per ISO
+on a `musicos::composition::Composition`, one entry per ISO
 639-1 language code.
 
 ## Storage and encoding
@@ -36,7 +36,7 @@ composition.
 
 ## API
 
-All writes require the composition's `CompositionAdminCap<CompositionShare>`
+All writes require the composition's `CompositionAdminCap`
 and go through the cap-gated `composition::uid_mut`; views are permissionless.
 
 | Function | Description | Aborts |
@@ -47,20 +47,18 @@ and go through the cap-gated `composition::uid_mut`; views are permissionless.
 | `lyrics(composition, language): &vector<u8>` | Borrows the stored bytes | `ENoLyrics` (1) when absent |
 | `max_lyrics_length(): u64` | The compressed-byte limit (32,768) | — |
 
-The core matches `CompositionShare` types: a cap for another share type is
-rejected at compile time (`tests/check_cap_types.py`), and the core compares
-no cap ids at runtime.
+The core checks the cap against the composition object ID at runtime.
+A cap for another composition aborts with `composition::EUnauthorized`.
 
 ## Events
 
-Both events carry `<phantom CompositionShare>` and only what an event-only
-indexer would otherwise have to look up: the composition and the language
+Both events carry only what an event-only indexer would otherwise have to look up: the composition and the language
 key. The compressed body stays in the dynamic field.
 
 | Event | Fields | BCS size |
 |---|---|---|
-| `CompositionLyricsSetEvent<CompositionShare>` | `composition_id: ID`, `language: String` | 35 |
-| `CompositionLyricsClearedEvent<CompositionShare>` | `composition_id: ID`, `language: String` | 35 |
+| `CompositionLyricsSetEvent` | `composition_id: ID`, `language: String` | 35 |
+| `CompositionLyricsClearedEvent` | `composition_id: ID`, `language: String` | 35 |
 
 A set event is emitted only when the stored bytes actually change; a cleared
 event only when an entry was actually removed. Views emit nothing. Replaying
@@ -77,7 +75,7 @@ languages currently attached.
 ## Dependencies
 
 - [`musicos`](https://github.com/misofm/musicos) at
-  `6dff4deca5ced186989c064e152c92a06384750c` — `Composition`,
+  `0b3eb07c9cb1af29c877b66cddfdcc9ef32fc721` — `Composition`,
   `CompositionAdminCap`, and cap-gated `uid_mut`.
 - [`language_code`](https://github.com/unconfirmedlabs/language_code) at
   `61542357f3d2ff989d120185046def7cf6c8bdcb` — the validated ISO 639-1 key.
@@ -97,5 +95,4 @@ sui move build
 sui move build --build-env mainnet
 sui move test
 sui move test --build-env mainnet
-python3 tests/check_cap_types.py
 ```

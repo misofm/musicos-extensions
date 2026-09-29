@@ -7,14 +7,13 @@
 /// write that would leave the record unchanged — re-crediting a party,
 /// re-designating an artist, removing an absent credit or designation —
 /// aborts rather than silently passing, so the no-op rule is covered by the
-/// abort tests. `uid_mut` is type-gated only: a same-share cap is accepted,
-/// and there is no per-recording cap-identity claim.
+/// abort tests. Admin writes also check the capability's recording identity.
 #[test_only]
 module recording_credits::credits_tests;
 
 use credit::credit;
 use musicos::recording::{Self, Recording, RecordingAdminCap};
-use musicos::test_helpers::{Self, RecordingShare};
+use musicos::test_helpers::Self;
 use partyos::party::{Self, Party, PartyAdminCap};
 use recording_credits::recording_credits as credits;
 use recording_credits::recording_party_role::{Self as rpr, RecordingPartyRole};
@@ -28,7 +27,7 @@ const ARTIST: address = @0xA1;
 
 fun mk_recording(
     ctx: &mut TxContext,
-): (Recording<RecordingShare>, RecordingAdminCap<RecordingShare>) {
+): (Recording, RecordingAdminCap) {
     recording::new_for_testing(test_helpers::fake_id(ctx), ctx)
 }
 
@@ -50,7 +49,7 @@ fun other_long_string(len: u64): String {
 
 /// Asserts one credit-added event's full payload against the credit added.
 fun assert_added(
-    e: &credits::RecordingCreditAddedEvent<RecordingShare>,
+    e: &credits::RecordingCreditAddedEvent,
     recording_id: ID,
     party_id: ID,
     credit: &credit::Credit<RecordingPartyRole>,
@@ -211,11 +210,11 @@ fun remove_credit_cascades_to_primary_and_featured() {
     assert!(!credits::is_primary_artist(&rec, pid));
     assert_eq!(credits::primary_artist_ids(&rec).length(), 0);
     assert_eq!(credits::credits(&rec).length(), 0);
-    let primary_removed = events_by_type<credits::RecordingPrimaryArtistRemovedEvent<RecordingShare>>();
+    let primary_removed = events_by_type<credits::RecordingPrimaryArtistRemovedEvent>();
     assert_eq!(primary_removed.length(), 1);
     let (_, event_party) = credits::primary_artist_removed_event_fields(&primary_removed[0]);
     assert_eq!(event_party, pid);
-    assert_eq!(events_by_type<credits::RecordingCreditRemovedEvent<RecordingShare>>().length(), 1);
+    assert_eq!(events_by_type<credits::RecordingCreditRemovedEvent>().length(), 1);
 
     destroy(rec); destroy(cap); destroy(p); destroy(_pc);
     ts.end();
@@ -236,10 +235,8 @@ fun add_credit_emits_the_full_credit() {
 
     credits::add_credit(&mut rec, &cap, &p, credit);
 
-    // The phantom share type is the event filter; a different type sees nothing.
-    let events = events_by_type<credits::RecordingCreditAddedEvent<RecordingShare>>();
+    let events = events_by_type<credits::RecordingCreditAddedEvent>();
     assert_eq!(events.length(), 1);
-    assert_eq!(events_by_type<credits::RecordingCreditAddedEvent<bool>>().length(), 0);
     let (event_recording_id, event_party_id, event_roles) = credits::credit_added_event_fields(&events[0]);
     assert_eq!(event_recording_id, recording_id);
     assert_eq!(event_party_id, party_id);
@@ -255,7 +252,7 @@ fun add_credit_emits_the_full_credit() {
     assert_eq!(credits::credits(&rec).length(), 1);
     assert!(!credits::is_primary_artist(&rec, object::id(&p)));
     assert!(!credits::is_featured_artist(&rec, object::id(&p)));
-    assert_eq!(events_by_type<credits::RecordingCreditAddedEvent<RecordingShare>>().length(), 1);
+    assert_eq!(events_by_type<credits::RecordingCreditAddedEvent>().length(), 1);
 
     destroy(rec); destroy(cap); destroy(p); destroy(pc);
     ts.end();
@@ -279,17 +276,16 @@ fun remove_credit_emits_the_removed_party() {
 
     credits::remove_credit(&mut rec, &cap, object::id(&p));
 
-    let events = events_by_type<credits::RecordingCreditRemovedEvent<RecordingShare>>();
+    let events = events_by_type<credits::RecordingCreditRemovedEvent>();
     assert_eq!(events.length(), 1);
     let (event_object, event_party) = credits::credit_removed_event_fields(&events[0]);
     assert_eq!(event_object, recording_id);
     assert_eq!(event_party, party_id);
     assert_eq!(to_bytes(&events[0]).length(), 64);
-    assert_eq!(events_by_type<credits::RecordingCreditRemovedEvent<bool>>().length(), 0);
 
     // The party held no designation, so no artist-removed event cascades.
-    assert_eq!(events_by_type<credits::RecordingPrimaryArtistRemovedEvent<RecordingShare>>().length(), 0);
-    assert_eq!(events_by_type<credits::RecordingFeaturedArtistRemovedEvent<RecordingShare>>().length(), 0);
+    assert_eq!(events_by_type<credits::RecordingPrimaryArtistRemovedEvent>().length(), 0);
+    assert_eq!(events_by_type<credits::RecordingFeaturedArtistRemovedEvent>().length(), 0);
 
     destroy(rec); destroy(cap); destroy(p); destroy(pc);
     ts.end();
@@ -343,18 +339,17 @@ fun remove_credit_cascade_emits_artist_removals_before_the_credit_removal() {
     assert_eq!(credits::featured_artist_ids(&rec).length(), 0);
 
     // Only the removed parties cascade; the surviving primary (p1) does not.
-    let primary_removed = events_by_type<credits::RecordingPrimaryArtistRemovedEvent<RecordingShare>>();
+    let primary_removed = events_by_type<credits::RecordingPrimaryArtistRemovedEvent>();
     assert_eq!(primary_removed.length(), 1);
     let (event_object, event_party) = credits::primary_artist_removed_event_fields(&primary_removed[0]);
     assert_eq!(event_object, recording_id);
     assert_eq!(event_party, p2_id);
-    let featured_removed = events_by_type<credits::RecordingFeaturedArtistRemovedEvent<RecordingShare>>();
+    let featured_removed = events_by_type<credits::RecordingFeaturedArtistRemovedEvent>();
     assert_eq!(featured_removed.length(), 1);
     let (event_object, event_party) = credits::featured_artist_removed_event_fields(&featured_removed[0]);
     assert_eq!(event_object, recording_id);
     assert_eq!(event_party, p3_id);
-    assert_eq!(events_by_type<credits::RecordingFeaturedArtistRemovedEvent<bool>>().length(), 0);
-    let removed = events_by_type<credits::RecordingCreditRemovedEvent<RecordingShare>>();
+    let removed = events_by_type<credits::RecordingCreditRemovedEvent>();
     assert_eq!(removed.length(), 2);
     let (event_object, event_party) = credits::credit_removed_event_fields(&removed[0]);
     assert_eq!(event_object, recording_id);
@@ -384,7 +379,7 @@ fun primary_artist_changes_emit_events() {
     credits::add_primary_artist(&mut rec, &cap, &p1);
     credits::add_primary_artist(&mut rec, &cap, &p2);
 
-    let added = events_by_type<credits::RecordingPrimaryArtistAddedEvent<RecordingShare>>();
+    let added = events_by_type<credits::RecordingPrimaryArtistAddedEvent>();
     assert_eq!(added.length(), 2);
     let (event_object, event_party) = credits::primary_artist_added_event_fields(&added[0]);
     assert_eq!(event_object, recording_id);
@@ -393,17 +388,15 @@ fun primary_artist_changes_emit_events() {
     assert_eq!(event_object, recording_id);
     assert_eq!(event_party, id2);
     assert_eq!(to_bytes(&added[0]).length(), 64);
-    assert_eq!(events_by_type<credits::RecordingPrimaryArtistAddedEvent<bool>>().length(), 0);
 
     credits::remove_primary_artist(&mut rec, &cap, id2);
 
-    let removed = events_by_type<credits::RecordingPrimaryArtistRemovedEvent<RecordingShare>>();
+    let removed = events_by_type<credits::RecordingPrimaryArtistRemovedEvent>();
     assert_eq!(removed.length(), 1);
     let (event_object, event_party) = credits::primary_artist_removed_event_fields(&removed[0]);
     assert_eq!(event_object, recording_id);
     assert_eq!(event_party, id2);
     assert_eq!(to_bytes(&removed[0]).length(), 64);
-    assert_eq!(events_by_type<credits::RecordingPrimaryArtistRemovedEvent<bool>>().length(), 0);
     assert!(credits::is_primary_artist(&rec, id1));
     assert!(!credits::is_primary_artist(&rec, id2));
 
@@ -631,7 +624,7 @@ fun featured_artist_changes_emit_events() {
     credits::add_featured_artist(&mut rec, &cap, &p1);
     credits::add_featured_artist(&mut rec, &cap, &p2);
 
-    let added = events_by_type<credits::RecordingFeaturedArtistAddedEvent<RecordingShare>>();
+    let added = events_by_type<credits::RecordingFeaturedArtistAddedEvent>();
     assert_eq!(added.length(), 2);
     let (event_object, event_party) = credits::featured_artist_added_event_fields(&added[0]);
     assert_eq!(event_object, recording_id);
@@ -640,17 +633,15 @@ fun featured_artist_changes_emit_events() {
     assert_eq!(event_object, recording_id);
     assert_eq!(event_party, id2);
     assert_eq!(to_bytes(&added[0]).length(), 64);
-    assert_eq!(events_by_type<credits::RecordingFeaturedArtistAddedEvent<bool>>().length(), 0);
 
     credits::remove_featured_artist(&mut rec, &cap, id2);
 
-    let removed = events_by_type<credits::RecordingFeaturedArtistRemovedEvent<RecordingShare>>();
+    let removed = events_by_type<credits::RecordingFeaturedArtistRemovedEvent>();
     assert_eq!(removed.length(), 1);
     let (event_object, event_party) = credits::featured_artist_removed_event_fields(&removed[0]);
     assert_eq!(event_object, recording_id);
     assert_eq!(event_party, id2);
     assert_eq!(to_bytes(&removed[0]).length(), 64);
-    assert_eq!(events_by_type<credits::RecordingFeaturedArtistRemovedEvent<bool>>().length(), 0);
     assert!(credits::is_featured_artist(&rec, id1));
     assert!(!credits::is_featured_artist(&rec, id2));
 
@@ -711,7 +702,7 @@ fun remove_and_readd_preserves_order_and_dynamic_field() {
     assert_eq!(credits::credits(&rec)[&id2], two_again);
     assert_eq!(credits::credits(&rec)[&id3], three);
     assert_eq!(credits::credits(&rec)[&id4], four);
-    let added = events_by_type<credits::RecordingCreditAddedEvent<RecordingShare>>();
+    let added = events_by_type<credits::RecordingCreditAddedEvent>();
     assert_eq!(added.length(), 6);
     assert_added(&added[0], recording_id, id1, &one);
     assert_added(&added[1], recording_id, id1, &one_again);
@@ -720,7 +711,7 @@ fun remove_and_readd_preserves_order_and_dynamic_field() {
     assert_added(&added[4], recording_id, id4, &four);
     assert_added(&added[5], recording_id, id2, &two_again);
 
-    let removed = events_by_type<credits::RecordingCreditRemovedEvent<RecordingShare>>();
+    let removed = events_by_type<credits::RecordingCreditRemovedEvent>();
     assert_eq!(removed.length(), 2);
     let (event_object, event_party) = credits::credit_removed_event_fields(&removed[0]);
     assert_eq!(event_object, recording_id);
@@ -733,17 +724,14 @@ fun remove_and_readd_preserves_order_and_dynamic_field() {
     ts.end();
 }
 
-#[test]
-fun same_share_other_cap_is_observationally_accepted() {
+#[test, expected_failure(abort_code = recording::EUnauthorized)]
+fun foreign_recording_cap_is_rejected() {
     let mut ts = test_scenario::begin(ARTIST);
     let (mut rec_a, cap_a) = mk_recording(ts.ctx());
     let (rec_b, cap_b) = mk_recording(ts.ctx());
     let (p, pc) = mk_party(b"Alice", ts.ctx());
-    // `uid_mut` is type-only in the pinned musicos dependency; the cap value
-    // is intentionally not an additional runtime authorization check.
     credits::add_credit(&mut rec_a, &cap_b, &p,
         credit::new(b"Alice".to_string(), vector[rpr::new_vocalist_role(option::none())]));
-    assert_eq!(credits::credits(&rec_a).length(), 1);
     destroy(rec_a); destroy(cap_a); destroy(rec_b); destroy(cap_b); destroy(p); destroy(pc);
     ts.end();
 }
@@ -771,24 +759,24 @@ fun event_bcs_sizes_match_declared_maxima() {
     ]);
     let pid = object::id(&p);
     credits::add_credit(&mut rec, &cap, &p, max_credit);
-    let added = events_by_type<credits::RecordingCreditAddedEvent<RecordingShare>>();
+    let added = events_by_type<credits::RecordingCreditAddedEvent>();
     let (_, _, roles) = credits::credit_added_event_fields(&added[0]);
     assert_eq!(roles, *credits::credits(&rec)[&pid].roles());
     assert_eq!(to_bytes(&added[0]).length(), 32 + 32 + 1 + 10 * 104);
     credits::add_primary_artist(&mut rec, &cap, &p);
-    let primary_added = events_by_type<credits::RecordingPrimaryArtistAddedEvent<RecordingShare>>();
+    let primary_added = events_by_type<credits::RecordingPrimaryArtistAddedEvent>();
     assert_eq!(to_bytes(&primary_added[0]).length(), 64);
     credits::remove_primary_artist(&mut rec, &cap, pid);
-    let primary_removed = events_by_type<credits::RecordingPrimaryArtistRemovedEvent<RecordingShare>>();
+    let primary_removed = events_by_type<credits::RecordingPrimaryArtistRemovedEvent>();
     assert_eq!(to_bytes(&primary_removed[0]).length(), 64);
     credits::add_featured_artist(&mut rec, &cap, &p);
-    let featured_added = events_by_type<credits::RecordingFeaturedArtistAddedEvent<RecordingShare>>();
+    let featured_added = events_by_type<credits::RecordingFeaturedArtistAddedEvent>();
     assert_eq!(to_bytes(&featured_added[0]).length(), 64);
     credits::remove_featured_artist(&mut rec, &cap, pid);
-    let featured_removed = events_by_type<credits::RecordingFeaturedArtistRemovedEvent<RecordingShare>>();
+    let featured_removed = events_by_type<credits::RecordingFeaturedArtistRemovedEvent>();
     assert_eq!(to_bytes(&featured_removed[0]).length(), 64);
     credits::remove_credit(&mut rec, &cap, pid);
-    let removed = events_by_type<credits::RecordingCreditRemovedEvent<RecordingShare>>();
+    let removed = events_by_type<credits::RecordingCreditRemovedEvent>();
     assert_eq!(to_bytes(&removed[0]).length(), 64);
     destroy(rec); destroy(cap); destroy(p); destroy(pc);
     ts.end();

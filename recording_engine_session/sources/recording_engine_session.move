@@ -68,13 +68,13 @@ public struct EngineSession has copy, drop, store {
 /// Carries the session document's blob ID; the stem list is unbounded and is
 /// read from the recording, so a set event with an unchanged blob ID means
 /// the stems changed.
-public struct RecordingEngineSessionSetEvent<phantom RecordingShare> has copy, drop {
+public struct RecordingEngineSessionSetEvent has copy, drop {
     recording_id: ID,
     blob_id: u256,
 }
 
 /// Emitted when an attached session is removed.
-public struct RecordingEngineSessionClearedEvent<phantom RecordingShare> has copy, drop {
+public struct RecordingEngineSessionClearedEvent has copy, drop {
     recording_id: ID,
 }
 
@@ -102,9 +102,9 @@ public fun new(blob_id: u256, stems: vector<Stem>): EngineSession {
 
 /// Sets (or replaces) the recording's session. Setting the value already
 /// held neither writes nor emits.
-public fun set_engine_session<RecordingShare>(
-    self: &mut Recording<RecordingShare>,
-    cap: &RecordingAdminCap<RecordingShare>,
+public fun set_engine_session(
+    self: &mut Recording,
+    cap: &RecordingAdminCap,
     session: EngineSession,
 ) {
     let recording_id = object::id(self);
@@ -117,31 +117,31 @@ public fun set_engine_session<RecordingShare>(
     } else {
         df::add(uid, ExtensionKey(), session);
     };
-    emit(RecordingEngineSessionSetEvent<RecordingShare> { recording_id, blob_id });
+    emit(RecordingEngineSessionSetEvent { recording_id, blob_id });
 }
 
 /// Removes the recording's session, if any. Silent when nothing is attached.
-public fun clear_engine_session<RecordingShare>(
-    self: &mut Recording<RecordingShare>,
-    cap: &RecordingAdminCap<RecordingShare>,
+public fun clear_engine_session(
+    self: &mut Recording,
+    cap: &RecordingAdminCap,
 ) {
     let recording_id = object::id(self);
     let uid = self.uid_mut(cap);
     if (df::exists(uid, ExtensionKey())) {
         let _: EngineSession = df::remove(uid, ExtensionKey());
-        emit(RecordingEngineSessionClearedEvent<RecordingShare> { recording_id });
+        emit(RecordingEngineSessionClearedEvent { recording_id });
     }
 }
 
 // === View Functions ===
 
 /// Whether a Miso Engine session is attached to the recording.
-public fun has_engine_session<RecordingShare>(self: &Recording<RecordingShare>): bool {
+public fun has_engine_session(self: &Recording): bool {
     df::exists(self.uid(), ExtensionKey())
 }
 
 /// The recording's session. Aborts `ENoEngineSession` when none is attached.
-public fun engine_session<RecordingShare>(self: &Recording<RecordingShare>): &EngineSession {
+public fun engine_session(self: &Recording): &EngineSession {
     assert!(has_engine_session(self), ENoEngineSession);
     df::borrow(self.uid(), ExtensionKey())
 }
@@ -181,15 +181,15 @@ fun digest_lt(a: &vector<u8>, b: &vector<u8>): bool {
 // === Test Functions ===
 
 #[test_only]
-public fun set_event_fields<RecordingShare>(
-    e: &RecordingEngineSessionSetEvent<RecordingShare>,
+public fun set_event_fields(
+    e: &RecordingEngineSessionSetEvent,
 ): (ID, u256) {
     (e.recording_id, e.blob_id)
 }
 
 #[test_only]
-public fun cleared_event_fields<RecordingShare>(
-    e: &RecordingEngineSessionClearedEvent<RecordingShare>,
+public fun cleared_event_fields(
+    e: &RecordingEngineSessionClearedEvent,
 ): ID {
     e.recording_id
 }

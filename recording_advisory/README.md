@@ -15,8 +15,8 @@ advisory has been asserted, and is deliberately distinct from `NotExplicit`.
 
 ## API
 
-Writes require the recording's `&RecordingAdminCap<RecordingShare>` and go
-through `recording::uid_mut(cap)`, which matches the cap by type only. Views
+Writes require the recording's `&RecordingAdminCap` and go
+through `recording::uid_mut(cap)`, which checks that the cap belongs to the recording object. Views
 are permissionless.
 
 | Function | Description | Aborts |
@@ -30,13 +30,13 @@ are permissionless.
 
 ## Events
 
-Both events are generic over `RecordingShare` only and carry what an
+Both events carry what an
 event-only indexer would otherwise have to look up.
 
 | Event | Fields | BCS bytes |
 |---|---|---|
-| `RecordingAdvisorySetEvent<RecordingShare>` | `recording_id: ID`, `advisory: Advisory` | 33 |
-| `RecordingAdvisoryClearedEvent<RecordingShare>` | `recording_id: ID` | 32 |
+| `RecordingAdvisorySetEvent` | `recording_id: ID`, `advisory: Advisory` | 33 |
+| `RecordingAdvisoryClearedEvent` | `recording_id: ID` | 32 |
 
 `advisory` serializes as the variant index: `Explicit = 0`, `NotExplicit = 1`,
 `Cleaned = 2`. An equal set and an absent clear emit nothing, so every event is
@@ -51,8 +51,7 @@ a real state transition.
 ## Dependencies
 
 - [`musicos`](https://github.com/misofm/musicos) at
-  `6dff4deca5ced186989c064e152c92a06384750c` — `Recording<RecordingShare>` and
-  `RecordingAdminCap<RecordingShare>`.
+  `0b3eb07c9cb1af29c877b66cddfdcc9ef32fc721` — concrete `Recording` and object-bound `RecordingAdminCap`.
 
 ## Publishing
 

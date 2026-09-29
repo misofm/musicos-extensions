@@ -27,7 +27,7 @@ fun publish_and_share(ts: &mut Scenario): (ReleaseAdminCap, ID) {
     let ctx = ts.ctx();
     let rec_id = test_helpers::fake_id(ctx);
     let target_id = test_helpers::fake_id(ctx);
-    let tracks = vector[track::new_for_testing(rec_id, target_id, 10000u16)];
+    let tracks = vector[track::consent_for_testing(rec_id, target_id, 10000u16)];
     let (rel, cap) = release::new_for_testing(tracks, ctx);
     let rel_id = object::id(&rel);
     rel.publish(&cap);

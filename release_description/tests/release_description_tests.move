@@ -22,7 +22,7 @@ use sui::event;
 fun mk_release(ctx: &mut TxContext): (Release, ReleaseAdminCap) {
     let rec_id = test_helpers::fake_id(ctx);
     let target_id = test_helpers::fake_id(ctx);
-    release::new_for_testing(vector[track::new_for_testing(rec_id, target_id, 10000u16)], ctx)
+    release::new_for_testing(vector[track::consent_for_testing(rec_id, target_id, 10000u16)], ctx)
 }
 
 /// `n` bytes of the given ASCII byte.

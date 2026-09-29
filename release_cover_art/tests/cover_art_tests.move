@@ -29,9 +29,9 @@ use sui::event::events_by_type;
 fun mk_release(ctx: &mut TxContext): (Release, ReleaseAdminCap) {
     let rel_id = object::id_from_address(@0xB0B);
     let tracks = vector[
-        track::new_for_testing(object::id_from_address(@0xA0), rel_id, 4000u16),
-        track::new_for_testing(object::id_from_address(@0xA1), rel_id, 3000u16),
-        track::new_for_testing(object::id_from_address(@0xA2), rel_id, 3000u16),
+        track::consent_for_testing(object::id_from_address(@0xA0), rel_id, 4000u16),
+        track::consent_for_testing(object::id_from_address(@0xA1), rel_id, 3000u16),
+        track::consent_for_testing(object::id_from_address(@0xA2), rel_id, 3000u16),
     ];
     release::new_for_testing(tracks, ctx)
 }

@@ -1,17 +1,13 @@
 // Copyright (c) Miso Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-/// Lifecycle, boundary and event tests for the lyrics extension. Caps are
-/// type-bound (`CompositionAdminCap<CompositionShare>`), so a wrong-cap
-/// runtime test is impossible; `tests/check_cap_types.py` proves the
-/// compile-time rejection instead.
+/// Lifecycle, boundary, authorization, and event tests for the lyrics extension.
 #[test_only]
 module composition_lyrics::composition_lyrics_tests;
 
 use composition_lyrics::composition_lyrics as cl;
 use language_code::language_code as lc;
 use musicos::composition::{Self, Composition, CompositionAdminCap};
-use musicos::test_helpers::CompositionShare;
 use std::unit_test::{assert_eq, destroy};
 use sui::bcs;
 use sui::event;
@@ -19,14 +15,14 @@ use sui::test_scenario;
 
 fun new_composition(
     ctx: &mut TxContext,
-): (Composition<CompositionShare>, CompositionAdminCap<CompositionShare>) {
-    composition::new_for_testing(1500, ctx)
+): (Composition, CompositionAdminCap) {
+    composition::new(ctx)
 }
 
 /// Asserts a set event's fields and its exact BCS layout: `composition_id`
 /// (32) then the two-byte language code as a ULEB128-prefixed string (3).
 fun assert_set_event(
-    e: &cl::CompositionLyricsSetEvent<CompositionShare>,
+    e: &cl::CompositionLyricsSetEvent,
     composition_id: ID,
     language: vector<u8>,
 ) {
@@ -43,7 +39,7 @@ fun assert_set_event(
 
 /// Asserts a cleared event's fields and its exact 35-byte BCS layout.
 fun assert_cleared_event(
-    e: &cl::CompositionLyricsClearedEvent<CompositionShare>,
+    e: &cl::CompositionLyricsClearedEvent,
     composition_id: ID,
     language: vector<u8>,
 ) {
@@ -67,7 +63,7 @@ fun languages_are_independent_and_events_replay_transitions() {
     let id = object::id(&comp);
     assert!(!cl::has_lyrics(&comp, en));
     cl::clear_lyrics(&mut comp, &cap, en);
-    assert!(event::events_by_type<cl::CompositionLyricsClearedEvent<CompositionShare>>().is_empty());
+    assert!(event::events_by_type<cl::CompositionLyricsClearedEvent>().is_empty());
 
     // Deliberately opaque, non-UTF-8 data: only size and authority are enforced.
     let first = vector[0u8, 255, 128];
@@ -79,7 +75,7 @@ fun languages_are_independent_and_events_replay_transitions() {
     assert_eq!(*cl::lyrics(&comp, ja), vector[42]);
 
     // Equal replacement is silent; each other transition emits one event.
-    let sets = event::events_by_type<cl::CompositionLyricsSetEvent<CompositionShare>>();
+    let sets = event::events_by_type<cl::CompositionLyricsSetEvent>();
     assert_eq!(sets.length(), 3);
     assert_set_event(&sets[0], id, b"en");
     assert_set_event(&sets[1], id, b"ja");
@@ -89,13 +85,13 @@ fun languages_are_independent_and_events_replay_transitions() {
     cl::clear_lyrics(&mut comp, &cap, en);
     assert!(!cl::has_lyrics(&comp, en));
     assert_eq!(*cl::lyrics(&comp, ja), vector[42]);
-    let clears = event::events_by_type<cl::CompositionLyricsClearedEvent<CompositionShare>>();
+    let clears = event::events_by_type<cl::CompositionLyricsClearedEvent>();
     assert_eq!(clears.length(), 1);
     assert_cleared_event(&clears[0], id, b"en");
 
     // Re-adding after a clear emits again.
     cl::set_lyrics(&mut comp, &cap, en, first);
-    let sets = event::events_by_type<cl::CompositionLyricsSetEvent<CompositionShare>>();
+    let sets = event::events_by_type<cl::CompositionLyricsSetEvent>();
     assert_eq!(sets.length(), 4);
     assert_set_event(&sets[3], id, b"en");
     cl::clear_lyrics(&mut comp, &cap, en);
@@ -118,7 +114,7 @@ fun equal_set_is_a_silent_no_op() {
     assert_eq!(event::num_events(), events_after_first);
     assert_eq!(*cl::lyrics(&comp, en), vector[1, 2, 3]);
 
-    let sets = event::events_by_type<cl::CompositionLyricsSetEvent<CompositionShare>>();
+    let sets = event::events_by_type<cl::CompositionLyricsSetEvent>();
     assert_eq!(sets.length(), 1);
     assert_set_event(&sets[0], id, b"en");
     destroy(comp);
@@ -155,12 +151,12 @@ fun empty_payload_is_distinct_from_absence() {
     assert!(cl::has_lyrics(&comp, en));
     assert!(cl::lyrics(&comp, en).is_empty());
     cl::set_lyrics(&mut comp, &cap, en, vector[]);
-    let sets = event::events_by_type<cl::CompositionLyricsSetEvent<CompositionShare>>();
+    let sets = event::events_by_type<cl::CompositionLyricsSetEvent>();
     assert_eq!(sets.length(), 1);
     assert_set_event(&sets[0], id, b"en");
     cl::clear_lyrics(&mut comp, &cap, en);
     assert!(!cl::has_lyrics(&comp, en));
-    let clears = event::events_by_type<cl::CompositionLyricsClearedEvent<CompositionShare>>();
+    let clears = event::events_by_type<cl::CompositionLyricsClearedEvent>();
     assert_eq!(clears.length(), 1);
     assert_cleared_event(&clears[0], id, b"en");
     destroy(comp);
@@ -183,12 +179,12 @@ fun maximum_payload_can_be_added_replaced_and_cleared() {
     assert_eq!(*cl::lyrics(&comp, en), data);
     cl::set_lyrics(&mut comp, &cap, en, other);
     assert_eq!(*cl::lyrics(&comp, en), other);
-    let sets = event::events_by_type<cl::CompositionLyricsSetEvent<CompositionShare>>();
+    let sets = event::events_by_type<cl::CompositionLyricsSetEvent>();
     assert_eq!(sets.length(), 2);
     assert_set_event(&sets[0], id, b"en");
     assert_set_event(&sets[1], id, b"en");
     cl::clear_lyrics(&mut comp, &cap, en);
-    let clears = event::events_by_type<cl::CompositionLyricsClearedEvent<CompositionShare>>();
+    let clears = event::events_by_type<cl::CompositionLyricsClearedEvent>();
     assert_cleared_event(&clears[0], id, b"en");
     destroy(comp);
     destroy(cap);
@@ -238,56 +234,69 @@ fun published_composition_supports_edits_and_permissionless_reads() {
     transfer::public_transfer(cap, @0xA);
 
     ts.next_tx(@0xA);
-    let mut comp = ts.take_shared<Composition<CompositionShare>>();
-    let cap = ts.take_from_sender<CompositionAdminCap<CompositionShare>>();
+    let mut comp = ts.take_shared<Composition>();
+    let cap = ts.take_from_sender<CompositionAdminCap>();
     cl::set_lyrics(&mut comp, &cap, lc::new(b"en".to_string()), vector[1]);
     cl::set_lyrics(&mut comp, &cap, lc::new(b"ja".to_string()), vector[2]);
     ts.return_to_sender(cap);
     test_scenario::return_shared(comp);
 
     ts.next_tx(@0xB);
-    let comp = ts.take_shared<Composition<CompositionShare>>();
+    let comp = ts.take_shared<Composition>();
     assert_eq!(*cl::lyrics(&comp, lc::new(b"en".to_string())), vector[1]);
     assert_eq!(*cl::lyrics(&comp, lc::new(b"ja".to_string())), vector[2]);
     test_scenario::return_shared(comp);
 
     ts.next_tx(@0xA);
-    let mut comp = ts.take_shared<Composition<CompositionShare>>();
-    let cap = ts.take_from_sender<CompositionAdminCap<CompositionShare>>();
+    let mut comp = ts.take_shared<Composition>();
+    let cap = ts.take_from_sender<CompositionAdminCap>();
     cl::set_lyrics(&mut comp, &cap, lc::new(b"en".to_string()), vector[3]);
     cl::clear_lyrics(&mut comp, &cap, lc::new(b"ja".to_string()));
     ts.return_to_sender(cap);
     test_scenario::return_shared(comp);
 
     ts.next_tx(@0xB);
-    let comp = ts.take_shared<Composition<CompositionShare>>();
+    let comp = ts.take_shared<Composition>();
     assert_eq!(*cl::lyrics(&comp, lc::new(b"en".to_string())), vector[3]);
     assert!(!cl::has_lyrics(&comp, lc::new(b"ja".to_string())));
     test_scenario::return_shared(comp);
     ts.end();
 }
 
-public struct OtherShare has copy, drop, store {}
 
 #[test]
-fun composition_share_types_have_separate_state_and_event_streams() {
+fun compositions_have_separate_lyrics_and_identified_events() {
     let ctx = &mut tx_context::dummy();
     let (mut comp, cap) = new_composition(ctx);
-    let (mut other, other_cap) = composition::new_for_testing<OtherShare>(1500, ctx);
+    let (mut other, other_cap) = new_composition(ctx);
     let en = lc::new(b"en".to_string());
     cl::set_lyrics(&mut comp, &cap, en, vector[1]);
     cl::set_lyrics(&mut other, &other_cap, en, vector[2]);
-    assert_eq!(*cl::lyrics(&comp, en), vector[1]);
-    assert_eq!(*cl::lyrics(&other, en), vector[2]);
-    assert_eq!(event::events_by_type<cl::CompositionLyricsSetEvent<CompositionShare>>().length(), 1);
-    assert_eq!(event::events_by_type<cl::CompositionLyricsSetEvent<OtherShare>>().length(), 1);
+    let events = event::events_by_type<cl::CompositionLyricsSetEvent>();
+    assert_eq!(events.length(), 2);
+    let (first_id, _) = cl::set_event_fields(&events[0]);
+    assert_eq!(first_id, object::id(&comp));
+    let (second_id, _) = cl::set_event_fields(&events[1]);
+    assert_eq!(second_id, object::id(&other));
     cl::clear_lyrics(&mut comp, &cap, en);
     assert_eq!(*cl::lyrics(&other, en), vector[2]);
-    assert_eq!(event::events_by_type<cl::CompositionLyricsClearedEvent<CompositionShare>>().length(), 1);
-    assert!(event::events_by_type<cl::CompositionLyricsClearedEvent<OtherShare>>().is_empty());
-    cl::clear_lyrics(&mut other, &other_cap, en);
-    destroy(comp);
-    destroy(cap);
-    destroy(other);
-    destroy(other_cap);
+    destroy(comp); destroy(cap); destroy(other); destroy(other_cap);
+}
+
+#[test, expected_failure(abort_code = composition::EUnauthorized)]
+fun wrong_composition_cap_rejected_on_set() {
+    let ctx = &mut tx_context::dummy();
+    let (mut target, _target_cap) = new_composition(ctx);
+    let (_foreign_comp, foreign_cap) = new_composition(ctx);
+    cl::set_lyrics(&mut target, &foreign_cap, lc::new(b"en".to_string()), vector[1]);
+    abort
+}
+
+#[test, expected_failure(abort_code = composition::EUnauthorized)]
+fun wrong_composition_cap_rejected_on_clear_of_nothing() {
+    let ctx = &mut tx_context::dummy();
+    let (mut target, _target_cap) = new_composition(ctx);
+    let (_foreign_comp, foreign_cap) = new_composition(ctx);
+    cl::clear_lyrics(&mut target, &foreign_cap, lc::new(b"en".to_string()));
+    abort
 }

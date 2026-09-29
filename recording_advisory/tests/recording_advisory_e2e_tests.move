@@ -8,6 +8,7 @@
 #[test_only]
 module recording_advisory::recording_advisory_e2e_tests;
 
+use musicos::composition;
 use musicos::recording::{Self, Recording};
 use recording_advisory::recording_advisory::{
     Self as adv,
@@ -22,14 +23,13 @@ use sui::test_scenario::{Self as ts, Scenario};
 const ADMIN: address = @0xAD;
 const STRANGER: address = @0x51;
 
-public struct REC {}
 
 /// Creates and publishes (shares) a recording as the current sender.
-fun publish_recording(ts: &mut Scenario): (ID, recording::RecordingAdminCap<REC>) {
-    let (rec, cap) = recording::new_for_testing<REC>(
-        object::id_from_address(@0xC0FFEE),
-        ts.ctx(),
-    );
+fun publish_recording(ts: &mut Scenario): (ID, recording::RecordingAdminCap) {
+    let (comp, comp_cap) = composition::new(ts.ctx());
+    let (rec, cap) = recording::new(&comp, ts.ctx());
+    comp.publish(&comp_cap);
+    destroy(comp_cap);
     let rec_id = object::id(&rec);
     rec.publish(&cap);
     (rec_id, cap)
@@ -44,12 +44,12 @@ fun admin_rates_a_published_shared_recording_and_a_stranger_reads_it() {
 
     // === Tx 2 (ADMIN): take the shared recording, attach an advisory ===
     ts.next_tx(ADMIN);
-    let mut rec = ts.take_shared<Recording<REC>>();
+    let mut rec = ts.take_shared<Recording>();
     assert!(!adv::has_advisory(&rec));
 
     adv::set_advisory(&mut rec, &rec_cap, adv::explicit());
 
-    let events = events_by_type<RecordingAdvisorySetEvent<REC>>();
+    let events = events_by_type<RecordingAdvisorySetEvent>();
     assert_eq!(events.length(), 1);
     let (event_id, advisory) = adv::set_event_fields(&events[0]);
     assert_eq!(event_id, rec_id);
@@ -59,24 +59,24 @@ fun admin_rates_a_published_shared_recording_and_a_stranger_reads_it() {
 
     // === Tx 3 (STRANGER): reads are open to anyone, no cap required ===
     ts.next_tx(STRANGER);
-    let rec = ts.take_shared<Recording<REC>>();
+    let rec = ts.take_shared<Recording>();
     assert!(adv::has_advisory(&rec));
     assert!(adv::advisory(&rec).is_explicit());
     ts::return_shared(rec);
 
     // === Tx 4 (ADMIN): equal set is silent; replace; then clear ===
     ts.next_tx(ADMIN);
-    let mut rec = ts.take_shared<Recording<REC>>();
+    let mut rec = ts.take_shared<Recording>();
     adv::set_advisory(&mut rec, &rec_cap, adv::explicit());
-    assert_eq!(events_by_type<RecordingAdvisorySetEvent<REC>>().length(), 0);
+    assert_eq!(events_by_type<RecordingAdvisorySetEvent>().length(), 0);
 
     adv::set_advisory(&mut rec, &rec_cap, adv::cleaned());
     assert!(adv::advisory(&rec).is_cleaned());
-    assert_eq!(events_by_type<RecordingAdvisorySetEvent<REC>>().length(), 1);
+    assert_eq!(events_by_type<RecordingAdvisorySetEvent>().length(), 1);
 
     adv::clear_advisory(&mut rec, &rec_cap);
     assert!(!adv::has_advisory(&rec));
-    let cleared = events_by_type<RecordingAdvisoryClearedEvent<REC>>();
+    let cleared = events_by_type<RecordingAdvisoryClearedEvent>();
     assert_eq!(cleared.length(), 1);
     assert_eq!(adv::cleared_event_fields(&cleared[0]), rec_id);
     assert_eq!(to_bytes(&cleared[0]).length(), 32);
@@ -84,7 +84,7 @@ fun admin_rates_a_published_shared_recording_and_a_stranger_reads_it() {
 
     // === Tx 5 (STRANGER): removal is visible to any reader ===
     ts.next_tx(STRANGER);
-    let rec = ts.take_shared<Recording<REC>>();
+    let rec = ts.take_shared<Recording>();
     assert!(!adv::has_advisory(&rec));
     ts::return_shared(rec);
 
@@ -100,13 +100,13 @@ fun reading_after_clear_aborts_for_any_reader() {
     let (_, rec_cap) = publish_recording(&mut ts);
 
     ts.next_tx(ADMIN);
-    let mut rec = ts.take_shared<Recording<REC>>();
+    let mut rec = ts.take_shared<Recording>();
     adv::set_advisory(&mut rec, &rec_cap, adv::explicit());
     adv::clear_advisory(&mut rec, &rec_cap);
     ts::return_shared(rec);
 
     ts.next_tx(STRANGER);
-    let rec = ts.take_shared<Recording<REC>>();
+    let rec = ts.take_shared<Recording>();
     let _ = adv::advisory(&rec); // aborts: ENoAdvisory
 
     ts::return_shared(rec);

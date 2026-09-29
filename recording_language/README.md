@@ -15,8 +15,8 @@ vector is an explicit instrumental claim; absence means no claim has been made.
 
 ## API
 
-Writes require the recording's `&RecordingAdminCap<RecordingShare>` and go
-through `recording::uid_mut(cap)`, which matches the cap by type only. Views
+Writes require the recording's `&RecordingAdminCap` and go
+through `recording::uid_mut(cap)`, which checks that the cap belongs to the recording object. Views
 are permissionless.
 
 | Function | Description | Aborts |
@@ -32,12 +32,12 @@ languages(rec).is_empty()`, computed client-side.
 
 ## Events
 
-Both events are generic over `RecordingShare` only.
+Both events include the recording object ID.
 
 | Event | Fields | BCS bytes |
 |---|---|---|
-| `RecordingLanguagesSetEvent<RecordingShare>` | `recording_id: ID`, `languages: vector<String>` | `33 + 3n` for `n` codes: 33 (instrumental) to 63 (ten codes) |
-| `RecordingLanguagesClearedEvent<RecordingShare>` | `recording_id: ID` | 32 |
+| `RecordingLanguagesSetEvent` | `recording_id: ID`, `languages: vector<String>` | `33 + 3n` for `n` codes: 33 (instrumental) to 63 (ten codes) |
+| `RecordingLanguagesClearedEvent` | `recording_id: ID` | 32 |
 
 `languages` holds the ordered two-letter codes as strings. An equal set and an
 absent clear emit nothing, so every event is a real state transition.
@@ -53,8 +53,7 @@ absent clear emit nothing, so every event is a real state transition.
 ## Dependencies
 
 - [`musicos`](https://github.com/misofm/musicos) at
-  `6dff4deca5ced186989c064e152c92a06384750c` — `Recording<RecordingShare>` and
-  `RecordingAdminCap<RecordingShare>`.
+  `0b3eb07c9cb1af29c877b66cddfdcc9ef32fc721` — concrete `Recording` and object-bound `RecordingAdminCap`.
 - [`language_code`](https://github.com/unconfirmedlabs/language_code) at
   `61542357f3d2ff989d120185046def7cf6c8bdcb` — ISO 639-1 codes valid by
   construction.
