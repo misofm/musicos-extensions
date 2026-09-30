@@ -1,14 +1,13 @@
 # Repository Guidance
 
 This repository contains independent Sui Move packages that extend a `musicos`
-`Composition`, `Recording`, or `Release` through cap-gated dynamic fields. It
-consolidates two families: neutral, first-party protocol extensions with no
-platform-specific assumptions, and extensions shaped by Miso.fm product,
-storage, delivery, and distribution conventions.
+`Composition`, `Recording`, or `Release`: neutral metadata extensions stored as
+cap-gated dynamic fields, and the `recording_license` scheme, which derives its
+policy and license objects from a composition and a recording.
 
 ## Project Structure
 
-17 packages, each an independently versioned and published top-level
+15 packages, each an independently versioned and published top-level
 directory; see the package tables in `README.md` for the full list, each
 package's target object, and its purpose.
 
@@ -26,13 +25,12 @@ audit. Run Move commands from the package directory.
   Use `location = <imported module>` only for aborts with no named constant.
 - One package per concern: each package defines a single `ExtensionKey()` and
   stores one value under it, so a schema change to one attribute never forces
-  a data migration of another.
+  a data migration of another. `recording_license` is one concern with two
+  sides: its single `ExtensionKey()` derives both the composition's policy and
+  the recording's license.
 - Keep packages independently buildable and versioned.
 - Pin Git dependencies to exact 40-character commit SHAs.
 - Preserve `Published.toml` as deployment provenance.
-- Neutral, platform-agnostic metadata extensions and Miso.fm platform-specific
-  extensions both live in this repository; keep each package's own
-  target-object contract free of the other family's assumptions.
 
 ## Sui Development Skills
 
