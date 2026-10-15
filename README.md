@@ -8,9 +8,8 @@ protocol state. An extension adds optional typed data as a dynamic field on one
 of those objects. Writes require the object's matching admin capability through
 its cap-gated `uid_mut`; reads are permissionless.
 
-Metadata extensions do not custody capabilities, automate administrative
-authority, or route economic value; `recording_license` is the one economic
-extension (see below). Actions compose those workflows around a caller-supplied
+Extensions do not custody capabilities, automate administrative authority, or
+route economic value. Actions compose those workflows around a caller-supplied
 raw capability, while optional platform adapters bridge Vault custody to an Action:
 
 | Repository | Responsibility |
@@ -20,6 +19,7 @@ raw capability, while optional platform adapters bridge Vault custody to an Acti
 | [`misofm/partyos-actions`](https://github.com/misofm/partyos-actions) | Custody-agnostic, return-oriented Party workflows. |
 | [`misofm/vault`](https://github.com/misofm/vault) | Generic capability custody and temporary exact-return leases. |
 | [`misofm/vault-plugins`](https://github.com/misofm/vault-plugins) | Thin installed adapters that borrow a custodied admin capability, call a matching Action, and return the capability. |
+| [`misofm/recording-license`](https://github.com/misofm/recording-license) | A composition's standing license to record it; formerly `recording_license` in this repository. |
 
 Each directory in this repository is an independently versioned and published
 Move package. Applications should depend only on the extensions they use.
@@ -50,12 +50,6 @@ First-party, platform-neutral metadata extensions.
 Each package covers one concern and stores one value under a single
 `ExtensionKey()`, so changing one attribute's schema never forces a data
 migration of another. Titles live here because musicos core stores none.
-
-### Licensing
-
-| Package | Target | Purpose |
-|---------|--------|---------|
-| [`recording_license`](./recording_license) | Composition and Recording | A composition's standing license to record it: recording admins license without the composition admin's involvement, and the composition receives up to 25% of the recording's scheme shares as a stake it owns. |
 
 ## Usage
 

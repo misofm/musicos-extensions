@@ -1,13 +1,12 @@
 # Repository Guidance
 
 This repository contains independent Sui Move packages that extend a `musicos`
-`Composition`, `Recording`, or `Release`: neutral metadata extensions stored as
-cap-gated dynamic fields, and the `recording_license` scheme, which derives its
-policy and license objects from a composition and a recording.
+`Composition`, `Recording`, or `Release` with neutral metadata stored as
+cap-gated dynamic fields. `recording_license` moved to `misofm/recording-license`.
 
 ## Project Structure
 
-15 packages, each an independently versioned and published top-level
+14 packages, each an independently versioned and published top-level
 directory; see the package tables in `README.md` for the full list, each
 package's target object, and its purpose.
 
@@ -25,9 +24,7 @@ audit. Run Move commands from the package directory.
   Use `location = <imported module>` only for aborts with no named constant.
 - One package per concern: each package defines a single `ExtensionKey()` and
   stores one value under it, so a schema change to one attribute never forces
-  a data migration of another. `recording_license` is one concern with two
-  sides: its single `ExtensionKey()` derives both the composition's policy and
-  the recording's license.
+  a data migration of another.
 - Keep packages independently buildable and versioned.
 - Pin Git dependencies to exact 40-character commit SHAs.
 - Preserve `Published.toml` as deployment provenance.
